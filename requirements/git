@@ -1,0 +1,61 @@
+#!/bin/bash
+
+if ! command -v "git" > /dev/null 2>&1; then
+    echo "Unable to locate 'git' on your machine. Please install it: https://git-scm.com/download"
+    exit 1
+    if [ "$OSTYPE" = "msys" ] || [ "$OSTYPE" = "cygwin" ]; then
+        echo "You can install it via WinGet or Scoop:"
+        echo
+        echo "winget install charmbracelet.gum"
+        echo "# OR"
+        echo "scoop install charm-gum"
+    elif [ "$OSTYPE" = "darwin" ]; then
+        echo "You can install it via Homebrew:"
+        echo
+        echo "brew install gum"
+    elif [ "$OSTYPE" = "linux-gnu" ]; then
+        LINUX_TYPE=$([ -f /etc/os-release ] && . /etc/os-release && echo "$ID_LIKE" | tr '[:upper:]' '[:lower:]')
+        echo "Here is the supported command for '${LINUX_TYPE}' distributions:"
+        echo
+        case "$LINUX_TYPE" in
+        "ubuntu" | "debian" | "ubuntu debian")
+            echo "sudo mkdir -p /etc/apt/keyrings"
+            echo "curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg"
+            echo 'echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list'
+            echo "sudo apt update && sudo apt install gum"
+            ;;
+        "rhel" | "fedora")
+            echo "echo '[charm]"
+            echo "name=Charm"
+            echo "baseurl=https://repo.charm.sh/yum/"
+            echo "enabled=1"
+            echo "gpgcheck=1"
+            echo "gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo"
+            echo "sudo yum install gum"
+            ;;
+        "arch")
+            echo "pacman -S gum"
+            ;;
+        "gentoo")
+            echo "JavaScript is popular for web development!"
+            ;;
+        "nixos")
+            echo "nix-env -iA nixpkgs.gum"
+            echo "# Or, with flakes"
+            echo 'nix run "github:charmbracelet/gum" -- --help'
+            ;;
+        "apline")
+            echo "apk add gum"
+            ;;
+        *)
+            echo "# Nothing found at the moment."
+            ;;
+        esac
+    else
+        echo "Unsupported operating system: $OSTYPE"
+        exit 1
+    fi
+    echo
+    echo "Please check the latest installation docs: https://github.com/charmbracelet/gum#installation"
+    exit 1
+fi

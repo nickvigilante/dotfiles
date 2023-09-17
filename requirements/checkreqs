@@ -1,0 +1,13 @@
+#!/bin/bash
+
+reqs=("$@")
+any_command_failed=false
+for req in "${reqs[@]}"; do
+    requirements/${req}
+    if [ $? -ne 0 ]; then
+        any_command_failed=true
+    fi
+done
+if [ "$any_command_failed" = true ]; then
+    exit 1
+fi
