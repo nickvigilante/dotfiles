@@ -1,5 +1,9 @@
 #!/bin/bash
 
+export GUM_CHOOSE_HEIGHT=10
+export MAX_COMMIT_LINE_LENGTH=72
+export AUTO_PUSH_AFTER_COMMIT=true
+
 dotfiles=$(echo $0 | xargs dirname)
 pushd $dotfiles >/dev/null 2>&1
 ./requirements/checkreqs git gum
@@ -12,10 +16,21 @@ if [ $? != 0 ]; then
     exit 1
 fi
 
+if [ ${AUTO_PUSH_AFTER_COMMIT} ]; then
+    echo "WARNING: AUTO_PUSH_AFTER_COMMIT is enabled. Commits will automatically be pushed after the commit message is completed."
+fi
+
 default_branch=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+
+sigint() {
+    if [ $1 = 130 ]; then
+        exit 130
+    fi
+}
 
 new_branch() {
     new_branch_name=$(gum input --placeholder "New branch name" --header="$1")
+    sigint $?
     if git rev-parse --verify ${new_branch_name} >/dev/null 2>&1; then
         new_branch "A branch with name ${new_branch_name} already exists. Please try again."
     else
@@ -26,38 +41,84 @@ new_branch() {
 if [ $(git branch --show-current) = ${default_branch} ]; then
     echo "Warning: Current checked out branch is ${default_branch}, which is most likely protected. Would you rather checkout a new branch based on ${default_branch}?"
     gum confirm "Choose below:" --affirmative="Check out a new branch" --negative="Use ${default_branch}" && new_branch "Please enter a branch name."
+    sigint $?
 fi
 
 select_files_to_add() {
-    echo "Pass"
-}
-
-add_files() {
-    files_with_code=$(git status -s -u)
-    if [ ${#files_with_code[@]} = 0]; then
-        echo "No files found. Exiting..."
-    elif [ ${#files_with_code[@]} = 1]; then
-        file_with_code=$(echo "${files_with_code[0]}")
-        file=$(echo "${file_with_code}" | cut -c 4-)
-        echo "Found one file: $file_with_code"
-        gum confirm "Add $file?" && git add ${file} && echo "Added $file"
+    files_to_add=$(git status -s -u | cut -c 4- | gum choose --no-limit --selected="$1" --header="Please choose which files to add.")
+    sigint $?
+    echo "The following files will be added to the index:"
+    echo
+    echo "${files_to_add}"
+    gum confirm "Do you wish to continue?"
+    sigint $?
+    if [ $? = 0 ]; then
+        echo "${files_to_add}" | xargs git add
     else
-        echo "Multiple files found. Please pick which files to add."
-        select_files_to_add
+        files_to_add_str=""
+        for file in "${files_to_add[@]}"; do
+            files_to_add_str+="$file,"
+        done
+        files_to_add_str=${files_to_add_str%,}
+        select_files_to_add ${files_to_add_str}
     fi
 }
 
-
+add_files() {
+    files=$(git status -s -u)
+    files_count=$(echo "$files" | wc -l)
+    if [ ${files_count} = 0 ]; then
+        echo "No files found. Exiting..."
+    elif [ ${files_count} = 1 ]; then
+        file=$(echo "${files}" | cut -c 4-)
+        echo "Found one file: $file"
+        gum confirm "Add $file?" && git add ${file} && echo "Added $file"
+        sigint $?
+    # elif [ ${files_count} <= ${GUM_CHOOSE_HEIGHT} ]; then
+    #     echo "${files_count} files found."
+    #     select_files_to_add
+    else
+        echo "${files_count} files found."
+        add_mode=$(gum confirm "Select files individually (recommended) or add everything (dangerous)?" --affirmative="Select files individually" --negative="Add everything (dangerous)"; echo $?)
+        sigint $?
+        if [ ${add_mode} = 0 ]; then # select files individually
+            select_files_to_add
+        elif [ ${add_mode} = 1 ]; then # add everything (git add --all)
+            files_clean=$(echo "$files" | cut -c 4-)
+            echo "${files_clean}" | xargs git add
+            echo "The following files were added to the index:"
+            echo
+            echo "${files_clean}"
+            echo
+        fi
+    fi
+}
 
 add_files
 
-# run `git status -s -u` and see if the color can be kept
-# if 0 files changed, print warning and exit
-# if 1 file changed, gum confirm to commit that one file
-# else, gum filter the list and allow multiple selects, then confirm
+push_files() {
+    if [ ${AUTO_PUSH_AFTER_COMMIT} ]; then
+        git push --force-with-lease -u origin HEAD
+    else
+        gum confirm "Push changes?" && git push -fu origin HEAD
+        sigint $?
+    fi
+}
 
-# if tracking branch set, offer choice between git commit --amend --no-edit + git push -fu origin HEAD
-# or just simply adding a new commit
+remote_tracking_branch=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null)
 
-# if no tracking branch set, immediately collect the commit
-# then offer to push or force-push
+if [ $? = 0 ] & [ ${remote_tracking_branch} != "" ]; then
+    echo "Found remote tracking branch ${remote_tracking_branch}."
+    amend_no_edit=$(gum confirm "Add new commit or amend existing commit without edits?" --affirmative="Add new commit" --negative="Amend without edits"; echo $?)
+    sigint $?
+    if [ ${amend_no_edit} = 0 ]; then # regular commit
+        git commit -m "$(gum write --width ${MAX_COMMIT_LINE_LENGTH} --placeholder "Summary of changes (Ctrl+D to finish)")"
+        if [ $? = 1 ]; then
+            exit 1
+        fi
+        push_files
+    elif [ ${amend_no_edit} = 1 ]; then # amend without edits
+        git commit --amend --no-edit
+        push_files
+    fi
+fi

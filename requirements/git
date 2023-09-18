@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if ! command -v "git" > /dev/null 2>&1; then
+if ! command -v "git" >/dev/null 2>&1; then
     echo "Unable to locate 'git' on your machine. Please install it: https://git-scm.com/download"
     exit 1
     if [ "$OSTYPE" = "msys" ] || [ "$OSTYPE" = "cygwin" ]; then
