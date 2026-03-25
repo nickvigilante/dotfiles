@@ -1,0 +1,12 @@
+# Homebrew Bundle — work profile (macOS only)
+# Installed in addition to Brewfile when profile = "work".
+# Run: brew bundle install --file=os/macos/Brewfile.work
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+brew "1password-cli"   # `op` — work secrets via 1Password
+
+# ── Work tools ────────────────────────────────────────────────────────────────
+# Add work-specific CLI tools here.
+# brew "awscli"
+# brew "terraform"
+# brew "kubectl"

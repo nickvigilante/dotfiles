@@ -12,6 +12,9 @@ gh
 neovim
 vscode
 
+# Secrets
+bitwarden-cli
+
 # CLI utilities
 7zip
 curl

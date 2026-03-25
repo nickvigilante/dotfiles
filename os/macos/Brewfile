@@ -28,6 +28,9 @@ brew "gh"              # GitHub CLI
 brew "git-delta"       # better git diff output
 brew "lazygit"         # TUI git client
 
+# ── Secrets ───────────────────────────────────────────────────────────────────
+brew "bitwarden-cli"   # `bw` — personal secrets on all machines
+
 # ── macOS utilities ───────────────────────────────────────────────────────────
 brew "mas"             # Mac App Store CLI
 brew "chezmoi"         # keep chezmoi up-to-date via Homebrew as well
