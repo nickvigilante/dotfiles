@@ -1,0 +1,52 @@
+# ~/.zshrc — interactive shell configuration.
+# Sourced for every interactive zsh session.
+
+# ── Oh My ZSH ─────────────────────────────────────────────────────────────────
+export ZSH="$HOME/.oh-my-zsh"
+
+ZSH_THEME="robbyrussell"
+
+# Update without prompting. chezmoi also manages OMZ via .chezmoiexternal.toml
+# (weekly git pull), so OMZ's own updater is a secondary safety net.
+DISABLE_UPDATE_PROMPT="true"
+DISABLE_AUTO_UPDATE="false"
+UPDATE_ZSH_DAYS=7
+
+plugins=(
+    git
+    z
+    zsh-autosuggestions
+    zsh-syntax-highlighting
+    {{- if eq .chezmoi.os "darwin" }}
+    macos
+    {{- end }}
+    {{- if eq .profile "work" }}
+    aws
+    {{- end }}
+)
+
+source "$ZSH/oh-my-zsh.sh"
+
+# ── Shell configuration fragments ─────────────────────────────────────────────
+SHELL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/shell"
+
+source "$SHELL_CONFIG/exports.zsh"
+source "$SHELL_CONFIG/aliases.zsh"
+source "$SHELL_CONFIG/functions.zsh"
+
+# Platform-specific aliases
+{{- if eq .chezmoi.os "darwin" }}
+source "$SHELL_CONFIG/aliases_macos.zsh"
+{{- else if eq .chezmoi.os "linux" }}
+source "$SHELL_CONFIG/aliases_linux.zsh"
+{{- end }}
+
+# Profile-specific configuration
+{{- if eq .profile "work" }}
+source "$SHELL_CONFIG/work.zsh"
+{{- else }}
+source "$SHELL_CONFIG/personal.zsh"
+{{- end }}
+
+# ── Package update check (24h throttle, non-blocking) ─────────────────────────
+("$HOME/.local/bin/update-packages" &>/dev/null &) 2>/dev/null || true

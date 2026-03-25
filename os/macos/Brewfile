@@ -1,0 +1,46 @@
+# Homebrew Bundle — macOS
+# Run: brew bundle install --file=os/macos/Brewfile
+# Add packages here and run `chezmoi apply` to trigger run_onchange_install-packages.
+
+# ── Taps ──────────────────────────────────────────────────────────────────────
+tap "homebrew/cask-fonts"
+
+# ── Core CLI tools ────────────────────────────────────────────────────────────
+brew "git"
+brew "curl"
+brew "wget"
+brew "jq"              # JSON processor
+brew "ripgrep"         # fast grep (rg)
+brew "fd"              # fast find
+brew "fzf"             # fuzzy finder
+brew "eza"             # better ls
+brew "bat"             # better cat (with syntax highlighting)
+brew "zoxide"          # better cd — learns your most-used dirs (provides `z`)
+brew "tldr"            # simplified man pages
+brew "htop"            # interactive process viewer
+brew "tree"            # directory tree
+brew "tmux"            # terminal multiplexer
+brew "neovim"          # editor
+brew "age"             # modern encryption (used by chezmoi for secrets)
+
+# ── Development ───────────────────────────────────────────────────────────────
+brew "gh"              # GitHub CLI
+brew "git-delta"       # better git diff output
+brew "lazygit"         # TUI git client
+
+# ── macOS utilities ───────────────────────────────────────────────────────────
+brew "mas"             # Mac App Store CLI
+brew "chezmoi"         # keep chezmoi up-to-date via Homebrew as well
+
+# ── Fonts (Nerd Fonts for terminal icons) ─────────────────────────────────────
+cask "font-jetbrains-mono-nerd-font"
+cask "font-fira-code-nerd-font"
+
+# ── Applications ──────────────────────────────────────────────────────────────
+# Uncomment the apps you want installed on this profile.
+# cask "iterm2"
+# cask "visual-studio-code"
+# cask "1password"
+# cask "firefox"
+# cask "rectangle"       # window manager
+# cask "raycast"         # Spotlight replacement

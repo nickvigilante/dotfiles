@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# run_once_00-install-homebrew: install Homebrew if not already present.
+# Runs once per machine. Skipped on Windows and Raspberry Pi.
+{{ if or (eq .chezmoi.os "darwin") (and (eq .chezmoi.os "linux") (ne .machine "pi")) -}}
+
+set -euo pipefail
+
+if command -v brew &>/dev/null; then
+    echo "Homebrew already installed: $(brew --version | head -1)"
+    exit 0
+fi
+
+echo "Installing Homebrew..."
+NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+echo "Homebrew installed."
+
+{{ else -}}
+echo "Skipping Homebrew (not supported on this platform/machine role)."
+{{- end }}

@@ -1,0 +1,17 @@
+# chezmoi manages Oh My ZSH and plugins as external git repos.
+# `chezmoi update` will pull the latest commits per refreshPeriod.
+
+[".oh-my-zsh"]
+    type          = "git-repo"
+    url           = "https://github.com/ohmyzsh/ohmyzsh.git"
+    refreshPeriod = "168h"   # pull weekly
+
+[".oh-my-zsh/custom/plugins/zsh-autosuggestions"]
+    type          = "git-repo"
+    url           = "https://github.com/zsh-users/zsh-autosuggestions.git"
+    refreshPeriod = "168h"
+
+[".oh-my-zsh/custom/plugins/zsh-syntax-highlighting"]
+    type          = "git-repo"
+    url           = "https://github.com/zsh-users/zsh-syntax-highlighting.git"
+    refreshPeriod = "168h"

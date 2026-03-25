@@ -1,0 +1,20 @@
+# ~/.zprofile — sourced for login shells only.
+# On macOS: runs when a new terminal window opens (Terminal.app, iTerm2).
+# On Linux: runs at TTY login and SSH sessions.
+# Use this for one-time login setup (e.g. Homebrew PATH bootstrapping).
+
+{{ if eq .chezmoi.os "darwin" -}}
+# Homebrew — Apple Silicon first, fall back to Intel
+if [[ -f /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [[ -f /usr/local/bin/brew ]]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+fi
+{{ else if eq .chezmoi.os "linux" -}}
+# Homebrew on Linux
+if [[ -f "$HOME/.linuxbrew/bin/brew" ]]; then
+    eval "$($HOME/.linuxbrew/bin/brew shellenv)"
+elif [[ -f /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
+{{- end }}
