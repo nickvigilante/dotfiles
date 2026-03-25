@@ -49,7 +49,8 @@ alias venv='uv venv'
 # ── chezmoi ───────────────────────────────────────────────────────────────────
 alias cz='chezmoi'
 alias czd='chezmoi diff'
-alias cza='chezmoi apply'
+alias cza='bw-apply'        # unlock Bitwarden then apply (see functions.zsh)
+alias czaf='chezmoi apply'  # apply without unlocking (safe when no secret changes)
 alias cze='chezmoi edit'
 alias czs='chezmoi status'
 alias czcd='cd "$(chezmoi source-path)"'

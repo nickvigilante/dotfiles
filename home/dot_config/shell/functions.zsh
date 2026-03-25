@@ -68,3 +68,31 @@ venv-here() {
     uv venv .venv
     source .venv/bin/activate
 }
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+
+# Unlock Bitwarden and run `chezmoi apply`.
+# Use this instead of bare `chezmoi apply` whenever ~/.env needs re-rendering.
+bw-apply() {
+    if ! command -v bw &>/dev/null; then
+        echo "bw not found. Install it first (brew install bitwarden-cli)."
+        return 1
+    fi
+
+    # Re-use an existing unlocked session if the token is already set and valid.
+    if [[ -n "${BW_SESSION:-}" ]] && bw status 2>/dev/null | grep -q '"status":"unlocked"'; then
+        echo "Bitwarden already unlocked."
+    else
+        echo "Unlocking Bitwarden..."
+        export BW_SESSION
+        BW_SESSION=$(bw unlock --raw) || { echo "Bitwarden unlock failed."; return 1; }
+    fi
+
+    chezmoi apply
+}
+
+# Lock Bitwarden and clear the session token.
+bw-lock() {
+    bw lock
+    unset BW_SESSION
+}

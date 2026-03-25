@@ -39,19 +39,35 @@ fi
 export PATH="$CHEZMOI_BIN_DIR:$PATH"
 
 # ── Apply dotfiles ─────────────────────────────────────────────────────────────
-header "Step 2/2 — Apply dotfiles"
+# We use --init-apply (clone + apply managed files + run run_once_ scripts) but
+# skip secret rendering on the first pass — bw isn't installed yet and the vault
+# isn't unlocked. Secrets in ~/.env are populated in the step below.
+header "Step 2/3 — Apply dotfiles (first pass)"
 info "Repo: $DOTFILES_REPO"
 info "You'll be prompted for: profile (work/personal), name, email, machine role."
 echo ""
 
 chezmoi init --apply "$DOTFILES_REPO"
 
+# ── Secrets ────────────────────────────────────────────────────────────────────
+header "Step 3/3 — Populate secrets"
+echo ""
+echo "  Packages including 'bw' (Bitwarden CLI) are now installed."
+echo "  To populate ~/.env with your secrets, run the following after restarting:"
+echo ""
+echo "    bw login            # first time only — creates local vault"
+echo "    bw-apply            # unlocks vault + runs chezmoi apply"
+echo ""
+echo "  On the work machine, also sign in to 1Password first:"
+echo "    op signin           # first time only"
+echo ""
+
 # ── Done ──────────────────────────────────────────────────────────────────────
-header "Done!"
+header "Bootstrap complete!"
 echo ""
 echo "  Next steps:"
 echo "  1. Restart your shell:   exec zsh"
-echo "  2. Check status:         chezmoi status"
-echo "  3. Edit config:          chezmoi edit-config"
+echo "  2. Populate secrets:     bw login && bw-apply"
+echo "  3. Check status:         chezmoi status"
 echo "  4. Jump to source:       czcd"
 echo ""

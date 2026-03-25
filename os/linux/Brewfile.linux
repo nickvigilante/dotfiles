@@ -18,3 +18,4 @@ brew "lazygit"
 brew "gh"
 brew "age"
 brew "chezmoi"
+brew "bitwarden-cli"   # `bw` — personal secrets
