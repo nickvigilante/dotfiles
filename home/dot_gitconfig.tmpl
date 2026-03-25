@@ -1,0 +1,38 @@
+[user]
+    name  = {{ .name }}
+    email = {{ .email }}
+
+[core]
+    excludesfile = ~/.gitignore_global
+    # Normalize line endings: convert CRLF→LF on commit on Windows; leave alone elsewhere
+    autocrlf     = {{ if eq .chezmoi.os "windows" }}true{{ else }}input{{ end }}
+    editor       = vim
+
+[init]
+    defaultBranch = main
+
+[pull]
+    rebase = false
+
+[push]
+    autoSetupRemote = true
+
+[fetch]
+    prune = true
+
+[diff]
+    colorMoved = default
+
+[merge]
+    conflictstyle = diff3
+
+[alias]
+    st   = status
+    co   = checkout
+    br   = branch
+    lg   = log --oneline --graph --decorate --all
+    undo = reset HEAD~1 --mixed
+    wip  = "!git add -A && git commit -m 'WIP'"
+
+[color]
+    ui = auto

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# run_once_03-setup-python-venv: create ~/venv as the machine-wide default Python.
+# This venv sits first on PATH (set in .zshenv), making it the default `python`
+# and `pip` unless a project-local .venv is active.
+{{ if ne .chezmoi.os "windows" -}}
+
+set -euo pipefail
+
+VENV_DIR="$HOME/venv"
+
+if [[ -d "$VENV_DIR" ]]; then
+    echo "Default venv already exists at $VENV_DIR"
+    echo "Python: $($VENV_DIR/bin/python --version)"
+    exit 0
+fi
+
+# Ensure uv is on PATH — it was just installed by run_once_02.
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+echo "Creating default Python venv at $VENV_DIR..."
+uv venv "$VENV_DIR" --python 3.12
+
+echo "Default Python: $($VENV_DIR/bin/python --version)"
+echo ""
+echo "This venv is the fallback Python for the whole machine."
+echo "Project-specific venvs (uv venv .venv) take precedence when active."
+
+{{ else -}}
+echo "Skipping home venv on Windows — configure manually with: uv venv %USERPROFILE%\\venv"
+{{- end }}

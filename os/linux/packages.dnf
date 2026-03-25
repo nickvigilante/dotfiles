@@ -1,0 +1,23 @@
+# Fedora packages
+# Installed via: grep -Ev '^#|^$' packages.dnf | xargs sudo dnf install -y
+
+# Build essentials
+@development-tools
+curl
+wget
+git
+unzip
+zip
+gnupg2
+
+# Shell
+zsh
+tmux
+tree
+
+# System tools
+htop
+
+# Clipboard support
+xclip
+wl-clipboard

@@ -1,0 +1,20 @@
+# Homebrew Bundle — Linux
+# Cross-platform CLI tools installed via Homebrew on Linux laptops.
+# Casks are not supported on Linux, so this is CLI-only.
+# Run: brew bundle install --file=os/linux/Brewfile.linux
+
+brew "git"
+brew "jq"
+brew "ripgrep"
+brew "fd"
+brew "fzf"
+brew "eza"
+brew "bat"
+brew "zoxide"
+brew "tldr"
+brew "neovim"
+brew "git-delta"
+brew "lazygit"
+brew "gh"
+brew "age"
+brew "chezmoi"

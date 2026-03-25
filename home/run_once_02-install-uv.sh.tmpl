@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# run_once_02-install-uv: install the uv Python package manager.
+# Runs once per machine. Uses the official installer (not Homebrew) so it works
+# identically on macOS, Linux, Raspberry Pi, and Windows/Cygwin.
+
+set -euo pipefail
+
+if command -v uv &>/dev/null; then
+    echo "uv already installed: $(uv --version)"
+    exit 0
+fi
+
+echo "Installing uv..."
+
+{{ if eq .chezmoi.os "windows" -}}
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+{{ else -}}
+curl -LsSf https://astral.sh/uv/install.sh | sh
+{{- end }}
+
+echo "uv installed."
