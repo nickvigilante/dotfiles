@@ -1,58 +1,26 @@
 #!/usr/bin/env bash
-# run_onchange_install-packages: re-sync packages whenever package lists change.
-# chezmoi re-runs this script when its content changes. The comment lines below
-# embed the package file contents, so any edit to those files triggers a re-run.
+# run_onchange_install-packages: re-sync packages whenever packages.yaml changes.
+# chezmoi re-runs this script when its content changes. The hash below embeds
+# the package manifest so any edit to that file triggers a re-run.
 #
-# Brewfile:       {{ include (joinPath .chezmoi.sourceDir "../os/macos/Brewfile") | sha256sum }}
-# Brewfile.linux: {{ include (joinPath .chezmoi.sourceDir "../os/linux/Brewfile.linux") | sha256sum }}
-# packages.apt:   {{ include (joinPath .chezmoi.sourceDir "../os/linux/packages.apt") | sha256sum }}
-# packages.dnf:   {{ include (joinPath .chezmoi.sourceDir "../os/linux/packages.dnf") | sha256sum }}
-# packages.pi:    {{ include (joinPath .chezmoi.sourceDir "../os/raspberry-pi/packages.apt") | sha256sum }}
-# packages.choco: {{ include (joinPath .chezmoi.sourceDir "../os/windows/packages.choco") | sha256sum }}
+# packages.yaml: {{ include (joinPath .chezmoi.sourceDir "../packages/packages.yaml") | sha256sum }}
 
 set -euo pipefail
 
 REPO_DIR="{{ .chezmoi.sourceDir }}/.."
+SCRIPT="$REPO_DIR/scripts/install_packages.py"
 
-{{ if eq .chezmoi.os "darwin" -}}
-if [[ -f "$REPO_DIR/os/macos/Brewfile" ]]; then
-    echo "==> Syncing macOS Homebrew packages..."
-    brew bundle install --file="$REPO_DIR/os/macos/Brewfile" --no-lock
+if ! command -v uv &>/dev/null; then
+    echo "ERROR: uv is not installed. Run bootstrap/install.sh or install uv manually."
+    echo "  See: https://docs.astral.sh/uv/getting-started/installation/"
+    exit 1
 fi
 
-{{ else if eq .chezmoi.os "linux" -}}
-
-{{ if eq .machine "pi" -}}
-if [[ -f "$REPO_DIR/os/raspberry-pi/packages.apt" ]]; then
-    echo "==> Syncing Raspberry Pi apt packages..."
-    sudo apt update
-    grep -Ev '^#|^$' "$REPO_DIR/os/raspberry-pi/packages.apt" | xargs sudo apt install -y
-fi
-{{ else if or (eq .chezmoi.osRelease.id "ubuntu") (eq .chezmoi.osRelease.id "debian") -}}
-if [[ -f "$REPO_DIR/os/linux/packages.apt" ]]; then
-    echo "==> Syncing Ubuntu/Debian apt packages..."
-    sudo apt update
-    grep -Ev '^#|^$' "$REPO_DIR/os/linux/packages.apt" | xargs sudo apt install -y
-fi
-{{ else if eq .chezmoi.osRelease.id "fedora" -}}
-if [[ -f "$REPO_DIR/os/linux/packages.dnf" ]]; then
-    echo "==> Syncing Fedora dnf packages..."
-    grep -Ev '^#|^$' "$REPO_DIR/os/linux/packages.dnf" | xargs sudo dnf install -y
-fi
-{{- end }}
-
-{{ if ne .machine "pi" -}}
-if command -v brew &>/dev/null && [[ -f "$REPO_DIR/os/linux/Brewfile.linux" ]]; then
-    echo "==> Syncing Linux Homebrew packages..."
-    brew bundle install --file="$REPO_DIR/os/linux/Brewfile.linux" --no-lock
-fi
-{{- end }}
-
-{{ else if eq .chezmoi.os "windows" -}}
-if [[ -f "$REPO_DIR/os/windows/packages.choco" ]]; then
-    echo "==> Syncing Windows Chocolatey packages..."
-    grep -Ev '^#|^$' "$REPO_DIR/os/windows/packages.choco" | xargs choco install -y
-fi
-{{- end }}
-
-echo "==> Package sync complete."
+echo "==> Syncing packages from packages.yaml..."
+uv run --script "$SCRIPT" \
+    --packages "$REPO_DIR/packages/packages.yaml" \
+    --profile  "{{ .profile }}" \
+    --machine  "{{ .machine }}" \
+    --os       "{{ .chezmoi.os }}" \
+    --os-id    "{{ if .chezmoi.osRelease }}{{ .chezmoi.osRelease.id }}{{ end }}" \
+    {{ if .prefer_system_packages }}--prefer-system-packages{{ end }}

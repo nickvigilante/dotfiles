@@ -10,6 +10,7 @@ alias ~='cd ~'
 # Use eza if available (installed via Homebrew), otherwise fall back to ls.
 if command -v eza &>/dev/null; then
     alias ls='eza --icons'
+    alias l='eza --icons -lh'
     alias ll='eza --icons -lh'
     alias la='eza --icons -lah'
     alias lt='eza --icons --tree --level=2'
