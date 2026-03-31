@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# run_once_07-vscode-symlink: on macOS, symlink the VS Code settings from the
+# XDG path (where chezmoi writes it) to the macOS-specific path VS Code reads.
+#
+# chezmoi manages: ~/.config/Code/User/settings.json  (Linux standard path)
+# VS Code reads:   ~/Library/Application Support/Code/User/settings.json (macOS)
+#
+# The symlink makes both point to the same chezmoi-managed file.
+{{ if eq .chezmoi.os "darwin" -}}
+set -euo pipefail
+
+XDG_SETTINGS="$HOME/.config/Code/User/settings.json"
+MACOS_SETTINGS="$HOME/Library/Application Support/Code/User/settings.json"
+
+mkdir -p "$(dirname "$MACOS_SETTINGS")"
+
+# Only create the symlink if the target doesn't already exist as a real file.
+# If it's already a symlink, replace it.
+if [[ -L "$MACOS_SETTINGS" ]] || [[ ! -e "$MACOS_SETTINGS" ]]; then
+    ln -sf "$XDG_SETTINGS" "$MACOS_SETTINGS"
+    echo "==> Linked VS Code settings: $MACOS_SETTINGS -> $XDG_SETTINGS"
+else
+    echo "==> VS Code settings already exist as a real file at $MACOS_SETTINGS"
+    echo "    Back it up and delete it if you want chezmoi to manage it:"
+    echo "      mv \"$MACOS_SETTINGS\" \"${MACOS_SETTINGS}.bak\""
+    echo "      chezmoi apply"
+fi
+{{- else }}
+# Not macOS — nothing to do. VS Code reads ~/.config/Code/User/settings.json
+# directly on Linux, which chezmoi manages.
+echo "Skipping VS Code symlink (not macOS)."
+{{- end }}

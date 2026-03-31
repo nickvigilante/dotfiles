@@ -10,6 +10,7 @@
 set -euo pipefail
 
 DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/nickvigilante/dotfiles.git}"
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/git/nickvigilante/dotfiles}"
 CHEZMOI_BIN_DIR="$HOME/.local/bin"
 
 # ── Colours ───────────────────────────────────────────────────────────────────
@@ -38,16 +39,34 @@ fi
 
 export PATH="$CHEZMOI_BIN_DIR:$PATH"
 
-# ── Apply dotfiles ─────────────────────────────────────────────────────────────
-# We use --init-apply (clone + apply managed files + run run_once_ scripts) but
-# skip secret rendering on the first pass — bw isn't installed yet and the vault
-# isn't unlocked. Secrets in ~/.env are populated in the step below.
+# ── Clone repo ─────────────────────────────────────────────────────────────────
 header "Step 2/3 — Apply dotfiles (first pass)"
-info "Repo: $DOTFILES_REPO"
+info "Repo: $DOTFILES_REPO → $DOTFILES_DIR"
+
+if [[ -d "$DOTFILES_DIR/.git" ]]; then
+    ok "Repo already cloned at $DOTFILES_DIR"
+else
+    mkdir -p "$(dirname "$DOTFILES_DIR")"
+    git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+    ok "Cloned to $DOTFILES_DIR"
+fi
+
+# Point chezmoi at the repo. chezmoi's default source dir is ~/.local/share/chezmoi;
+# we symlink it to the actual repo so the chezmoi CLI works without extra flags.
+CHEZMOI_SOURCE="$HOME/.local/share/chezmoi"
+if [[ -L "$CHEZMOI_SOURCE" && "$(readlink "$CHEZMOI_SOURCE")" == "$DOTFILES_DIR" ]]; then
+    ok "chezmoi source symlink already correct"
+else
+    rm -f "$CHEZMOI_SOURCE"
+    mkdir -p "$(dirname "$CHEZMOI_SOURCE")"
+    ln -sf "$DOTFILES_DIR" "$CHEZMOI_SOURCE"
+    ok "Linked $CHEZMOI_SOURCE → $DOTFILES_DIR"
+fi
+
 info "You'll be prompted for: profile (work/personal), name, email, machine role."
 echo ""
 
-chezmoi init --apply "$DOTFILES_REPO"
+chezmoi init --apply
 
 # ── Secrets ────────────────────────────────────────────────────────────────────
 header "Step 3/3 — Populate secrets"

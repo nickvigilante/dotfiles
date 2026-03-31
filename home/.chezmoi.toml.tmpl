@@ -1,10 +1,17 @@
-{{- $profile := promptChoiceOnce . "profile" "Profile" (list "work" "personal") -}}
-{{- $name    := promptStringOnce . "name" "Full name" "Nick" -}}
-{{- $email   := promptStringOnce . "email" "Email address" "" -}}
-{{- $machine := promptChoiceOnce . "machine" "Machine role" (list "laptop" "desktop" "server" "pi") -}}
+{{- $profile               := promptChoiceOnce . "profile" "Profile" (list "work" "personal") -}}
+{{- $name                  := promptStringOnce . "name" "Full name" "Nick" -}}
+{{- $email                 := promptStringOnce . "email" "Email address" "" -}}
+{{- $machine               := promptChoiceOnce . "machine" "Machine role" (list "laptop" "desktop" "server" "pi") -}}
+{{- $preferSystemPackages  := promptBoolOnce . "prefer_system_packages" "Prefer system package manager (apt/dnf) over Homebrew on Linux?" -}}
 
 [data]
-    profile = {{ $profile | quote }}
-    name    = {{ $name | quote }}
-    email   = {{ $email | quote }}
-    machine = {{ $machine | quote }}
+    profile                = {{ $profile | quote }}
+    name                   = {{ $name | quote }}
+    email                  = {{ $email | quote }}
+    machine                = {{ $machine | quote }}
+    prefer_system_packages = {{ $preferSystemPackages }}
+
+# Explicitly record where the source lives so `chezmoi apply` works on any
+# machine regardless of how the repo was cloned. .chezmoiroot handles the
+# /home suffix at working-tree level, but this makes the config self-contained.
+sourceDir = {{ joinPath .chezmoi.homeDir "git" "nickvigilante" "dotfiles" "home" | quote }}

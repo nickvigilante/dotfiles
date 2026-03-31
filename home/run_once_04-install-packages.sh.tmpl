@@ -1,61 +1,23 @@
 #!/usr/bin/env bash
 # run_once_04-install-packages: initial package installation for this machine.
-# run_onchange_install-packages.sh handles subsequent re-runs when lists change.
+# run_onchange_install-packages.sh handles subsequent re-runs when the manifest changes.
 
 set -euo pipefail
 
-# The repo root is one level above the chezmoi source dir (dotfiles/home/ -> dotfiles/).
 REPO_DIR="{{ .chezmoi.sourceDir }}/.."
+SCRIPT="$REPO_DIR/scripts/install_packages.py"
 
-{{ if eq .chezmoi.os "darwin" -}}
-echo "==> Installing macOS packages via Homebrew Bundle..."
-if [[ -f "$REPO_DIR/os/macos/Brewfile" ]]; then
-    brew bundle install --file="$REPO_DIR/os/macos/Brewfile" --no-lock
-else
-    echo "  Brewfile not found, skipping."
+if ! command -v uv &>/dev/null; then
+    echo "ERROR: uv is not installed. It should have been installed by run_once_02."
+    echo "  Re-run: chezmoi apply"
+    exit 1
 fi
 
-{{ if eq .profile "work" -}}
-echo "==> Installing work-specific packages..."
-if [[ -f "$REPO_DIR/os/macos/Brewfile.work" ]]; then
-    brew bundle install --file="$REPO_DIR/os/macos/Brewfile.work" --no-lock
-fi
-{{- end }}
-
-{{ else if eq .chezmoi.os "linux" -}}
-
-{{ if eq .machine "pi" -}}
-echo "==> Installing Raspberry Pi packages via apt..."
-if [[ -f "$REPO_DIR/os/raspberry-pi/packages.apt" ]]; then
-    sudo apt update
-    grep -Ev '^#|^$' "$REPO_DIR/os/raspberry-pi/packages.apt" | xargs sudo apt install -y
-fi
-{{ else if or (eq .chezmoi.osRelease.id "ubuntu") (eq .chezmoi.osRelease.id "debian") -}}
-echo "==> Installing Ubuntu/Debian packages via apt..."
-if [[ -f "$REPO_DIR/os/linux/packages.apt" ]]; then
-    sudo apt update
-    grep -Ev '^#|^$' "$REPO_DIR/os/linux/packages.apt" | xargs sudo apt install -y
-fi
-{{ else if eq .chezmoi.osRelease.id "fedora" -}}
-echo "==> Installing Fedora packages via dnf..."
-if [[ -f "$REPO_DIR/os/linux/packages.dnf" ]]; then
-    grep -Ev '^#|^$' "$REPO_DIR/os/linux/packages.dnf" | xargs sudo dnf install -y
-fi
-{{- end }}
-
-# Homebrew (cross-platform CLI tools on Linux laptops, skip on Pi)
-{{ if ne .machine "pi" -}}
-if command -v brew &>/dev/null && [[ -f "$REPO_DIR/os/linux/Brewfile.linux" ]]; then
-    echo "==> Installing Linux Homebrew packages..."
-    brew bundle install --file="$REPO_DIR/os/linux/Brewfile.linux" --no-lock
-fi
-{{- end }}
-
-{{ else if eq .chezmoi.os "windows" -}}
-echo "==> Installing Windows packages via Chocolatey..."
-if [[ -f "$REPO_DIR/os/windows/packages.choco" ]]; then
-    grep -Ev '^#|^$' "$REPO_DIR/os/windows/packages.choco" | xargs choco install -y
-fi
-{{- end }}
-
-echo "==> Package installation complete."
+echo "==> Installing packages from packages.yaml..."
+uv run --script "$SCRIPT" \
+    --packages "$REPO_DIR/packages/packages.yaml" \
+    --profile  "{{ .profile }}" \
+    --machine  "{{ .machine }}" \
+    --os       "{{ .chezmoi.os }}" \
+    --os-id    "{{ if .chezmoi.osRelease }}{{ .chezmoi.osRelease.id }}{{ end }}" \
+    {{ if .prefer_system_packages }}--prefer-system-packages{{ end }}

@@ -1,6 +1,14 @@
 # ~/.zshrc — interactive shell configuration.
 # Sourced for every interactive zsh session.
 
+# ── Completions (must come before oh-my-zsh init) ─────────────────────────────
+# Add user-installed completions to fpath so compinit picks them up.
+fpath=("$HOME/.local/share/zsh/completions" $fpath)
+# Homebrew ships completions (e.g. eza) to its site-functions dir.
+# .zprofile sets this for login shells via `brew shellenv`, but adding it
+# here ensures it's available in non-login interactive shells too.
+command -v brew &>/dev/null && fpath=("$(brew --prefix)/share/zsh/site-functions" $fpath)
+
 # ── Oh My ZSH ─────────────────────────────────────────────────────────────────
 export ZSH="$HOME/.oh-my-zsh"
 
@@ -47,6 +55,9 @@ source "$SHELL_CONFIG/work.zsh"
 {{- else }}
 source "$SHELL_CONFIG/personal.zsh"
 {{- end }}
+
+# ── Tool completions and shell initializations ────────────────────────────────
+source "$SHELL_CONFIG/completions.zsh"
 
 # ── Package update check (24h throttle, non-blocking) ─────────────────────────
 ("$HOME/.local/bin/update-packages" &>/dev/null &) 2>/dev/null || true
