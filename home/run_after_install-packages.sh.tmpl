@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Always-run package installer.
+# - Pi: stamp-and-compare against os/raspberry-pi/packages.apt; sudo apt install if changed.
+# - All other machines: brew bundle check (fast no-op if satisfied) → install if not.
+# Resilient per-line fallback catches single-package failures and reports them.
+
+set -euo pipefail
+
+REPO_DIR="{{ .chezmoi.sourceDir }}/.."
+GUM="${HOME}/.local/bin/gum"
+[[ -x "$GUM" ]] || GUM="$(command -v gum || echo "")"
+
+style_fail() {
+    if [[ -n "$GUM" ]]; then
+        "$GUM" style --foreground 213 --bold "$@"
+    else
+        echo "$@" >&2
+    fi
+}
+
+{{ if eq .machine "pi" -}}
+PKG_FILE="$REPO_DIR/os/raspberry-pi/packages.apt"
+STAMP_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
+STAMP_FILE="$STAMP_DIR/pi-packages.stamp"
+mkdir -p "$STAMP_DIR"
+
+if [[ -f "$PKG_FILE" ]]; then
+    current_hash=$(sha256sum "$PKG_FILE" | awk '{print $1}')
+    last_hash=$(cat "$STAMP_FILE" 2>/dev/null || echo "")
+    if [[ "$current_hash" != "$last_hash" ]]; then
+        echo "==> Pi packages.apt changed — syncing..."
+        sudo apt update
+        grep -Ev '^#|^$' "$PKG_FILE" | xargs sudo apt install -y
+        echo "$current_hash" > "$STAMP_FILE"
+        echo "==> Done."
+    fi
+fi
+exit 0
+{{- end }}
+
+{{ if and (eq .chezmoi.os "linux") (or (eq .chezmoi.arch "armv6l") (eq .chezmoi.arch "armv7l")) -}}
+echo "32-bit ARM detected; Homebrew not supported on this architecture. Skipping."
+exit 0
+{{- end }}
+
+BREWFILE="$HOME/.config/dotfiles/Brewfile"
+
+if [[ ! -f "$BREWFILE" ]]; then
+    echo "ERROR: $BREWFILE not yet rendered. Run 'chezmoi apply' first."
+    exit 1
+fi
+
+if ! command -v brew &>/dev/null; then
+    echo "ERROR: brew not on PATH. Run 'chezmoi apply' to trigger run_once_00-install-homebrew."
+    exit 1
+fi
+
+bundle_flags=(--file="$BREWFILE")
+command -v code &>/dev/null || bundle_flags+=(--no-vscode)
+[[ "{{ .chezmoi.os }}" == "darwin" ]] || bundle_flags+=(--no-mas)
+
+if brew bundle check "${bundle_flags[@]}" --quiet; then
+    exit 0
+fi
+
+if brew bundle install "${bundle_flags[@]}"; then
+    exit 0
+fi
+
+echo "==> brew bundle reported errors. Switching to per-package mode..."
+failed=()
+
+while IFS= read -r line; do
+    case "$line" in
+        brew\ *)
+            pkg=$(echo "$line" | sed -E 's/^brew "([^"]+)".*/\1/')
+            brew install "$pkg" || failed+=("$pkg")
+            ;;
+        cask\ *)
+            pkg=$(echo "$line" | sed -E 's/^cask "([^"]+)".*/\1/')
+            brew install --cask "$pkg" || failed+=("cask:$pkg")
+            ;;
+        vscode\ *)
+            if command -v code &>/dev/null; then
+                pkg=$(echo "$line" | sed -E 's/^vscode "([^"]+)".*/\1/')
+                code --install-extension "$pkg" --force || failed+=("vscode:$pkg")
+            fi
+            ;;
+    esac
+done < <(grep -E '^(brew|cask|vscode) ' "$BREWFILE")
+
+if (( ${#failed[@]} > 0 )); then
+    style_fail "The following packages failed to install:"
+    printf '  • %s\n' "${failed[@]}"
+    echo "Re-run 'chezmoi apply' or 'dotfiles update' later to retry."
+fi
