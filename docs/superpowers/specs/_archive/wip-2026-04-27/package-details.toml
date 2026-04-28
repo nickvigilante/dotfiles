@@ -1,0 +1,56 @@
+[package-details]
+
+tags = ["Debian", "Fedora", "Linux", "macOS", "Ubuntu", "Windows"]
+
+# Define packages and their installation names across different package managers
+[package-details.packages.delta]
+package-managers = { Homebrew = "git-delta", Chocolatey = "delta" }
+profiles = ["work", "personal"]
+[package-details.packages.neovim]
+package-managers = { Homebrew = "neovim", apt-get = "neovim", dnf = "neovim" }
+profiles = ["work", "personal"]
+[package-details.packages.zsh-syntax-highlighting]
+package-managers = { Homebrew = "zsh-syntax-highlighting", Chocolatey = "oh-my-zsh-plugin-syntax-highlighting" }
+profiles = ["work", "personal"]
+
+# Define global priorities for different operating systems
+[package-details.priorities]
+Linux = ["Homebrew", "apt-get", "dnf"]
+Windows = ["Chocolatey"]
+
+# Define custom priorities for individual packages on a per-package and per-distro level
+[package-details.custom-priorities]
+delta = { Linux = ["Snap", "Homebrew", "Chocolatey"] }
+another_package = { Linux = ["snap", "apt-get", "Homebrew"] }
+
+[[package-details.package-managers]]
+name = "Homebrew"
+command = "brew"
+subcommand = "install"
+sudo = false
+flags = []
+tags = ["Linux", "macOS"]
+
+[[package-details.package-managers]]
+name = "Chocolatey"
+command = "choco"
+subcommand = "install"
+sudo = true
+flags = []
+tags = ["Windows"]
+
+[[package-details.package-managers]]
+name = "apt-get"
+command = "apt"
+subcommand = "install"
+sudo = true
+flags = []
+tags = ["Linux", "Ubuntu", "Debian"]
+
+[[package-details.package-managers]]
+name = "dnf"
+command = "dnf"
+subcommand = "install"
+sudo = true
+flags = []
+tags = ["Linux", "Fedora"]
