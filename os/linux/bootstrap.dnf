@@ -1,0 +1,11 @@
+# Pre-Homebrew prerequisites for Fedora.
+# Installed by bootstrap/install.sh and as defense-in-depth by run_once_01.
+
+curl
+git
+zsh
+ca-certificates
+@development-tools
+file
+procps-ng
+gnupg2

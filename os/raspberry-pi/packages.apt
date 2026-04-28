@@ -1,0 +1,27 @@
+# Raspberry Pi (Raspbian / Ubuntu) packages
+# Installed via run_after_install-packages.sh.tmpl (apt branch on .machine == "pi").
+# Pi runs apt-only — Homebrew is not used here (Linuxbrew unsupported on armv6,
+# slow on aarch64 with poor bottle coverage).
+
+# Essentials
+git
+curl
+wget
+unzip
+zip
+gnupg
+ca-certificates
+
+# Shell
+zsh
+tmux
+tree
+vim
+
+# System tools
+htop
+net-tools
+openssh-server
+
+# Build tools
+build-essential

@@ -4,11 +4,37 @@ Personal dotfiles managed with [chezmoi](https://www.chezmoi.io/). Supports macO
 
 ## Quick start
 
-### macOS / Linux / Raspberry Pi
+### macOS / Linux / Raspberry Pi / Ephemeral cloud VMs
 
 ```sh
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)"
 ```
+
+The bootstrap script downloads [Gum](https://github.com/charmbracelet/gum) for prompts, auto-detects what it can (OS, arch, WSL, ephemeral cloud VM, display, hostname, existing git config), and only asks Gum-prompted questions for what it can't infer.
+
+| Prompt          | Options / values                                                 |
+| --------------- | ---------------------------------------------------------------- |
+| Profile         | `work` or `personal`                                             |
+| Full name       | used in git config                                               |
+| Email address   | used in git config (always prompted; never auto-detected)        |
+| Machine role    | `laptop`, `desktop`, `server`, `pi`, or `ephemeral`              |
+| Display         | `true`/`false` — gates GUI casks, terminal apps, VS Code         |
+| Secret managers | `none`, `bitwarden`, `1password`, or `both`                      |
+
+Answers are saved to `~/.config/chezmoi/chezmoi.toml`. The file is generated from `home/.chezmoi.toml.tmpl` and includes a comment header showing the equivalent **non-interactive bootstrap command** for the current machine — copy/paste reproduces the same setup elsewhere. Edit later with `chezmoi edit-config`.
+
+### Non-interactive bootstrap (for cloud-init / Terraform / scripts)
+
+```sh
+bash -c "$(curl -fsSL .../install.sh)" -- \
+  --profile work \
+  --machine ephemeral \
+  --secrets 1password \
+  --no-display \
+  --non-interactive
+```
+
+Available flags: `--profile`, `--name`, `--email`, `--machine`, `--display | --no-display`, `--secrets`, `--op-token <token>`, `--non-interactive`. Each has an env-var equivalent (`DOTFILES_PROFILE`, `DOTFILES_DISPLAY=1|0`, etc.). With `--non-interactive`, any unspecified field that can't be auto-detected aborts with an error.
 
 ### Windows (elevated PowerShell)
 
@@ -16,17 +42,6 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/mai
 Set-ExecutionPolicy Bypass -Scope Process -Force
 .\bootstrap\install.ps1
 ```
-
-Both scripts install chezmoi (if needed), clone this repo, and run `chezmoi init --apply`. You'll be prompted once for:
-
-| Prompt        | Options                                |
-| ------------- | -------------------------------------- |
-| Profile       | `work` or `personal`                   |
-| Full name     | used in git config                     |
-| Email address | used in git config                     |
-| Machine role  | `laptop`, `desktop`, `server`, or `pi` |
-
-Answers are saved to `~/.config/chezmoi/chezmoi.toml` and never re-prompted. To change them later: `chezmoi edit-config`.
 
 ---
 
@@ -60,29 +75,33 @@ No pyenv, conda, or system Python involvement.
 
 ### Package management
 
-Packages are declared in `os/` and installed/synced by chezmoi run scripts:
+One unified Brewfile, gated on (OS × profile × display × secrets) axes:
 
-| Platform        | Package manager      | File                           |
-| --------------- | -------------------- | ------------------------------ |
-| macOS           | Homebrew Bundle      | `os/macos/Brewfile`            |
-| Linux laptops   | Homebrew (CLI tools) | `os/linux/Brewfile.linux`      |
-| Ubuntu / Debian | apt                  | `os/linux/packages.apt`        |
-| Fedora          | dnf                  | `os/linux/packages.dnf`        |
-| Raspberry Pi    | apt                  | `os/raspberry-pi/packages.apt` |
-| Windows         | Chocolatey           | `os/windows/packages.choco`    |
+| Layer                   | Source                                       | Used by                                                   |
+| ----------------------- | -------------------------------------------- | --------------------------------------------------------- |
+| Cross-platform CLI tools | `home/dot_config/dotfiles/Brewfile.tmpl`    | macOS, Linux laptops, ephemeral cloud VMs (via Linuxbrew) |
+| Pre-Homebrew prereqs (apt) | `os/linux/bootstrap.apt`                  | Ubuntu/Debian — installs minimal `curl git zsh build-essential` before Homebrew |
+| Pre-Homebrew prereqs (dnf) | `os/linux/bootstrap.dnf`                  | Fedora                                                    |
+| Pi-only packages        | `os/raspberry-pi/packages.apt`              | Raspberry Pi (Homebrew not used on Pi)                    |
+| Windows packages        | `os/windows/packages.choco`                  | Windows (Chocolatey)                                      |
 
-**Adding a package:** edit the relevant file and run `chezmoi apply`. The `run_onchange_install-packages` script detects the change via file hash and re-syncs automatically.
+The Brewfile uses chezmoi Go-template guards on `.chezmoi.os`, `.profile`, `.display`, and `.secrets` to install the right slice for each machine. Casks and VS Code extensions are gated on `.display && .chezmoi.os == "darwin"` (Linux Homebrew has no casks anyway). 32-bit ARM machines (original Pi Zero, old SBCs) are detected via `.chezmoi.arch` and skip Homebrew entirely.
 
-### Automatic update prompts
+**Adding a package:** edit `home/dot_config/dotfiles/Brewfile.tmpl` (gated under the right `{{ if ... }}` block) and run `chezmoi apply`. The always-run `run_after_install-packages.sh.tmpl` calls `brew bundle check` first (fast no-op when satisfied) and only installs if drift is detected. Single-package failures are reported at the end without blocking the whole sync.
 
-A script at `~/.local/bin/update-packages` runs in the background on every new shell. It's throttled to once per 24 hours using a timestamp at `~/.cache/dotfiles/last_update`. When it fires, it runs the appropriate package managers for the current platform (Homebrew, apt, dnf, snap, Chocolatey) and upgrades chezmoi itself.
+**Pi caveat:** Linuxbrew on `aarch64` Pi 4/5 works but bottle coverage is poor and source-builds are slow. The `.machine == "pi"` gate routes Pis to the apt-only flow regardless of arch — generally the right default. Override by setting `.machine` to `laptop`/`server` if you really want Homebrew on a beefier Pi.
 
-Run manually at any time:
+### Updates and maintenance
 
 ```sh
-update-packages          # respects the 24h throttle
-update-packages --force  # bypass the throttle
+dotfiles update          # chezmoi update + update-packages --force
+dotfiles doctor          # health check (machine + tooling + Brewfile + secrets)
+dotfiles palette-import  # show the manual Warp-theme-iteration workflow
 ```
+
+`dotfiles doctor` walks the data axes (os, arch, machine, display, profile, secrets) and verifies your tooling, files, Brewfile state, and `~/.env` permissions all match expectations. Run it whenever something feels off.
+
+A background `~/.local/bin/update-packages` script auto-fires on every new shell, throttled to once per 24 h via `~/.cache/dotfiles/last_update`. Run manually with `update-packages` or `update-packages --force` to bypass the throttle.
 
 ### macOS-specific
 
@@ -97,11 +116,47 @@ The `work` and `personal` profiles affect:
 
 - **Git email** — different address per profile
 - **Shell config** — `work.zsh` or `personal.zsh` is sourced
-- **Packages** — profile-specific packages can be declared in separate Brewfiles (`os/macos/Brewfile.work`)
+- **Packages** — work-only and personal-only sections in the unified `Brewfile.tmpl` are gated by `{{ if eq .profile "work" }}` / `personal`
 - **Oh My ZSH plugins** — e.g. `aws` plugin enabled for work profile
 - **Exports** — profile-specific environment variables in `exports.zsh`
+- **Secrets default** — `work` defaults to `secrets = "1password"`, `personal` defaults to `secrets = "none"`
 
 To switch profiles on an existing machine, edit `~/.config/chezmoi/chezmoi.toml` and run `chezmoi apply`.
+
+## Display, machine role, and ephemeral cloud VMs
+
+Three axes beyond profile:
+
+- **`.display`** — `true`/`false`. Gates GUI casks (Rectangle, DisplayLink, VS Code, Warp, Ghostty), VS Code extensions, terminal-app config files. Auto-detected: macOS/Windows always `true`; Linux uses `$DISPLAY`/`$WAYLAND_DISPLAY`; WSL is forced `false` (treated as headless).
+- **`.machine`** — `laptop`, `desktop`, `server`, `pi`, or `ephemeral`. `ephemeral` is for cloud VMs / containers / Codespaces (auto-detected via `/.dockerenv`, `$CODESPACES`, EC2/GCE metadata probes). `pi` skips Homebrew entirely and uses apt-only.
+- **`.secrets`** — `none`, `bitwarden`, `1password`, or `both`. Drives `~/.env` template gating, `bw-apply` behavior, and which CLIs (bw/op) get pre-installed.
+
+### Ephemeral cloud VMs (e.g., AWS EC2 dev box)
+
+Bootstrap detects ephemeral environments automatically. For non-interactive provisioning (cloud-init / Terraform `user_data`), pre-set the 1Password service-account token in the VM's environment:
+
+```sh
+export OP_SERVICE_ACCOUNT_TOKEN="ops_..."
+bash -c "$(curl -fsSL .../install.sh)" -- \
+  --profile work --machine ephemeral --secrets 1password \
+  --no-display --non-interactive
+```
+
+Bootstrap stores the token at `~/.config/op/token` (chmod 600), and `~/.zshenv` sources it for every shell. `op whoami` and `chezmoi`'s `onepasswordRead` will work without an interactive `op signin`.
+
+**Bitwarden is unsupported on ephemeral / non-interactive boxes** — the master-password unlock step has no service-account equivalent. Use `--secrets none` or `--secrets 1password` on ephemeral.
+
+## Terminal configs
+
+[Warp](https://www.warp.dev) and [Ghostty](https://ghostty.org) configs live under `home/dot_warp/` and `home/dot_config/ghostty/` respectively. Both consume `home/.chezmoidata/palette.toml` — a single source-of-truth color palette (Tokyo Night Storm × Material Ocean blend) — so changing one hex value in the palette regenerates both terminals' themes plus Gum prompt styling on the next `chezmoi apply`.
+
+The included theme is named **Vigilante**. To iterate:
+
+1. In Warp: duplicate the Vigilante theme as `vigilante-wip`, edit visually, save.
+2. Open `~/.warp/themes/vigilante-wip.yaml` and copy hex values into `home/.chezmoidata/palette.toml`, mapping them to the appropriate semantic tokens (`palette.bg.default`, `palette.accent.green`, `palette.ansi.red`, etc.).
+3. `chezmoi apply` — Warp + Ghostty + Gum lib all regenerate from the new palette.
+
+⚠️ **Warp's in-app theme editor is off-limits for managed themes.** chezmoi's rendered file always wins on the next apply.
 
 ---
 
@@ -109,35 +164,26 @@ To switch profiles on an existing machine, edit `~/.config/chezmoi/chezmoi.toml`
 
 `~/.env` (chmod 600) is generated by chezmoi from `home/private_dot_env.tmpl` and sourced by `.zshenv` on every shell start. The template pulls values from your password managers at apply time — plaintext secrets are never stored in this repo.
 
-### Two password managers, one template
+### Per-machine secret manager choice
 
-| Scope | Manager | Machine | CLI |
-|---|---|---|---|
-| Personal secrets | Bitwarden | All machines | `bw` |
-| Work secrets | 1Password | Work machine only | `op` |
+The `.secrets` data field controls which managers are active on this machine:
 
-The template gates 1Password calls behind `{{ if eq .profile "work" }}`, so they only render on the work machine. Raspberry Pi machines get neither (no vault CLI installed there).
+| `.secrets`    | Bitwarden | 1Password | Notes                                                                  |
+| ------------- | :-------: | :-------: | ---------------------------------------------------------------------- |
+| `none`        |           |           | `~/.env` renders empty. Default for `personal` profile.                |
+| `bitwarden`   |     ✓     |           | `bw login` + `bw-apply` to unlock. Real machines only.                 |
+| `1password`   |           |     ✓     | Default for `work` profile. Service-account flow on ephemeral.         |
+| `both`        |     ✓     |     ✓     | On ephemeral boxes only the 1Password half is functional.              |
 
-### First-time setup
+### First-time setup (real machines)
 
-**1. Log in to Bitwarden** (once per machine, stores credentials locally):
-```sh
-bw login
-```
+**1Password** — once per machine: `op signin` (uses system Keychain on macOS for subsequent calls).
 
-**2. Apply dotfiles with secrets** (use `bw-apply` instead of bare `chezmoi apply`):
-```sh
-bw-apply
-```
+**Bitwarden** — once per machine: `bw login`. Then use `bw-apply` instead of bare `chezmoi apply` whenever `~/.env` may need re-rendering. `bw-apply` (defined in `~/.config/shell/functions.zsh.tmpl`) unlocks Bitwarden, sets `BW_SESSION`, and runs `chezmoi apply`. It's a no-op for the unlock step on machines whose `.secrets` doesn't include `bitwarden`.
 
-`bw-apply` (defined in `~/.config/shell/functions.zsh`) unlocks Bitwarden, sets `BW_SESSION`, and runs `chezmoi apply`. On subsequent runs it reuses the session if already unlocked.
+### Ephemeral 1Password (service account)
 
-**3. Work machine only — sign in to 1Password** (once, uses system keychain after):
-```sh
-op signin
-```
-
-Then run `bw-apply` again. With both CLIs authenticated, chezmoi renders the full template.
+On a cloud VM, set `OP_SERVICE_ACCOUNT_TOKEN` in the environment before bootstrap (or pass `--op-token <token>`). Bootstrap stores it at `~/.config/op/token` (chmod 600), and `.zshenv` sources it on every shell. No `op signin` required.
 
 ### Adding a secret
 
@@ -164,7 +210,7 @@ export AWS_KEY="{{ onepasswordRead "op://Work Vault/AWS/access_key_id" }}"
 
 ### On the bootstrap chicken-and-egg
 
-The first `chezmoi init --apply` during bootstrap runs before `bw` is installed. The bootstrap script handles this with a two-pass approach: structure and packages first, secrets on the second pass after `bw login && bw-apply`.
+`~/.env` template references to `{{ bitwarden ... }}` / `{{ onepasswordRead ... }}` need the `bw`/`op` CLI present at template *render* time, not after. Bootstrap pre-installs the relevant CLIs (apt-repo for `op` on Linux, brew on macOS, direct download for `bw` on Linux) before calling `chezmoi init --apply`. Service-account / interactive auth happens in the same step, so the first apply renders `~/.env` correctly without a second pass.
 
 ---
 
@@ -175,33 +221,47 @@ dotfiles/
 ├── .chezmoiroot                  # tells chezmoi: source root is home/
 │
 ├── home/                         # chezmoi source root — mirrors $HOME
-│   ├── .chezmoi.toml.tmpl        # bootstrap: prompts for machine config once
+│   ├── .chezmoi.toml.tmpl        # prompts + rerun-comment header
+│   ├── .chezmoidata/
+│   │   └── palette.toml          # shared color palette → all themes
 │   ├── .chezmoiexternal.toml     # Oh My ZSH + plugins as tracked git repos
-│   ├── dot_zshenv.tmpl           # → ~/.zshenv
-│   ├── dot_zprofile.tmpl         # → ~/.zprofile
-│   ├── dot_zshrc.tmpl            # → ~/.zshrc
-│   ├── dot_gitconfig.tmpl        # → ~/.gitconfig
-│   ├── dot_gitignore_global      # → ~/.gitignore_global
-│   ├── dot_config/shell/         # → ~/.config/shell/ (sourced by .zshrc)
+│   ├── dot_zshenv.tmpl
+│   ├── dot_zprofile.tmpl
+│   ├── dot_zshrc.tmpl
+│   ├── dot_gitconfig.tmpl
+│   ├── dot_gitignore_global
+│   ├── dot_config/shell/         # → ~/.config/shell/
+│   ├── dot_config/dotfiles/
+│   │   ├── Brewfile.tmpl         # unified, axis-gated Brewfile
+│   │   └── lib/gum.sh.tmpl       # palette-driven Gum env vars
+│   ├── dot_config/ghostty/       # Ghostty config + theme
+│   ├── dot_warp/                 # Warp themes/keybindings/workflows
 │   ├── dot_local/bin/
-│   │   └── executable_update-packages  # → ~/.local/bin/update-packages
+│   │   ├── executable_dotfiles            # `dotfiles update|doctor|palette-import`
+│   │   ├── executable_dotfiles-doctor.tmpl  # health check
+│   │   └── executable_update-packages
+│   ├── private_dot_env.tmpl      # ~/.env (gated on .secrets)
 │   ├── run_once_00-install-homebrew
+│   ├── run_once_01-install-bootstrap-prereqs
 │   ├── run_once_02-install-uv
 │   ├── run_once_03-setup-python-venv
-│   ├── run_once_04-install-packages
 │   ├── run_once_05-macos-defaults
 │   ├── run_once_06-touchid-sudo
-│   └── run_onchange_install-packages
+│   ├── run_once_07-set-default-shell
+│   └── run_after_install-packages.sh.tmpl  # always-run brew bundle check
 │
-├── os/                           # package lists (referenced by run scripts)
-│   ├── macos/Brewfile
-│   ├── linux/{Brewfile.linux,packages.apt,packages.dnf}
+├── os/                           # native package lists (pre-Homebrew prereqs only)
+│   ├── linux/bootstrap.apt
+│   ├── linux/bootstrap.dnf
 │   ├── raspberry-pi/packages.apt
 │   └── windows/packages.choco
 │
-└── bootstrap/
-    ├── install.sh                # curl | sh entry point (macOS/Linux/Pi)
-    └── install.ps1               # PowerShell entry point (Windows)
+├── bootstrap/
+│   ├── install.sh                # curl | sh entry point (macOS/Linux)
+│   ├── install.ps1               # PowerShell entry point (Windows)
+│   └── lib/                      # detect, preflight, gum-bootstrap, secrets
+│
+└── docs/superpowers/             # design specs and implementation plans
 ```
 
 ---
@@ -209,20 +269,25 @@ dotfiles/
 ## Common commands
 
 ```sh
+dotfiles update             # chezmoi update + update-packages --force
+dotfiles doctor             # health check
 chezmoi apply               # apply any pending changes from the source
-chezmoi update              # pull latest from git and apply
 chezmoi diff                # preview what would change
 chezmoi edit ~/.zshrc       # edit a managed file in your editor
-chezmoi edit-config         # change profile, name, email, machine role
+chezmoi edit-config         # change profile, name, email, machine role, display, secrets
 chezmoi status              # show which files differ from source
 czcd                        # cd to the chezmoi source directory
+bw-apply                    # unlock Bitwarden + chezmoi apply (no-op for non-Bitwarden machines)
 ```
 
 ---
 
 ## Adding a new machine
 
-1. Run the bootstrap script above.
-2. Answer the profile prompts.
-3. All `run_once_` scripts execute in order: Homebrew → uv → Python venv → packages → (macOS defaults) → (Touch ID).
-4. Restart your shell: `exec zsh`.
+1. Run the bootstrap script above (Gum prompts you for what can't be auto-detected).
+2. All `run_once_` scripts execute in order: Homebrew → bootstrap prereqs → uv → Python venv → (macOS defaults) → (Touch ID) → set default shell.
+3. The always-run `run_after_install-packages.sh.tmpl` runs `brew bundle check` against the rendered Brewfile and installs anything missing.
+4. `exec zsh` to pick up the new shell config.
+5. `dotfiles doctor` to verify everything is healthy.
+
+To reproduce a machine's exact setup elsewhere, copy the rerun-comment header from `~/.config/chezmoi/chezmoi.toml` — it contains the equivalent non-interactive bootstrap command for the current machine.

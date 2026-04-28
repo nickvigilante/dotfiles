@@ -1,0 +1,200 @@
+# Unified Brewfile — rendered to ~/.config/dotfiles/Brewfile by chezmoi.
+# Source: home/dot_config/dotfiles/Brewfile.tmpl
+# Edit this template; run `chezmoi apply` to regenerate.
+
+# ── Taps ─────────────────────────────────────────────────────────────────────
+{{ if eq .profile "work" -}}
+tap "coder/coder"
+{{- end }}
+
+# ── Cross-platform CLI (every full-toolkit machine) ──────────────────────────
+brew "git"           # Distributed revision control
+brew "curl"          # HTTP client
+brew "wget"          # File retriever
+brew "jq"            # JSON processor
+brew "ripgrep"       # Fast grep (rg)
+brew "fd"            # Fast find
+brew "fzf"           # Fuzzy finder
+brew "eza"           # Better ls
+brew "bat"           # Better cat (syntax highlighting)
+brew "zoxide"        # Better cd
+brew "tldr"          # Simplified man pages
+brew "htop"          # Process viewer
+brew "tree"          # Directory tree
+brew "tmux"          # Terminal multiplexer
+brew "neovim"        # Editor
+brew "gh"            # GitHub CLI
+brew "git-delta"     # Better git diff
+brew "lazygit"       # TUI git client
+brew "ncdu"          # NCurses Disk Usage
+brew "uv"            # Python package manager (Astral)
+brew "ruff"          # Python linter (Astral)
+brew "gnupg"         # OpenPGP
+brew "age"           # Modern encryption
+brew "chezmoi"       # Dotfiles manager
+brew "gum"           # Charm shell UI
+brew "just"          # Command runner / project Makefile alternative
+brew "mprocs"        # Run multiple commands in parallel
+brew "go"            # Go language
+brew "rust"          # Rust language
+brew "node"          # Node.js
+brew "prettier"      # Code formatter
+
+# ── macOS-only formulae ──────────────────────────────────────────────────────
+{{ if eq .chezmoi.os "darwin" -}}
+brew "mas"           # Mac App Store CLI
+brew "duti"          # Default-app picker
+brew "grep"          # GNU grep (better than BSD)
+brew "gnupg"         # (already above; macOS sometimes needs explicit)
+{{- end }}
+
+# ── Secrets CLIs ─────────────────────────────────────────────────────────────
+{{ if or (eq .secrets "bitwarden") (eq .secrets "both") -}}
+brew "bitwarden-cli"
+{{- end }}
+{{ if or (eq .secrets "1password") (eq .secrets "both") -}}
+{{- if eq .chezmoi.os "darwin" }}
+cask "1password-cli"
+{{- end }}
+{{- end }}
+
+# ── Work-only formulae ───────────────────────────────────────────────────────
+{{ if eq .profile "work" -}}
+brew "vale"             # Prose linter
+brew "cmake"            # Build tool (TileDB C++)
+brew "coder/coder/coder" # Coder.com remote dev
+brew "openapi-generator"
+brew "halibut"          # Document preparation
+brew "pandoc"           # Markup converter
+brew "weasyprint"       # HTML → PDF
+brew "zola"             # Static site generator
+brew "gopls"            # Go language server
+brew "colima"           # Container runtime (macOS/Linux)
+brew "docker"           # Docker CLI
+brew "snap"             # snap CLI on macOS (.snap files)
+brew "tailscale"        # Mesh VPN (CLI)
+{{- end }}
+
+# ── Personal-only formulae ───────────────────────────────────────────────────
+{{ if eq .profile "personal" -}}
+brew "fish"          # Friendly shell (alternative)
+brew "ollama"        # Local LLM runtime
+{{- end }}
+
+# ── GUI casks (macOS + display only — Linux Homebrew has no casks) ──────────
+{{ if and .display (eq .chezmoi.os "darwin") -}}
+
+# Cross-profile casks (always installed when display + macOS)
+cask "warp"
+cask "ghostty"
+cask "visual-studio-code"
+cask "logi-options+"
+cask "displaylink"
+cask "keepingyouawake"
+cask "rustdesk"
+
+# Fonts
+cask "font-jetbrains-mono-nerd-font"
+cask "font-fira-code-nerd-font"
+cask "font-0xproto-nerd-font"
+
+  {{ if eq .profile "work" -}}
+# Work-only casks
+cask "claude"             # Anthropic Claude desktop
+cask "docker-desktop"
+cask "quarto"             # Scientific publishing (TileDB)
+cask "tailscale-app"      # Mesh VPN GUI
+cask "zoom"
+  {{- end }}
+
+  {{ if eq .profile "personal" -}}
+# Personal-only casks
+cask "arc"                # Browser
+cask "firefox"
+cask "orion"              # WebKit browser
+cask "zen"                # Firefox fork
+cask "bitwarden"          # Password manager GUI
+cask "discord"
+cask "dolphin"            # GameCube/Wii emulator
+cask "freetube"           # YouTube client
+cask "joplin"             # Note-taking
+cask "libreoffice"
+cask "ollama-app"
+cask "proton-drive"
+cask "proton-mail"
+cask "protonvpn"
+cask "raindropio"         # Bookmark manager
+cask "signal"
+cask "steam"
+cask "texmaker"           # LaTeX
+cask "todoist-app"
+cask "transmission"       # BitTorrent
+cask "vlc"
+  {{- end }}
+
+# ── VS Code extensions (only renders when display + macOS) ──────────────────
+vscode "esbenp.prettier-vscode"
+vscode "charliermarsh.ruff"
+vscode "ms-python.python"
+vscode "ms-python.vscode-pylance"
+vscode "ms-python.debugpy"
+vscode "ms-python.vscode-python-envs"
+vscode "rust-lang.rust-analyzer"
+vscode "redhat.vscode-yaml"
+vscode "redhat.vscode-xml"
+vscode "tamasfe.even-better-toml"
+vscode "yzhang.markdown-all-in-one"
+vscode "github.copilot-chat"
+vscode "github.vscode-github-actions"
+vscode "ms-vscode-remote.remote-ssh"
+vscode "ms-vscode-remote.remote-ssh-edit"
+vscode "ms-vscode.remote-explorer"
+vscode "foxundermoon.shell-format"
+vscode "vadimcn.vscode-lldb"
+vscode "saoudrizwan.claude-dev"
+vscode "astro-build.astro-vscode"
+vscode "lkrms.inifmt"
+vscode "karunamurti.tera"
+
+  {{ if eq .profile "work" -}}
+# Work-only VS Code extensions
+vscode "chrischinchilla.vale-vscode"
+vscode "coder.coder-remote"
+vscode "golang.go"
+  {{- end }}
+
+# ── Mac App Store ────────────────────────────────────────────────────────────
+mas "Amphetamine", id: 937984704
+mas "Developer", id: 640199958
+mas "Keynote", id: 361285480
+mas "Pages", id: 361309726
+mas "Xcode", id: 497799835
+
+  {{ if eq .profile "personal" -}}
+# Personal-only MAS games / apps
+mas "Cult Of The Lamb", id: 1639580858
+mas "Mini Motorways", id: 1456188526
+mas "Todoist", id: 585829637
+  {{- end }}
+{{- end }}
+
+# ── Cargo crates (any machine with rust) ─────────────────────────────────────
+cargo "cargo-edit"
+cargo "cargo-expand"
+cargo "pest-language-server"
+
+{{ if eq .profile "personal" -}}
+cargo "trunk"
+{{- end }}
+
+# ── Go tools (any machine with go) ───────────────────────────────────────────
+go "github.com/golangci/golangci-lint/cmd/golangci-lint"
+
+{{ if eq .profile "work" -}}
+go "github.com/coder/coder/v2/enterprise/cmd/coder"
+{{- end }}
+
+# ── uv-installed Python tools ────────────────────────────────────────────────
+{{ if eq .profile "work" -}}
+uv "weasyprint"
+{{- end }}
