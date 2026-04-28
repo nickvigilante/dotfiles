@@ -7,7 +7,7 @@ Personal dotfiles managed with [chezmoi](https://www.chezmoi.io/). Supports macO
 ### macOS / Linux / Raspberry Pi / Ephemeral cloud VMs
 
 ```sh
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)"
 ```
 
 The bootstrap script downloads [Gum](https://github.com/charmbracelet/gum) for prompts, auto-detects what it can (OS, arch, WSL, ephemeral cloud VM, display, hostname, existing git config), and only asks Gum-prompted questions for what it can't infer.
@@ -26,7 +26,7 @@ Answers are saved to `~/.config/chezmoi/chezmoi.toml`. The file is generated fro
 ### Non-interactive bootstrap (for cloud-init / Terraform / scripts)
 
 ```sh
-sh -c "$(curl -fsSL .../install.sh)" -- \
+bash -c "$(curl -fsSL .../install.sh)" -- \
   --profile work \
   --machine ephemeral \
   --secrets 1password \
@@ -137,7 +137,7 @@ Bootstrap detects ephemeral environments automatically. For non-interactive prov
 
 ```sh
 export OP_SERVICE_ACCOUNT_TOKEN="ops_..."
-sh -c "$(curl -fsSL .../install.sh)" -- \
+bash -c "$(curl -fsSL .../install.sh)" -- \
   --profile work --machine ephemeral --secrets 1password \
   --no-display --non-interactive
 ```

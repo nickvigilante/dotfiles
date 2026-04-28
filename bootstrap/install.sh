@@ -2,12 +2,18 @@
 # Bootstrap dotfiles on macOS, Linux, or Windows (Cygwin).
 #
 # Usage on a fresh machine:
-#   sh -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)"
 #
 # Or with flags (non-interactive):
-#   sh -c "$(curl -fsSL .../install.sh)" -- \
+#   bash -c "$(curl -fsSL .../install.sh)" -- \
 #     --profile work --machine ephemeral --secrets 1password \
 #     --no-display --non-interactive
+
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf 'Error: this installer requires bash. Re-run with:\n  bash -c "$(curl -fsSL %s)"\n' \
+        "https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh" >&2
+    exit 1
+fi
 
 set -euo pipefail
 
