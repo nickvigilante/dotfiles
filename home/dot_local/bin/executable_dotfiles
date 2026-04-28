@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# dotfiles — thin wrapper for common dotfiles operations.
+
+set -euo pipefail
+
+case "${1:-}" in
+    update)
+        chezmoi update
+        update-packages --force
+        ;;
+    doctor)
+        exec dotfiles-doctor
+        ;;
+    palette-import)
+        cat <<'EOF'
+palette-import: manual flow for now.
+
+  1. In Warp, duplicate your active theme as 'vigilante-wip' and edit it visually.
+  2. Save the theme; Warp writes it to ~/.warp/themes/vigilante-wip.yaml.
+  3. Open the YAML and copy the hex values into home/.chezmoidata/palette.toml,
+     mapping them to the appropriate semantic tokens
+     (palette.bg.default, palette.accent.green, palette.ansi.red, etc.).
+  4. Run `chezmoi apply` to regenerate Warp + Ghostty themes from the new palette.
+  5. Optionally delete the WIP theme:  rm ~/.warp/themes/vigilante-wip.yaml
+
+Auto-import is deferred per design spec.
+EOF
+        ;;
+    ""|--help|-h)
+        cat <<EOF
+Usage: dotfiles <command>
+
+Commands:
+  update           chezmoi update + update-packages --force
+  doctor           run health check
+  palette-import   show the manual palette-iteration workflow
+EOF
+        ;;
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'dotfiles --help' for usage."
+        exit 1
+        ;;
+esac

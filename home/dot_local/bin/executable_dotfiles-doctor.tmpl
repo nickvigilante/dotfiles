@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# dotfiles-doctor — health check.
+
+set -euo pipefail
+
+# shellcheck source=/dev/null
+[[ -f "$HOME/.config/dotfiles/lib/gum.sh" ]] && source "$HOME/.config/dotfiles/lib/gum.sh"
+
+GUM="${HOME}/.local/bin/gum"
+[[ -x "$GUM" ]] || GUM="$(command -v gum 2>/dev/null || echo "")"
+
+ok()   { echo "  ✓ $*"; }
+fail() { echo "  ✗ $*"; }
+info() { echo "  → $*"; }
+
+header() {
+    if [[ -n "$GUM" ]]; then
+        "$GUM" style --bold --foreground "{{ .palette.accent.violet }}" "$1"
+    else
+        echo ""
+        echo "── $1 ──"
+    fi
+}
+
+# ── Machine ──────────────────────────────────────────────────────────────────
+header "Machine"
+ok "os         {{ .chezmoi.os }}"
+ok "arch       {{ .chezmoi.arch }}"
+ok "machine    {{ .machine }}"
+ok "display    {{ .display }}"
+ok "profile    {{ .profile }}"
+ok "secrets    {{ .secrets }}"
+
+# ── Tooling ──────────────────────────────────────────────────────────────────
+header "Tooling"
+for cmd in chezmoi brew gum zsh; do
+    if command -v "$cmd" &>/dev/null; then
+        ok "$cmd       $($cmd --version 2>&1 | head -1)"
+    else
+        fail "$cmd not found"
+    fi
+done
+
+{{ if or (eq .secrets "1password") (eq .secrets "both") -}}
+if command -v op &>/dev/null; then
+    if op whoami &>/dev/null; then
+        ok "op         signed in"
+    else
+        fail "op installed but not signed in"
+    fi
+else
+    fail "op not installed (.secrets = {{ .secrets }} requires it)"
+fi
+{{- end }}
+
+{{ if or (eq .secrets "bitwarden") (eq .secrets "both") -}}
+if command -v bw &>/dev/null; then
+    status_str="$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
+    case "$status_str" in
+        unlocked) ok "bw         unlocked" ;;
+        locked)   info "bw         locked (run bw-apply)" ;;
+        *)        fail "bw         unknown status: $status_str" ;;
+    esac
+else
+    fail "bw not installed (.secrets = {{ .secrets }} requires it)"
+fi
+{{- end }}
+
+# ── Files ────────────────────────────────────────────────────────────────────
+header "Files"
+for f in "$HOME/.zshrc" "$HOME/.config/dotfiles/Brewfile" "$HOME/.config/dotfiles/lib/gum.sh"; do
+    [[ -f "$f" ]] && ok "$f" || fail "$f missing"
+done
+
+{{ if and .display (eq .chezmoi.os "darwin") -}}
+[[ -f "$HOME/.warp/themes/vigilante.yaml" ]] && ok "Warp theme" || fail "Warp theme missing"
+[[ -f "$HOME/.config/ghostty/config" ]] && ok "Ghostty config" || fail "Ghostty config missing"
+{{- end }}
+
+# ── Brewfile state ───────────────────────────────────────────────────────────
+{{ if ne .machine "pi" -}}
+header "Brewfile state"
+if command -v brew &>/dev/null; then
+    if brew bundle check --file="$HOME/.config/dotfiles/Brewfile" --quiet 2>/dev/null; then
+        ok "brew bundle check passes"
+    else
+        fail "brew bundle check found drift; run 'dotfiles update'"
+    fi
+fi
+{{- end }}
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+header "Secrets"
+if [[ -f "$HOME/.env" ]]; then
+    perms=$(stat -f '%Lp' "$HOME/.env" 2>/dev/null || stat -c '%a' "$HOME/.env" 2>/dev/null)
+    if [[ "$perms" == "600" ]]; then
+        ok "~/.env exists, chmod 600"
+    else
+        fail "~/.env exists but chmod is $perms (expected 600)"
+    fi
+else
+    info "~/.env does not exist (.secrets = {{ .secrets }})"
+fi
