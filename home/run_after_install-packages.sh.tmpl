@@ -67,10 +67,14 @@ command -v code &>/dev/null || bundle_flags+=(--no-vscode)
 # Note: --no-mas was removed by Homebrew; the Brewfile already darwin-gates
 # its `mas` block, so on Linux there are no Mac App Store entries to skip.
 
-if brew bundle check "${bundle_flags[@]}" --quiet; then
+# `brew bundle check --quiet` still prints "can't satisfy your Brewfile's
+# dependencies" on failure in current Homebrew, which looks like an error.
+# Suppress its output entirely; we only care about the exit code.
+if brew bundle check "${bundle_flags[@]}" --quiet &>/dev/null; then
     exit 0
 fi
 
+echo "==> Installing missing Brewfile dependencies..."
 if brew bundle install "${bundle_flags[@]}"; then
     exit 0
 fi

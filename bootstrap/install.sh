@@ -71,7 +71,10 @@ warn()   { printf "%s  !%s %s\n" "$YELLOW" "$RESET" "$*" >&2; }
 err()    { printf "%s  ✗%s %s\n" "$RED" "$RESET" "$*" >&2; }
 
 # ── Locate scripts (works whether run via curl|sh or from clone) ────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
+# `bash -c "..." -- --branch foo` makes $0 == "--", and BASH_SOURCE[0] is
+# empty under -c. `dirname --` triggers GNU's end-of-options handling and
+# errors with "missing operand"; force the value to be a path operand.
+SCRIPT_DIR="$(cd "$(dirname -- "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
 if [[ -z "$SCRIPT_DIR" ]] || [[ ! -d "$SCRIPT_DIR/lib" ]]; then
     TMP_REPO="$(mktemp -d)"
     info "Cloning dotfiles ($DOTFILES_BRANCH) to $TMP_REPO for bootstrap libs..."
