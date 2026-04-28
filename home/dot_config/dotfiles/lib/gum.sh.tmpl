@@ -1,0 +1,38 @@
+# Gum styling — palette-driven, sourced by all our Gum-using scripts.
+# Generated from home/.chezmoidata/palette.toml + home/dot_config/dotfiles/lib/gum.sh.tmpl.
+
+# Choose
+export GUM_CHOOSE_CURSOR_FOREGROUND="{{ .palette.accent.violet }}"
+export GUM_CHOOSE_SELECTED_FOREGROUND="{{ .palette.accent.green }}"
+export GUM_CHOOSE_HEADER_FOREGROUND="{{ .palette.accent.blue }}"
+
+# Confirm
+export GUM_CONFIRM_PROMPT_FOREGROUND="{{ .palette.accent.blue }}"
+export GUM_CONFIRM_SELECTED_BACKGROUND="{{ .palette.accent.violet }}"
+export GUM_CONFIRM_SELECTED_FOREGROUND="{{ .palette.fg.bright }}"
+export GUM_CONFIRM_UNSELECTED_FOREGROUND="{{ .palette.fg.dim }}"
+
+# Input
+export GUM_INPUT_PROMPT_FOREGROUND="{{ .palette.accent.blue }}"
+export GUM_INPUT_CURSOR_FOREGROUND="{{ .palette.accent.green }}"
+export GUM_INPUT_PLACEHOLDER_FOREGROUND="{{ .palette.fg.dim }}"
+
+# Spin
+export GUM_SPIN_SPINNER_FOREGROUND="{{ .palette.accent.violet }}"
+export GUM_SPIN_TITLE_FOREGROUND="{{ .palette.accent.blue }}"
+
+# Style
+export GUM_STYLE_FOREGROUND="{{ .palette.fg.default }}"
+export GUM_STYLE_BORDER_FOREGROUND="{{ .palette.accent.violet }}"
+
+# Colors as exported names for ad-hoc use in scripts
+export DOTFILES_PALETTE_BG="{{ .palette.bg.default }}"
+export DOTFILES_PALETTE_FG="{{ .palette.fg.default }}"
+export DOTFILES_PALETTE_GREEN="{{ .palette.accent.green }}"
+export DOTFILES_PALETTE_BLUE="{{ .palette.accent.blue }}"
+export DOTFILES_PALETTE_PURPLE="{{ .palette.accent.purple }}"
+export DOTFILES_PALETTE_VIOLET="{{ .palette.accent.violet }}"
+export DOTFILES_PALETTE_CYAN="{{ .palette.accent.cyan }}"
+export DOTFILES_PALETTE_SUCCESS="{{ .palette.semantic.success }}"
+export DOTFILES_PALETTE_WARNING="{{ .palette.semantic.warning }}"
+export DOTFILES_PALETTE_ERROR="{{ .palette.semantic.error }}"
