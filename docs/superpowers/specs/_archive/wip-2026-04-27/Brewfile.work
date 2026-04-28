@@ -1,0 +1,167 @@
+tap "gabe565/tap"
+tap "tiledb-inc/stable"
+brew "act" # Run your GitHub Actions locally
+brew "aha" # ANSI HTML adapter - dump terminal output to an HTML file
+brew "libpng" # Encoding, decoding, and various manipulations of PNG files
+brew "automake" # Tool for generatinig GNU Standards-compliant Makefiles
+brew "awscli" # Official Amazon AWS command-line interface
+brew "node" # Open-source, cross-platform JavaScript runtime environment
+brew "bitwarden-cli" # CLI for Bitwarden
+brew "chezmoi" # Tool to manage dotfiles across multiple machines
+brew "cmake" # Cross-platform make
+brew "coreutils" # GNU File, Shell, and Text utilities
+brew "docker"
+brew "duti" if OS.mac? # Tool to select default apps for documetns and URL schemes on macOS
+brew "fd" # Rust-based alternative to `find`
+brew "findutils" 
+brew "fish" # User-friendly command-line shell for UNIX-like operating systems
+brew "gawk" # GNU awk utility
+brew "gh" # GitHub CLI
+brew "git"
+brew "gnu-getopt"
+brew "gnu-indent" # C code prettifier
+brew "gnu-sed"
+brew "gnu-tar"
+brew "gnutls"
+brew "go" # Golang
+brew "grep"
+brew "gum" # Tool for glamorous shell scripts
+brew "haskell-stack"
+brew "helm" # Kubernetes package manager
+brew "htmltest" # HTML validator written in Go
+brew "htslib"
+brew "imagemagick" # Tools and libraries to manipulate images in select formats
+brew "jq" # Lightweight and flexible command-line JSON processor
+brew "jsonnet" # Domain specific configuration language for defining JSON data
+brew "kubernetes-cli" # Kubernetes command-line interface
+brew "libxml2", link: true # GNOME XML library
+brew "lua" # Powerful, lightweight programming language
+brew "luarocks" # Package manager for the Lua programming language
+brew "make" # Utility for directing compilation
+brew "minikube" # Run a Kubernetes cluster locally
+brew "mysql-client"
+brew "ncdu" # ncurses-based disk usage
+brew "neovim" # Ambitious Vim-fork focused on extensibility and agility
+brew "nushell" # Modern shell for the GitHub era, written in Rust
+brew "ollama" # CLI to create, run, and share large language models (LLMs) locally
+brew "ossp-uuid" # ISO-C API and CLI for generating UUIDs
+brew "pcre" # Perl compatible regular expressions library
+brew "pkgconf" # Package compiler and linker metadata toolkit
+brew "pngcrush" # Optimizer for PNG files
+brew "pre-commit" # Python-based framework for managing multi-language pre-commit hooks
+brew "r" # Software environment for statistical computing
+brew "ripgrep" # Search tool like grep and The Silver Searcher, written in Rust
+brew "ruff" # Extremely fast Python linter, written in Rust
+brew "shfmt" # Autoformat shell script source code
+brew "spdlog" # Super fast C++ logging library
+brew "tree" # Display directories as trees (with optional color/HTML output)
+brew "ty" # Extremely fast Python type checker, written in Rust
+brew "uv" # Extremely fast Python package installer and resolver, written in Rust
+brew "vale" # Syntax-aware linter for prose
+brew "vcpkg" # C++ library manager, probably optional
+brew "watch" # Executes a program periodically, showing output fullscreen
+brew "wget" # Internet file retriever
+brew "wireguard-tools" # Tools for the WireGuard secure network tunnel
+brew "zlib", link: true # General-purpose lossless data-compression library
+brew "gabe565/tap/ansi2txt"
+cask "1password" # UI for 1Password password manager
+cask "1password-cli" # CLI for 1Password password manager
+cask "arc" # Chrome-based browser
+cask "bitwarden" # UI for Bitwarden password manager
+cask "claude" if OS.mac? # Anthropic's official Claude AI desktop app 
+cask "claude-code" # Terminal-based AI coding assistant
+cask "displaylink" # Drivers for DisplayLink docks, adapters, and monitors
+cask "docker-desktop"
+cask "firefox"
+cask "font-hack-nerd-font" # The Hack font from Nerd Fonts
+cask "git-credential-manager" # Cross-platform Git credential storage for multiple hosting providers
+cask "google-chrome"
+cask "hyper" # Terminal built on web technologies
+cask "jupyterlab-app"
+cask "kate" # Multi-document editor by KDE
+cask "keepingyouawake" # Tool to prevent the system from going into sleep mode
+cask "ksnip" # Screenshot and annotation tool
+cask "linear-linear" # App to manage software development and track bugs, TileDB-specific
+cask "logi-options+" # Software for Logitech devices
+cask "maccy" # Clipboard manager
+cask "orion"
+cask "notion" # App to write, plan, collaborate, and get organised, TileDB-specific
+cask "notunes" # No longer needed
+cask "ollama-app" # App UI for Ollama 
+cask "protonvpn"
+cask "rectangle" if OS.mac? # Window manager for macOS to move and resize windows
+cask "screaming-frog-seo-spider" # SEO site audit tool
+cask "screen-studio" # Screen recorder and editor
+cask "signal"
+cask "slack"
+cask "spotify" 
+cask "tabby" # Terminal
+cask "thunderbird" # Mozilla's mail client
+cask "unnaturalscrollwheels"
+cask "virtualbox" # VM utility by Oracle
+cask "visual-studio-code" # Open-source code editor
+cask "warp" # Terminal written in Rust
+cask "zen" # Firefox fork with a modernized UI
+cask "zoom" # Meeting
+vscode "anthropic.claude-code" # Claude Code
+vscode "astral-sh.ty" # ty type checker for Python
+vscode "cdpautsch.tpl"
+vscode "charliermarsh.ruff" # Ruff
+vscode "chrischinchilla.vale-vscode" # VS Code support for Vale
+vscode "denoland.vscode-deno" # Language server for Deno, a JavaScript runtime environment
+vscode "docker.docker"
+vscode "elagil.pre-commit-helper" 
+vscode "esbenp.prettier-vscode" # Prettier
+vscode "foxundermoon.shell-format" 
+vscode "github.copilot-chat"
+vscode "github.vscode-github-actions"
+vscode "github.vscode-pull-request-github"
+vscode "golang.go"
+vscode "grafana.vscode-jsonnet"
+vscode "graphql.vscode-graphql"
+vscode "graphql.vscode-graphql-syntax"
+vscode "gruntfuggly.todo-tree" # Show TODO, FIXME< etc. comment tags in a tree view
+vscode "jinliming2.vscode-go-template"
+vscode "mechatroner.rainbow-csv" # Highlight CSV and TSV files
+vscode "mkhl.shfmt"
+vscode "ms-azuretools.vscode-containers"
+vscode "ms-azuretools.vscode-docker"
+vscode "ms-dotnettools.csharp" # C#
+vscode "ms-dotnettools.vscode-dotnet-runtime" # .NET runtime
+vscode "ms-kubernetes-tools.vscode-kubernetes-tools" # K8s tools
+vscode "ms-python.debugpy" # Python debugger
+vscode "ms-python.python" # Python language support
+vscode "ms-python.vscode-pylance" # Pylance
+vscode "ms-python.vscode-python-envs" # Manage Python environments
+vscode "ms-toolsai.jupyter" # Jupyter extension
+vscode "ms-toolsai.jupyter-keymap"
+vscode "ms-toolsai.jupyter-renderers"
+vscode "ms-toolsai.vscode-jupyter-cell-tags"
+vscode "ms-toolsai.vscode-jupyter-slideshow"
+vscode "ms-vscode-remote.remote-containers"
+vscode "ms-vscode.cmake-tools"
+vscode "ms-vscode.cpp-devtools"
+vscode "ms-vscode.cpptools" # C++ tools
+vscode "ms-vscode.cpptools-extension-pack"
+vscode "ms-vscode.cpptools-themes" # UI/themes for C/C++ extension.
+vscode "ms-vscode.makefile-tools"
+vscode "njpwerner.autodocstring" # Generate Python docstrings automatically
+# vscode "nvarner.typst-lsp" 
+vscode "quarto.quarto" # TileDB-specific
+vscode "redhat.java" # Java language support
+vscode "redhat.vscode-xml" # XML language support
+vscode "redhat.vscode-yaml" # YAML language support
+vscode "reditorsupport.r" # R language support
+vscode "reditorsupport.r-syntax" # R syntax
+vscode "rust-lang.rust-analyzer" # Rust analyzer
+vscode "sumneko.lua" # Lua language support
+vscode "tamasfe.even-better-toml" # TOML support
+# vscode "technosophos.vscode-helm" # Helm support, replaced by official Kubernetes extension
+vscode "tim-koehler.helm-intellisense" # IntelliSense support for Helm templates
+vscode "twxs.cmake" # CMake language support for VS Code
+vscode "wayou.vscode-todo-highlight" # TODO Highlight
+vscode "yzhang.markdown-all-in-one" # Markdown All-In-One
+go "sigs.k8s.io/cloud-provider-kind" # KIND provider for Kubernetes
+go "golang.org/x/tools/gopls" # Golang language server
+go "honnef.co/go/tools/cmd/staticcheck" # Tool to find bugs and performance issues in Go
+

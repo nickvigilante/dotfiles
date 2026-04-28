@@ -15,3 +15,6 @@
 # machine regardless of how the repo was cloned. .chezmoiroot handles the
 # /home suffix at working-tree level, but this makes the config self-contained.
 sourceDir = {{ joinPath .chezmoi.homeDir "git" "nickvigilante" "dotfiles" "home" | quote }}
+
+[diff]
+pager = "delta"
