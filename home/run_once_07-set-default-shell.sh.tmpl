@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# run_once_07-set-default-shell: ensure zsh is the default login shell.
+# macOS already defaults to zsh — no-op.
+# Skipped on Pi (the user picks their shell there) and Windows.
+
+{{ if and (eq .chezmoi.os "linux") (ne .machine "pi") -}}
+
+set -euo pipefail
+
+zsh_path="$(command -v zsh || true)"
+if [[ -z "$zsh_path" ]]; then
+    echo "WARN: zsh not found on PATH; skipping shell change."
+    exit 0
+fi
+
+if ! grep -Fqx "$zsh_path" /etc/shells 2>/dev/null; then
+    echo "Adding $zsh_path to /etc/shells (requires sudo)..."
+    echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
+fi
+
+current_shell="$(getent passwd "$USER" | cut -d: -f7)"
+if [[ "$current_shell" != "$zsh_path" ]]; then
+    if chsh -s "$zsh_path" "$USER" 2>/dev/null; then
+        echo "Default shell changed to $zsh_path. Open a new terminal for it to take effect."
+    else
+        echo "WARN: chsh failed. Run manually:  chsh -s $zsh_path"
+    fi
+fi
+
+{{- end }}
