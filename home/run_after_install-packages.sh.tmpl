@@ -6,6 +6,13 @@
 
 set -euo pipefail
 
+# Suppress Homebrew's "Disable this behaviour by setting HOMEBREW_NO_INSTALL_CLEANUP=1"
+# / "Hide these hints with HOMEBREW_NO_ENV_HINTS=1" footer noise. Per-formula
+# Caveats blocks (e.g. "zsh completions installed to ...") are emitted by the
+# formulae themselves and only appear during actual installs — on re-runs where
+# `brew bundle check` exits 0, no caveats are shown.
+export HOMEBREW_NO_ENV_HINTS=1
+
 REPO_DIR="{{ .chezmoi.sourceDir }}/.."
 GUM="${HOME}/.local/bin/gum"
 [[ -x "$GUM" ]] || GUM="$(command -v gum || echo "")"

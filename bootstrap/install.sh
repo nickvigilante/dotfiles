@@ -18,6 +18,7 @@ fi
 set -euo pipefail
 
 DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/nickvigilante/dotfiles.git}"
+DOTFILES_BRANCH="${DOTFILES_BRANCH:-main}"
 SCRIPT_VERSION="2.0.0"
 
 # ── Parse flags + env vars ───────────────────────────────────────────────────
@@ -40,6 +41,7 @@ while (( "$#" )); do
         --no-display)       FLAG_DISPLAY=0; shift ;;
         --secrets)          FLAG_SECRETS="$2"; shift 2 ;;
         --op-token)         FLAG_OP_TOKEN="$2"; shift 2 ;;
+        --branch)           DOTFILES_BRANCH="$2"; shift 2 ;;
         --non-interactive)  FLAG_NON_INTERACTIVE=1; shift ;;
         --help|-h)
             cat <<EOF
@@ -51,6 +53,7 @@ Usage: install.sh [flags]
   --display | --no-display
   --secrets none|bitwarden|1password|both
   --op-token <token>          Stored at ~/.config/op/token (chmod 600)
+  --branch <name>             Branch/tag to clone (default: main; or set DOTFILES_BRANCH)
   --non-interactive           Fail on any unspecified field; no prompts
 EOF
             exit 0
@@ -71,8 +74,8 @@ err()    { printf "%s  ✗%s %s\n" "$RED" "$RESET" "$*" >&2; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
 if [[ -z "$SCRIPT_DIR" ]] || [[ ! -d "$SCRIPT_DIR/lib" ]]; then
     TMP_REPO="$(mktemp -d)"
-    info "Cloning dotfiles to $TMP_REPO for bootstrap libs..."
-    git clone --depth=1 "$DOTFILES_REPO" "$TMP_REPO"
+    info "Cloning dotfiles ($DOTFILES_BRANCH) to $TMP_REPO for bootstrap libs..."
+    git clone --depth=1 -b "$DOTFILES_BRANCH" "$DOTFILES_REPO" "$TMP_REPO"
     SCRIPT_DIR="$TMP_REPO/bootstrap"
 fi
 
@@ -111,6 +114,9 @@ header "Step 3/8 — Install bootstrap essentials"
 case "$DETECTED_OS" in
     linux)
         if [[ "$DETECTED_IS_PI" == 0 ]]; then
+            info "Confirming sudo authentication (fingerprint, Touch ID, or password)..."
+            sudo -v
+            ok "Sudo authenticated."
             if command -v apt-get &>/dev/null; then
                 info "Installing apt prereqs..."
                 sudo apt-get update -qq
@@ -249,21 +255,25 @@ header "Step 8/8 — Apply dotfiles"
 
 # home/.chezmoi.toml.tmpl pins sourceDir to ~/git/nickvigilante/dotfiles/home,
 # so chezmoi reads templates from there on every apply. Make sure that path
-# exists and is fresh BEFORE chezmoi init --apply, otherwise the apply phase
-# reads from a stale (or missing) clone and re-runs deleted scripts.
+# exists and is on the requested branch BEFORE chezmoi init --apply, otherwise
+# the apply phase reads from a stale (or wrong-branch) clone.
 DEV_CLONE="$HOME/git/nickvigilante/dotfiles"
 if [[ ! -d "$DEV_CLONE/.git" ]]; then
-    info "Cloning dotfiles repo to $DEV_CLONE..."
+    info "Cloning dotfiles repo ($DOTFILES_BRANCH) to $DEV_CLONE..."
     mkdir -p "$(dirname "$DEV_CLONE")"
     git clone "$DOTFILES_REPO" "$DEV_CLONE"
+    if [[ "$DOTFILES_BRANCH" != "main" ]]; then
+        git -C "$DEV_CLONE" checkout "$DOTFILES_BRANCH"
+    fi
 else
-    info "Updating dev clone at $DEV_CLONE..."
+    info "Updating dev clone at $DEV_CLONE (target: origin/$DOTFILES_BRANCH)..."
     git -C "$DEV_CLONE" fetch origin --quiet
-    if git -C "$DEV_CLONE" merge --ff-only origin/main 2>/dev/null; then
-        ok "Dev clone fast-forwarded to origin/main."
+    if git -C "$DEV_CLONE" merge --ff-only "origin/$DOTFILES_BRANCH" 2>/dev/null; then
+        ok "Dev clone fast-forwarded to origin/$DOTFILES_BRANCH."
     else
-        warn "Could not fast-forward $DEV_CLONE (uncommitted changes or diverged history); leaving as-is."
-        warn "If bootstrap fails next, manually resolve $DEV_CLONE and re-run."
+        warn "Could not fast-forward $DEV_CLONE to origin/$DOTFILES_BRANCH"
+        warn "  (likely on a different branch, has uncommitted edits, or diverged); leaving as-is."
+        warn "If bootstrap fails next, manually 'git checkout $DOTFILES_BRANCH && git pull' in $DEV_CLONE and re-run."
     fi
 fi
 
