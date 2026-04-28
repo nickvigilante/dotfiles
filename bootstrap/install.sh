@@ -60,10 +60,11 @@ EOF
 done
 
 # ── Pretty output (pre-Gum) ──────────────────────────────────────────────────
-BOLD=$'\033[1m'; CYAN=$'\033[0;36m'; GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; RESET=$'\033[0m'
+BOLD=$'\033[1m'; CYAN=$'\033[0;36m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[0;33m'; RED=$'\033[0;31m'; RESET=$'\033[0m'
 header() { printf "\n%s%s%s\n" "$BOLD" "$*" "$RESET"; }
 info()   { printf "%s  →%s %s\n" "$CYAN" "$RESET" "$*"; }
 ok()     { printf "%s  ✓%s %s\n" "$GREEN" "$RESET" "$*"; }
+warn()   { printf "%s  !%s %s\n" "$YELLOW" "$RESET" "$*" >&2; }
 err()    { printf "%s  ✗%s %s\n" "$RED" "$RESET" "$*" >&2; }
 
 # ── Locate scripts (works whether run via curl|sh or from clone) ────────────
@@ -233,6 +234,27 @@ ok "chezmoi installed: $(chezmoi --version | head -1)"
 
 # ── 8. chezmoi init --apply ─────────────────────────────────────────────────
 header "Step 8/8 — Apply dotfiles"
+
+# home/.chezmoi.toml.tmpl pins sourceDir to ~/git/nickvigilante/dotfiles/home,
+# so chezmoi reads templates from there on every apply. Make sure that path
+# exists and is fresh BEFORE chezmoi init --apply, otherwise the apply phase
+# reads from a stale (or missing) clone and re-runs deleted scripts.
+DEV_CLONE="$HOME/git/nickvigilante/dotfiles"
+if [[ ! -d "$DEV_CLONE/.git" ]]; then
+    info "Cloning dotfiles repo to $DEV_CLONE..."
+    mkdir -p "$(dirname "$DEV_CLONE")"
+    git clone "$DOTFILES_REPO" "$DEV_CLONE"
+else
+    info "Updating dev clone at $DEV_CLONE..."
+    git -C "$DEV_CLONE" fetch origin --quiet
+    if git -C "$DEV_CLONE" merge --ff-only origin/main 2>/dev/null; then
+        ok "Dev clone fast-forwarded to origin/main."
+    else
+        warn "Could not fast-forward $DEV_CLONE (uncommitted changes or diverged history); leaving as-is."
+        warn "If bootstrap fails next, manually resolve $DEV_CLONE and re-run."
+    fi
+fi
+
 display_bool="false"
 [[ "$FLAG_DISPLAY" == 1 ]] && display_bool="true"
 
