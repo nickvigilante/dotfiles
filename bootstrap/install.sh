@@ -164,8 +164,9 @@ prompt_required FLAG_MACHINE "Machine role"     "laptop desktop server pi epheme
 if [[ -z "$FLAG_SECRETS" ]]; then
     [[ "$FLAG_PROFILE" == "work" ]] && FLAG_SECRETS="1password" || FLAG_SECRETS="none"
     if [[ "$FLAG_NON_INTERACTIVE" == 0 ]]; then
-        FLAG_SECRETS="$("$GUM_BIN" choose --header "Secret managers (default: $FLAG_SECRETS)" \
-            "$FLAG_SECRETS" none bitwarden 1password both | head -1)"
+        FLAG_SECRETS="$("$GUM_BIN" choose --header "Secret managers" \
+            --selected="$FLAG_SECRETS" \
+            none bitwarden 1password both)"
     fi
 fi
 
@@ -204,8 +205,16 @@ esac
 case "$FLAG_SECRETS" in
     bitwarden|both)
         if [[ "$FLAG_NON_INTERACTIVE" == 0 ]]; then
-            info "Logging in to Bitwarden..."
-            bw login --raw >/dev/null 2>&1 || bw login
+            bw_status_json="$(bw status 2>/dev/null || true)"
+            case "$bw_status_json" in
+                *'"status":"unauthenticated"'*|"")
+                    info "Logging in to Bitwarden..."
+                    bw login
+                    ;;
+                *)
+                    info "Bitwarden session already authenticated; unlocking..."
+                    ;;
+            esac
             export BW_SESSION
             BW_SESSION="$(bw unlock --raw)"
             ok "Bitwarden unlocked."
