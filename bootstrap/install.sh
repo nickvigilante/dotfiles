@@ -216,9 +216,21 @@ case "$FLAG_SECRETS" in
                     info "Bitwarden session already authenticated; unlocking..."
                     ;;
             esac
-            export BW_SESSION
-            BW_SESSION="$(bw unlock --raw)"
-            ok "Bitwarden unlocked."
+            while true; do
+                if BW_SESSION="$(bw unlock --raw)" && [[ -n "$BW_SESSION" ]]; then
+                    export BW_SESSION
+                    ok "Bitwarden unlocked."
+                    break
+                fi
+                warn "Bitwarden unlock failed (wrong master password or session error)."
+                case "$("$GUM_BIN" choose --header "Try again, or skip Bitwarden for this run?" retry skip)" in
+                    skip)
+                        warn "Skipping Bitwarden; chezmoi will not pull Bitwarden secrets this run."
+                        unset BW_SESSION
+                        break
+                        ;;
+                esac
+            done
         fi
         ;;
 esac

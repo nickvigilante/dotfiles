@@ -57,7 +57,8 @@ fi
 
 bundle_flags=(--file="$BREWFILE")
 command -v code &>/dev/null || bundle_flags+=(--no-vscode)
-[[ "{{ .chezmoi.os }}" == "darwin" ]] || bundle_flags+=(--no-mas)
+# Note: --no-mas was removed by Homebrew; the Brewfile already darwin-gates
+# its `mas` block, so on Linux there are no Mac App Store entries to skip.
 
 if brew bundle check "${bundle_flags[@]}" --quiet; then
     exit 0
