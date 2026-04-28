@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# run_once_01-install-bootstrap-prereqs: ensure pre-Homebrew prereqs are installed.
+# Defense in depth — bootstrap/install.sh already does this on first run, but a
+# user who clones the repo and runs `chezmoi apply` directly should still be safe.
+
+{{ if eq .chezmoi.os "linux" }}{{ if ne .machine "pi" -}}
+
+set -euo pipefail
+
+REPO_DIR="{{ .chezmoi.sourceDir }}/.."
+
+if command -v apt-get &>/dev/null; then
+    PKG_FILE="$REPO_DIR/os/linux/bootstrap.apt"
+    if [[ -f "$PKG_FILE" ]]; then
+        echo "==> Ensuring apt prereqs are installed..."
+        sudo apt-get update -qq
+        # shellcheck disable=SC2046
+        sudo apt-get install -y $(grep -Ev '^#|^$' "$PKG_FILE")
+    fi
+elif command -v dnf &>/dev/null; then
+    PKG_FILE="$REPO_DIR/os/linux/bootstrap.dnf"
+    if [[ -f "$PKG_FILE" ]]; then
+        echo "==> Ensuring dnf prereqs are installed..."
+        # shellcheck disable=SC2046
+        sudo dnf install -y $(grep -Ev '^#|^$' "$PKG_FILE")
+    fi
+fi
+
+{{- end }}{{- end }}

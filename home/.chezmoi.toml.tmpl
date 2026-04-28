@@ -1,15 +1,62 @@
-{{- $profile               := promptChoiceOnce . "profile" "Profile" (list "work" "personal") -}}
-{{- $name                  := promptStringOnce . "name" "Full name" "Nick" -}}
-{{- $email                 := promptStringOnce . "email" "Email address" "" -}}
-{{- $machine               := promptChoiceOnce . "machine" "Machine role" (list "laptop" "desktop" "server" "pi") -}}
-{{- $preferSystemPackages  := promptBoolOnce . "prefer_system_packages" "Prefer system package manager (apt/dnf) over Homebrew on Linux?" -}}
+{{- /* Auto-detect helpers — values used as defaults below */ -}}
+{{- $isWSL := false -}}
+{{- if eq .chezmoi.os "linux" -}}
+  {{- if env "WSL_DISTRO_NAME" -}}
+    {{- $isWSL = true -}}
+  {{- else -}}
+    {{- if stat "/proc/version" -}}
+      {{- if regexMatch "(?i)microsoft|wsl" (include "/proc/version") -}}
+        {{- $isWSL = true -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $hasDisplayLinux := false -}}
+{{- if eq .chezmoi.os "linux" -}}
+  {{- if not $isWSL -}}
+    {{- if or (env "DISPLAY") (env "WAYLAND_DISPLAY") -}}
+      {{- $hasDisplayLinux = true -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $defaultDisplay := false -}}
+{{- if eq .chezmoi.os "darwin" -}}
+  {{- $defaultDisplay = true -}}
+{{- else if eq .chezmoi.os "windows" -}}
+  {{- $defaultDisplay = true -}}
+{{- else if $hasDisplayLinux -}}
+  {{- $defaultDisplay = true -}}
+{{- end -}}
+
+{{- $profile := promptChoiceOnce . "profile" "Profile" (list "work" "personal") -}}
+{{- $name := promptStringOnce . "name" "Full name" "Nick" -}}
+{{- $email := promptStringOnce . "email" "Email address" "" -}}
+{{- $machine := promptChoiceOnce . "machine" "Machine role" (list "laptop" "desktop" "server" "pi" "ephemeral") -}}
+{{- $display := promptBoolOnce . "display" "Has graphical display" $defaultDisplay -}}
+{{- $defaultSecrets := "none" -}}
+{{- if eq $profile "work" }}{{ $defaultSecrets = "1password" }}{{ end -}}
+{{- $secrets := promptChoiceOnce . "secrets" "Secret managers" (list "none" "bitwarden" "1password" "both") -}}
+
+# ────────────────────────────────────────────────────────────
+# Re-run this exact bootstrap on another machine:
+#
+#   sh -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)" -- \
+#     --profile {{ $profile }} \
+#     --machine {{ $machine }} \
+#     --secrets {{ $secrets }} \
+#     {{ if $display }}--display{{ else }}--no-display{{ end }} \
+#     --non-interactive
+# ────────────────────────────────────────────────────────────
 
 [data]
-    profile                = {{ $profile | quote }}
-    name                   = {{ $name | quote }}
-    email                  = {{ $email | quote }}
-    machine                = {{ $machine | quote }}
-    prefer_system_packages = {{ $preferSystemPackages }}
+profile = {{ $profile | quote }}
+name    = {{ $name | quote }}
+email   = {{ $email | quote }}
+machine = {{ $machine | quote }}
+display = {{ $display }}
+secrets = {{ $secrets | quote }}
 
 # Explicitly record where the source lives so `chezmoi apply` works on any
 # machine regardless of how the repo was cloned. .chezmoiroot handles the

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# run_once_00-install-homebrew: install Homebrew if not already present.
-# Runs once per machine. Skipped on Windows and Raspberry Pi.
-{{ if or (eq .chezmoi.os "darwin") (and (eq .chezmoi.os "linux") (ne .machine "pi")) -}}
+# run_once_00-install-homebrew: install Homebrew if not present.
+# Runs once per machine. Skipped on Windows, Pi, and 32-bit ARM (Linuxbrew unsupported).
+
+{{ if or (eq .chezmoi.os "darwin")
+        (and (eq .chezmoi.os "linux")
+             (ne .machine "pi")
+             (or (eq .chezmoi.arch "amd64") (eq .chezmoi.arch "arm64"))) -}}
 
 set -euo pipefail
 
@@ -15,5 +19,5 @@ NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Ho
 echo "Homebrew installed."
 
 {{ else -}}
-echo "Skipping Homebrew (not supported on this platform/machine role)."
+echo "Skipping Homebrew (not supported on os={{ .chezmoi.os }}, arch={{ .chezmoi.arch }}, machine={{ .machine }})."
 {{- end }}

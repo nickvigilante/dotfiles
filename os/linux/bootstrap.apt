@@ -1,0 +1,13 @@
+# Pre-Homebrew prerequisites for Ubuntu/Debian.
+# Installed by bootstrap/install.sh and as defense-in-depth by run_once_01.
+# Keep minimal — heavier tools come via the unified Brewfile after Homebrew is up.
+
+curl
+git
+zsh
+ca-certificates
+build-essential
+file
+procps
+gnupg
+lsb-release

@@ -1,0 +1,44 @@
+# Source-of-truth color palette — Tokyo Night Storm × Material Ocean blend.
+# Consumed by Warp theme, Ghostty theme, Gum prompt styling, and bat config.
+# Edit values here; run `chezmoi apply` to regenerate all consumer themes.
+
+[palette.bg]
+default     = "#0d0e1a"   # deep navy-black — terminal background
+panel       = "#15172a"   # slightly lighter — popups, selection
+highlight   = "#2a2b45"   # hover/active rows
+
+[palette.fg]
+default     = "#c8d1f0"   # cool off-white
+dim         = "#6d7396"   # muted (line numbers, comments)
+bright      = "#ffffff"
+
+[palette.accent]
+green       = "#7df7c1"   # primary — strings, success
+blue        = "#82aaff"   # secondary — keywords, info
+purple      = "#c792ea"   # tertiary — types, headings
+cyan        = "#5ccfe6"   # quaternary — operators
+violet      = "#8e7df7"   # for Gum borders / chrome
+
+[palette.semantic]
+success     = "#7df7c1"
+info        = "#82aaff"
+warning     = "#f7c97d"
+error       = "#f78ab1"
+
+[palette.ansi]
+black           = "#1a1b30"
+red             = "#f78ab1"
+green           = "#7df7c1"
+yellow          = "#f7c97d"
+blue            = "#82aaff"
+magenta         = "#c792ea"
+cyan            = "#5ccfe6"
+white           = "#c8d1f0"
+bright_black    = "#3b3d5e"
+bright_red      = "#ff9bbc"
+bright_green    = "#9efbd1"
+bright_yellow   = "#ffd9a0"
+bright_blue     = "#a5c4ff"
+bright_magenta  = "#dbafff"
+bright_cyan     = "#82e8ff"
+bright_white    = "#ffffff"
