@@ -39,6 +39,12 @@ brew "go"            # Go language
 brew "rust"          # Rust language
 brew "node"          # Node.js
 brew "prettier"      # Code formatter
+brew "starship"      # Cross-shell prompt (initialized in completions.zsh)
+brew "dust"          # du replacement: visual disk usage tree
+brew "duf"           # df replacement: color-coded disk free
+brew "bottom"        # htop alt: graphs over time, mouse, layouts (binary: btm)
+brew "hyperfine"     # CLI benchmarking tool
+brew "glow"          # Markdown renderer for the terminal
 
 # ── macOS-only formulae ──────────────────────────────────────────────────────
 {{ if eq .chezmoi.os "darwin" -}}
@@ -184,19 +190,17 @@ mas "Todoist", id: 585829637
   {{- end }}
 {{- end }}
 
-# ── Cargo crates (any machine with rust) ─────────────────────────────────────
-cargo "cargo-edit"
-cargo "cargo-expand"
-cargo "pest-language-server"
-
+# ── Cargo crates (personal: primary Rust dev) ────────────────────────────────
+# These compile from source via cargo, so we only install on machines that
+# actually do Rust development. Add ad-hoc with `brew install cargo-edit`
+# (etc.) if you need them on the off-profile machine occasionally.
 {{ if eq .profile "personal" -}}
-cargo "trunk"
+cargo "cargo-edit"          # `cargo upgrade` to bump dep versions
 {{- end }}
 
-# ── Go tools (any machine with go) ───────────────────────────────────────────
-go "github.com/golangci/golangci-lint/cmd/golangci-lint"
-
+# ── Go tools (work: primary Go dev) ──────────────────────────────────────────
 {{ if eq .profile "work" -}}
+go "github.com/golangci/golangci-lint/cmd/golangci-lint"
 go "github.com/coder/coder/v2/enterprise/cmd/coder"
 {{- end }}
 

@@ -27,3 +27,9 @@ fi
 if command -v direnv &>/dev/null; then
   eval "$(direnv hook zsh)"
 fi
+
+# ── starship — cross-shell prompt ─────────────────────────────────────────────
+# Must come last: this overrides the OMZ theme set by ZSH_THEME in .zshrc.
+if command -v starship &>/dev/null; then
+  eval "$(starship init zsh)"
+fi
