@@ -58,7 +58,7 @@ if [[ ! -f "$BREWFILE" ]]; then
 fi
 
 if ! command -v brew &>/dev/null; then
-    echo "ERROR: brew not on PATH. Run 'chezmoi apply' to trigger run_once_00-install-homebrew."
+    echo "ERROR: brew not on PATH. Re-run bootstrap/install.sh — Step 6/9 installs Homebrew."
     exit 1
 fi
 

@@ -92,7 +92,7 @@ source "$SCRIPT_DIR/lib/gum-bootstrap.sh"
 source "$SCRIPT_DIR/lib/secrets.sh"
 
 # ── 1. Detect ─────────────────────────────────────────────────────────────────
-header "Step 1/8 — Detect platform"
+header "Step 1/9 — Detect platform"
 detect_all
 ok "OS: $DETECTED_OS, Arch: $DETECTED_ARCH${DETECTED_DISTRO:+, Distro: $DETECTED_DISTRO}"
 [[ "$DETECTED_WSL" == 1 ]] && info "WSL detected"
@@ -109,11 +109,11 @@ fi
 [[ -z "$FLAG_NAME"  ]] && FLAG_NAME="$(git config --global user.name 2>/dev/null || echo '')"
 
 # ── 2. Preflight ─────────────────────────────────────────────────────────────
-header "Step 2/8 — Preflight checks"
+header "Step 2/9 — Preflight checks"
 preflight_all || { err "Preflight failed."; exit 1; }
 
 # ── 3. Bootstrap-only essentials ─────────────────────────────────────────────
-header "Step 3/8 — Install bootstrap essentials"
+header "Step 3/9 — Install bootstrap essentials"
 case "$DETECTED_OS" in
     linux)
         if [[ "$DETECTED_IS_PI" == 0 ]]; then
@@ -128,6 +128,39 @@ case "$DETECTED_OS" in
                 info "Installing dnf prereqs..."
                 sudo dnf install -y curl git zsh ca-certificates @development-tools file procps-ng gnupg2
             fi
+
+            # snapd: required for Bitwarden CLI (snap install bw) on Linux,
+            # baseline-installed on every non-Pi Linux machine regardless of
+            # --secrets choice so future snap-based tools just work.
+            if ! command -v snap &>/dev/null; then
+                info "Installing snapd..."
+                if command -v apt-get &>/dev/null; then
+                    sudo apt-get install -y snapd
+                elif command -v dnf &>/dev/null; then
+                    sudo dnf install -y snapd
+                    # Fedora ships snapd but no /snap symlink; classically-
+                    # confined snaps need it. Bitwarden's snap is strict, but
+                    # creating the symlink keeps other snaps working too.
+                    [[ -e /snap ]] || sudo ln -sf /var/lib/snapd/snap /snap
+                else
+                    warn "snapd installer not implemented for this distro."
+                    warn "  Bitwarden CLI installs from snap; --secrets bitwarden will fail in step 7."
+                fi
+                if command -v systemctl &>/dev/null && command -v snap &>/dev/null; then
+                    sudo systemctl enable --now snapd.socket
+                    # Without this wait, the next 'snap install' can fail with
+                    # "too early for operation" on a freshly-enabled snapd.
+                    sudo snap wait system seed.loaded
+                    ok "snapd installed."
+                fi
+            fi
+            # /snap/bin holds symlinks to snap-installed apps. On Fedora and
+            # similar, it isn't on $PATH until next login — prepend it now so
+            # 'command -v bw' works in step 7 of this same run.
+            case ":${PATH}:" in
+                *:/snap/bin:*) : ;;
+                *) export PATH="/snap/bin:$PATH" ;;
+            esac
         fi
         ;;
     darwin)
@@ -137,7 +170,7 @@ esac
 ok "Bootstrap essentials in place."
 
 # ── 4. Download Gum ──────────────────────────────────────────────────────────
-header "Step 4/8 — Download Gum"
+header "Step 4/9 — Download Gum"
 if command -v gum &>/dev/null; then
     GUM_BIN="$(command -v gum)"
 else
@@ -149,7 +182,7 @@ fi
 ok "Gum ready: $GUM_BIN"
 
 # ── 5. Prompt for unset values ───────────────────────────────────────────────
-header "Step 5/8 — Configure (Gum prompts for what wasn't set)"
+header "Step 5/9 — Configure (Gum prompts for what wasn't set)"
 
 prompt_required() {
     local var="$1" question="$2" choices="$3"
@@ -182,8 +215,50 @@ fi
 
 ok "Profile=$FLAG_PROFILE, machine=$FLAG_MACHINE, display=$FLAG_DISPLAY, secrets=$FLAG_SECRETS"
 
-# ── 6. Pre-install secret CLIs ──────────────────────────────────────────────
-header "Step 6/8 — Install secret CLIs (if needed)"
+# ── 6. Install Homebrew ─────────────────────────────────────────────────────
+# Lifted from home/run_once_00-install-homebrew.sh.tmpl so brew is available
+# for the secret-CLI installs in step 7 (1Password on Linux + macOS bw/op).
+# Skipped on Pi and on any Linux arch other than amd64/arm64.
+header "Step 6/9 — Install Homebrew"
+brew_supported=0
+case "$DETECTED_OS" in
+    darwin) brew_supported=1 ;;
+    linux)
+        if [[ "$DETECTED_IS_PI" == 0 ]]; then
+            case "$DETECTED_ARCH" in
+                amd64|arm64) brew_supported=1 ;;
+            esac
+        fi
+        ;;
+esac
+
+if [[ "$brew_supported" == 1 ]]; then
+    # Resolve brew binary path: macOS arm64 → /opt/homebrew, macOS x86_64 →
+    # /usr/local, Linux → /home/linuxbrew/.linuxbrew. `command -v brew` may
+    # miss it on a fresh non-login shell where the shellenv hasn't run yet.
+    BREW_BIN=""
+    for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
+        [[ -x "$candidate" ]] && { BREW_BIN="$candidate"; break; }
+    done
+    if [[ -z "$BREW_BIN" ]]; then
+        info "Installing Homebrew (non-interactive)..."
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
+            [[ -x "$candidate" ]] && { BREW_BIN="$candidate"; break; }
+        done
+    fi
+    if [[ -z "$BREW_BIN" ]]; then
+        err "Homebrew install completed but brew not found in any standard location."
+        exit 1
+    fi
+    eval "$("$BREW_BIN" shellenv)"
+    ok "Homebrew available: $(brew --version | head -1)"
+else
+    info "Skipping Homebrew (unsupported on $DETECTED_OS/$DETECTED_ARCH; pi=$DETECTED_IS_PI)."
+fi
+
+# ── 7. Pre-install secret CLIs ──────────────────────────────────────────────
+header "Step 7/9 — Install secret CLIs (if needed)"
 case "$FLAG_SECRETS" in
     bitwarden|both)
         if [[ "$DETECTED_EPHEMERAL" == 1 ]] && [[ "$FLAG_NON_INTERACTIVE" == 1 ]]; then
@@ -244,8 +319,8 @@ case "$FLAG_SECRETS" in
         ;;
 esac
 
-# ── 7. Install chezmoi ──────────────────────────────────────────────────────
-header "Step 7/8 — Install chezmoi"
+# ── 8. Install chezmoi ──────────────────────────────────────────────────────
+header "Step 8/9 — Install chezmoi"
 if ! command -v chezmoi &>/dev/null; then
     info "Installing chezmoi..."
     sh -c "$(curl -fsSL https://get.chezmoi.io)" -- -b "$HOME/.local/bin"
@@ -253,8 +328,8 @@ fi
 export PATH="$HOME/.local/bin:$PATH"
 ok "chezmoi installed: $(chezmoi --version | head -1)"
 
-# ── 8. chezmoi init --apply ─────────────────────────────────────────────────
-header "Step 8/8 — Apply dotfiles"
+# ── 9. chezmoi init --apply ─────────────────────────────────────────────────
+header "Step 9/9 — Apply dotfiles"
 
 # home/.chezmoi.toml.tmpl pins sourceDir to ~/git/nickvigilante/dotfiles/home,
 # so chezmoi reads templates from there on every apply. Make sure that path

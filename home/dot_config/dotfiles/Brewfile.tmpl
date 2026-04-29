@@ -50,11 +50,17 @@ brew "gnupg"         # (already above; macOS sometimes needs explicit)
 
 # ── Secrets CLIs ─────────────────────────────────────────────────────────────
 {{ if or (eq .secrets "bitwarden") (eq .secrets "both") -}}
+{{- /* Linux gets bw from snap (see bootstrap/install.sh Step 3/9); installing
+       it here too would put a second binary on PATH, fighting with the snap. */ -}}
+{{- if eq .chezmoi.os "darwin" }}
 brew "bitwarden-cli"
+{{- end }}
 {{- end }}
 {{ if or (eq .secrets "1password") (eq .secrets "both") -}}
 {{- if eq .chezmoi.os "darwin" }}
 cask "1password-cli"
+{{- else }}
+brew "1password-cli"
 {{- end }}
 {{- end }}
 
