@@ -358,7 +358,12 @@ fi
 display_bool="false"
 [[ "$FLAG_DISPLAY" == 1 ]] && display_bool="true"
 
+# --branch is required: without it, chezmoi clones default-branch (main)
+# into ~/.local/share/chezmoi and the apply phase reads templates from
+# there, ignoring the sourceDir override in chezmoi.toml until the second
+# invocation. Pinning the branch makes the first apply read the right code.
 chezmoi init --apply \
+    --branch "$DOTFILES_BRANCH" \
     --promptChoice "Profile=$FLAG_PROFILE" \
     --promptString "Full name=$FLAG_NAME" \
     --promptString "Email address=$FLAG_EMAIL" \

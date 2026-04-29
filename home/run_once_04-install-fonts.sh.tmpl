@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# run_once_04-install-fonts: install the 0xProto Nerd Font on Linux.
+#
+# macOS installs it via the Brewfile cask `font-0xproto-nerd-font` (in
+# home/dot_config/dotfiles/Brewfile.tmpl), so this script is a no-op there.
+# We pull from the ryanoasis/nerd-fonts releases (not 0xType/0xProto) so the
+# Linux build matches macOS — both get the Nerd Font-patched variant.
+
+{{ if and .display (eq .chezmoi.os "linux") (ne .machine "pi") (or (eq .chezmoi.arch "amd64") (eq .chezmoi.arch "arm64")) -}}
+set -euo pipefail
+
+if command -v fc-list &>/dev/null && fc-list | grep -qi '0xproto'; then
+    echo "0xProto already installed; skipping."
+    exit 0
+fi
+
+# Resolve the latest Nerd Fonts release tag client-side (no GitHub API
+# rate limiting). Tags look like v3.4.0; sort -V picks the newest.
+latest_tag="$(git ls-remote --tags --sort=-v:refname \
+    https://github.com/ryanoasis/nerd-fonts.git 'refs/tags/v*' 2>/dev/null \
+    | awk -F/ '{sub(/\^\{\}$/, "", $NF); print $NF; exit}')"
+if [[ -z "$latest_tag" ]]; then
+    echo "WARN: could not resolve latest nerd-fonts tag; skipping 0xProto install."
+    exit 0
+fi
+
+font_dir="$HOME/.local/share/fonts/0xProtoNerdFont"
+zip_url="https://github.com/ryanoasis/nerd-fonts/releases/download/${latest_tag}/0xProto.zip"
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+
+echo "Downloading 0xProto Nerd Font ${latest_tag}..."
+if ! curl -fsSL "$zip_url" -o "$tmp/0xproto.zip"; then
+    echo "WARN: 0xProto download failed (${zip_url}); skipping."
+    exit 0
+fi
+
+mkdir -p "$font_dir"
+if ! command -v unzip &>/dev/null; then
+    echo "WARN: unzip not on PATH; cannot extract 0xProto."
+    exit 0
+fi
+unzip -qo "$tmp/0xproto.zip" -d "$font_dir"
+
+if command -v fc-cache &>/dev/null; then
+    fc-cache -f "$font_dir" >/dev/null
+fi
+echo "0xProto Nerd Font ${latest_tag} installed to $font_dir."
+{{- else }}
+# Skipped: macOS handles 0xProto via Brewfile cask, Pi/32-bit ARM and
+# headless machines opt out.
+exit 0
+{{- end }}

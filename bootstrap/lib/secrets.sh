@@ -49,8 +49,19 @@ install_op() {
 # ── Bitwarden CLI install ───────────────────────────────────────────────────
 install_bw() {
     if command -v bw &>/dev/null; then
-        echo "✓ Bitwarden CLI already installed: $(bw --version)"
-        return 0
+        existing_bw="$(command -v bw)"
+        # Earlier versions of this bootstrap did a direct-zip install of
+        # Bitwarden CLI to ~/.local/bin/bw. The pinned version is now too
+        # stale for Bitwarden's server, which rejects logins with
+        # "Please update your app". Remove the legacy binary so the snap
+        # install path below takes over.
+        if [[ "$DETECTED_OS" == "linux" ]] && [[ "$existing_bw" == "$HOME/.local/bin/bw" ]]; then
+            echo "Removing legacy Bitwarden CLI at $existing_bw (snap will replace it)..."
+            rm -f "$existing_bw"
+        else
+            echo "✓ Bitwarden CLI already installed: $(bw --version)"
+            return 0
+        fi
     fi
     case "$DETECTED_OS" in
         darwin)

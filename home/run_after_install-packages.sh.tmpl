@@ -75,7 +75,11 @@ if brew bundle check "${bundle_flags[@]}" --quiet &>/dev/null; then
 fi
 
 echo "==> Installing missing Brewfile dependencies..."
-if brew bundle install "${bundle_flags[@]}"; then
+# --quiet suppresses brew bundle's "Using <pkg>" / "already installed and
+# up-to-date" per-entry chatter. Per-formula caveats (e.g. "zsh completions
+# installed to ...") are emitted directly by brew install on first install
+# and aren't suppressible — they don't reappear on subsequent runs.
+if brew bundle install "${bundle_flags[@]}" --quiet; then
     exit 0
 fi
 
