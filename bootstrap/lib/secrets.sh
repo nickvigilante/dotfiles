@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Secret-CLI installation helpers. Sourced by bootstrap/install.sh.
-# Requires DETECTED_OS, DETECTED_ARCH set by detect.sh.
+#
+# Both helpers assume install.sh's earlier steps have provided:
+#   - Step 3/9: snapd on Linux (non-Pi) — used by install_bw
+#   - Step 6/9: Homebrew on Linux (non-Pi) + macOS — used by install_op
+#                (and by install_bw on macOS only)
+#
+# Requires DETECTED_OS, DETECTED_ARCH, DETECTED_IS_PI from detect.sh.
 
 set -euo pipefail
 
@@ -12,86 +18,75 @@ install_op() {
     fi
     case "$DETECTED_OS" in
         darwin)
-            echo "Installing 1Password CLI via brew (will be re-installed via Brewfile too)..."
-            if command -v brew &>/dev/null; then
-                brew install --cask 1password-cli
-            else
-                _install_op_direct
+            if ! command -v brew &>/dev/null; then
+                echo "ERROR: Homebrew required for 1Password CLI on macOS." >&2
+                return 1
             fi
+            echo "Installing 1Password CLI via brew..."
+            brew install --cask 1password-cli
             ;;
         linux)
-            _install_op_apt_repo
+            if [[ "${DETECTED_IS_PI:-0}" == 1 ]]; then
+                echo "ERROR: 1Password CLI unsupported on 32-bit ARM (no Linuxbrew)." >&2
+                echo "  Use --secrets none or --secrets bitwarden." >&2
+                return 1
+            fi
+            if ! command -v brew &>/dev/null; then
+                echo "ERROR: Homebrew required for 1Password CLI on Linux but brew is not on PATH." >&2
+                echo "  install.sh Step 6/9 should have installed it; check that step's output." >&2
+                return 1
+            fi
+            echo "Installing 1Password CLI via brew..."
+            brew install 1password-cli
             ;;
         *)
-            echo "WARN: 1Password CLI auto-install not supported on $DETECTED_OS."
+            echo "WARN: 1Password CLI auto-install not supported on $DETECTED_OS." >&2
             return 1
             ;;
     esac
 }
 
-_install_op_apt_repo() {
-    if ! command -v apt-get &>/dev/null; then
-        echo "ERROR: 1Password CLI on Linux requires apt; this distro is unsupported."
-        return 1
-    fi
-    echo "Adding 1Password apt repo..."
-    curl -fsSL https://downloads.1password.com/linux/keys/1password.asc | \
-        sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
-    echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/amd64 stable main" | \
-        sudo tee /etc/apt/sources.list.d/1password.list >/dev/null
-    sudo mkdir -p /etc/debsig/policies/AC2D62742012EA22/
-    curl -fsSL https://downloads.1password.com/linux/debian/debsig/1password.pol | \
-        sudo tee /etc/debsig/policies/AC2D62742012EA22/1password.pol >/dev/null
-    sudo mkdir -p /usr/share/debsig/keyrings/AC2D62742012EA22/
-    curl -fsSL https://downloads.1password.com/linux/keys/1password.asc | \
-        sudo gpg --dearmor --output /usr/share/debsig/keyrings/AC2D62742012EA22/debsig.gpg
-    sudo apt-get update -qq
-    sudo apt-get install -y 1password-cli
-    echo "✓ 1Password CLI installed."
-}
-
-_install_op_direct() {
-    local version="2.30.0"
-    local arch
-    case "$DETECTED_ARCH" in
-        amd64) arch="amd64" ;;
-        arm64) arch="arm64" ;;
-        *) echo "ERROR: 1P CLI direct install requires amd64/arm64."; return 1 ;;
-    esac
-    local zip="op_${DETECTED_OS}_${arch}_v${version}.zip"
-    local url="https://cache.agilebits.com/dist/1P/op2/pkg/v${version}/${zip}"
-    local tmp; tmp="$(mktemp -d)"; trap "rm -rf '$tmp'" RETURN
-    curl -fsSL "$url" -o "$tmp/$zip"
-    unzip -q "$tmp/$zip" -d "$tmp"
-    install -m 0755 "$tmp/op" "$HOME/.local/bin/op"
-    echo "✓ 1Password CLI installed to $HOME/.local/bin/op"
-}
-
 # ── Bitwarden CLI install ───────────────────────────────────────────────────
 install_bw() {
     if command -v bw &>/dev/null; then
-        echo "✓ Bitwarden CLI already installed: $(bw --version)"
-        return 0
+        existing_bw="$(command -v bw)"
+        # Earlier versions of this bootstrap did a direct-zip install of
+        # Bitwarden CLI to ~/.local/bin/bw. The pinned version is now too
+        # stale for Bitwarden's server, which rejects logins with
+        # "Please update your app". Remove the legacy binary so the snap
+        # install path below takes over.
+        if [[ "$DETECTED_OS" == "linux" ]] && [[ "$existing_bw" == "$HOME/.local/bin/bw" ]]; then
+            echo "Removing legacy Bitwarden CLI at $existing_bw (snap will replace it)..."
+            rm -f "$existing_bw"
+        else
+            echo "✓ Bitwarden CLI already installed: $(bw --version)"
+            return 0
+        fi
     fi
     case "$DETECTED_OS" in
         darwin)
-            if command -v brew &>/dev/null; then
-                brew install bitwarden-cli
-            else
-                echo "ERROR: Homebrew required for Bitwarden CLI on macOS."
+            if ! command -v brew &>/dev/null; then
+                echo "ERROR: Homebrew required for Bitwarden CLI on macOS." >&2
                 return 1
             fi
+            brew install bitwarden-cli
             ;;
         linux)
-            local version="2024.7.2"
-            local tmp; tmp="$(mktemp -d)"; trap "rm -rf '$tmp'" RETURN
-            curl -fsSL "https://github.com/bitwarden/clients/releases/download/cli-v${version}/bw-linux-${version}.zip" -o "$tmp/bw.zip"
-            unzip -q "$tmp/bw.zip" -d "$tmp"
-            install -m 0755 "$tmp/bw" "$HOME/.local/bin/bw"
-            echo "✓ Bitwarden CLI installed to $HOME/.local/bin/bw"
+            if [[ "${DETECTED_IS_PI:-0}" == 1 ]]; then
+                echo "ERROR: Bitwarden CLI unsupported on 32-bit ARM (no snap or Linuxbrew)." >&2
+                echo "  Use --secrets none or --secrets 1password." >&2
+                return 1
+            fi
+            if ! command -v snap &>/dev/null; then
+                echo "ERROR: snapd required for Bitwarden CLI on Linux but snap is not on PATH." >&2
+                echo "  install.sh Step 3/9 should have installed it; check that step's output." >&2
+                return 1
+            fi
+            echo "Installing Bitwarden CLI via snap..."
+            sudo snap install bw
             ;;
         *)
-            echo "WARN: Bitwarden CLI auto-install not supported on $DETECTED_OS."
+            echo "WARN: Bitwarden CLI auto-install not supported on $DETECTED_OS." >&2
             return 1
             ;;
     esac

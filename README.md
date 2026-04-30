@@ -241,7 +241,6 @@ dotfiles/
 │   │   ├── executable_dotfiles-doctor.tmpl  # health check
 │   │   └── executable_update-packages
 │   ├── private_dot_env.tmpl      # ~/.env (gated on .secrets)
-│   ├── run_once_00-install-homebrew
 │   ├── run_once_01-install-bootstrap-prereqs
 │   ├── run_once_02-install-uv
 │   ├── run_once_03-setup-python-venv

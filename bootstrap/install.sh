@@ -18,6 +18,7 @@ fi
 set -euo pipefail
 
 DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/nickvigilante/dotfiles.git}"
+DOTFILES_BRANCH="${DOTFILES_BRANCH:-main}"
 SCRIPT_VERSION="2.0.0"
 
 # ── Parse flags + env vars ───────────────────────────────────────────────────
@@ -40,6 +41,7 @@ while (( "$#" )); do
         --no-display)       FLAG_DISPLAY=0; shift ;;
         --secrets)          FLAG_SECRETS="$2"; shift 2 ;;
         --op-token)         FLAG_OP_TOKEN="$2"; shift 2 ;;
+        --branch)           DOTFILES_BRANCH="$2"; shift 2 ;;
         --non-interactive)  FLAG_NON_INTERACTIVE=1; shift ;;
         --help|-h)
             cat <<EOF
@@ -51,6 +53,7 @@ Usage: install.sh [flags]
   --display | --no-display
   --secrets none|bitwarden|1password|both
   --op-token <token>          Stored at ~/.config/op/token (chmod 600)
+  --branch <name>             Branch/tag to clone (default: main; or set DOTFILES_BRANCH)
   --non-interactive           Fail on any unspecified field; no prompts
 EOF
             exit 0
@@ -60,18 +63,22 @@ EOF
 done
 
 # ── Pretty output (pre-Gum) ──────────────────────────────────────────────────
-BOLD=$'\033[1m'; CYAN=$'\033[0;36m'; GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; RESET=$'\033[0m'
+BOLD=$'\033[1m'; CYAN=$'\033[0;36m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[0;33m'; RED=$'\033[0;31m'; RESET=$'\033[0m'
 header() { printf "\n%s%s%s\n" "$BOLD" "$*" "$RESET"; }
 info()   { printf "%s  →%s %s\n" "$CYAN" "$RESET" "$*"; }
 ok()     { printf "%s  ✓%s %s\n" "$GREEN" "$RESET" "$*"; }
+warn()   { printf "%s  !%s %s\n" "$YELLOW" "$RESET" "$*" >&2; }
 err()    { printf "%s  ✗%s %s\n" "$RED" "$RESET" "$*" >&2; }
 
 # ── Locate scripts (works whether run via curl|sh or from clone) ────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
+# `bash -c "..." -- --branch foo` makes $0 == "--", and BASH_SOURCE[0] is
+# empty under -c. `dirname --` triggers GNU's end-of-options handling and
+# errors with "missing operand"; force the value to be a path operand.
+SCRIPT_DIR="$(cd "$(dirname -- "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
 if [[ -z "$SCRIPT_DIR" ]] || [[ ! -d "$SCRIPT_DIR/lib" ]]; then
     TMP_REPO="$(mktemp -d)"
-    info "Cloning dotfiles to $TMP_REPO for bootstrap libs..."
-    git clone --depth=1 "$DOTFILES_REPO" "$TMP_REPO"
+    info "Cloning dotfiles ($DOTFILES_BRANCH) to $TMP_REPO for bootstrap libs..."
+    git clone --depth=1 -b "$DOTFILES_BRANCH" "$DOTFILES_REPO" "$TMP_REPO"
     SCRIPT_DIR="$TMP_REPO/bootstrap"
 fi
 
@@ -85,7 +92,7 @@ source "$SCRIPT_DIR/lib/gum-bootstrap.sh"
 source "$SCRIPT_DIR/lib/secrets.sh"
 
 # ── 1. Detect ─────────────────────────────────────────────────────────────────
-header "Step 1/8 — Detect platform"
+header "Step 1/9 — Detect platform"
 detect_all
 ok "OS: $DETECTED_OS, Arch: $DETECTED_ARCH${DETECTED_DISTRO:+, Distro: $DETECTED_DISTRO}"
 [[ "$DETECTED_WSL" == 1 ]] && info "WSL detected"
@@ -102,14 +109,17 @@ fi
 [[ -z "$FLAG_NAME"  ]] && FLAG_NAME="$(git config --global user.name 2>/dev/null || echo '')"
 
 # ── 2. Preflight ─────────────────────────────────────────────────────────────
-header "Step 2/8 — Preflight checks"
+header "Step 2/9 — Preflight checks"
 preflight_all || { err "Preflight failed."; exit 1; }
 
 # ── 3. Bootstrap-only essentials ─────────────────────────────────────────────
-header "Step 3/8 — Install bootstrap essentials"
+header "Step 3/9 — Install bootstrap essentials"
 case "$DETECTED_OS" in
     linux)
         if [[ "$DETECTED_IS_PI" == 0 ]]; then
+            info "Confirming sudo authentication (fingerprint, Touch ID, or password)..."
+            sudo -v
+            ok "Sudo authenticated."
             if command -v apt-get &>/dev/null; then
                 info "Installing apt prereqs..."
                 sudo apt-get update -qq
@@ -118,6 +128,39 @@ case "$DETECTED_OS" in
                 info "Installing dnf prereqs..."
                 sudo dnf install -y curl git zsh ca-certificates @development-tools file procps-ng gnupg2
             fi
+
+            # snapd: required for Bitwarden CLI (snap install bw) on Linux,
+            # baseline-installed on every non-Pi Linux machine regardless of
+            # --secrets choice so future snap-based tools just work.
+            if ! command -v snap &>/dev/null; then
+                info "Installing snapd..."
+                if command -v apt-get &>/dev/null; then
+                    sudo apt-get install -y snapd
+                elif command -v dnf &>/dev/null; then
+                    sudo dnf install -y snapd
+                    # Fedora ships snapd but no /snap symlink; classically-
+                    # confined snaps need it. Bitwarden's snap is strict, but
+                    # creating the symlink keeps other snaps working too.
+                    [[ -e /snap ]] || sudo ln -sf /var/lib/snapd/snap /snap
+                else
+                    warn "snapd installer not implemented for this distro."
+                    warn "  Bitwarden CLI installs from snap; --secrets bitwarden will fail in step 7."
+                fi
+                if command -v systemctl &>/dev/null && command -v snap &>/dev/null; then
+                    sudo systemctl enable --now snapd.socket
+                    # Without this wait, the next 'snap install' can fail with
+                    # "too early for operation" on a freshly-enabled snapd.
+                    sudo snap wait system seed.loaded
+                    ok "snapd installed."
+                fi
+            fi
+            # /snap/bin holds symlinks to snap-installed apps. On Fedora and
+            # similar, it isn't on $PATH until next login — prepend it now so
+            # 'command -v bw' works in step 7 of this same run.
+            case ":${PATH}:" in
+                *:/snap/bin:*) : ;;
+                *) export PATH="/snap/bin:$PATH" ;;
+            esac
         fi
         ;;
     darwin)
@@ -127,7 +170,7 @@ esac
 ok "Bootstrap essentials in place."
 
 # ── 4. Download Gum ──────────────────────────────────────────────────────────
-header "Step 4/8 — Download Gum"
+header "Step 4/9 — Download Gum"
 if command -v gum &>/dev/null; then
     GUM_BIN="$(command -v gum)"
 else
@@ -139,7 +182,7 @@ fi
 ok "Gum ready: $GUM_BIN"
 
 # ── 5. Prompt for unset values ───────────────────────────────────────────────
-header "Step 5/8 — Configure (Gum prompts for what wasn't set)"
+header "Step 5/9 — Configure (Gum prompts for what wasn't set)"
 
 prompt_required() {
     local var="$1" question="$2" choices="$3"
@@ -172,8 +215,50 @@ fi
 
 ok "Profile=$FLAG_PROFILE, machine=$FLAG_MACHINE, display=$FLAG_DISPLAY, secrets=$FLAG_SECRETS"
 
-# ── 6. Pre-install secret CLIs ──────────────────────────────────────────────
-header "Step 6/8 — Install secret CLIs (if needed)"
+# ── 6. Install Homebrew ─────────────────────────────────────────────────────
+# Lifted from home/run_once_00-install-homebrew.sh.tmpl so brew is available
+# for the secret-CLI installs in step 7 (1Password on Linux + macOS bw/op).
+# Skipped on Pi and on any Linux arch other than amd64/arm64.
+header "Step 6/9 — Install Homebrew"
+brew_supported=0
+case "$DETECTED_OS" in
+    darwin) brew_supported=1 ;;
+    linux)
+        if [[ "$DETECTED_IS_PI" == 0 ]]; then
+            case "$DETECTED_ARCH" in
+                amd64|arm64) brew_supported=1 ;;
+            esac
+        fi
+        ;;
+esac
+
+if [[ "$brew_supported" == 1 ]]; then
+    # Resolve brew binary path: macOS arm64 → /opt/homebrew, macOS x86_64 →
+    # /usr/local, Linux → /home/linuxbrew/.linuxbrew. `command -v brew` may
+    # miss it on a fresh non-login shell where the shellenv hasn't run yet.
+    BREW_BIN=""
+    for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
+        [[ -x "$candidate" ]] && { BREW_BIN="$candidate"; break; }
+    done
+    if [[ -z "$BREW_BIN" ]]; then
+        info "Installing Homebrew (non-interactive)..."
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
+            [[ -x "$candidate" ]] && { BREW_BIN="$candidate"; break; }
+        done
+    fi
+    if [[ -z "$BREW_BIN" ]]; then
+        err "Homebrew install completed but brew not found in any standard location."
+        exit 1
+    fi
+    eval "$("$BREW_BIN" shellenv)"
+    ok "Homebrew available: $(brew --version | head -1)"
+else
+    info "Skipping Homebrew (unsupported on $DETECTED_OS/$DETECTED_ARCH; pi=$DETECTED_IS_PI)."
+fi
+
+# ── 7. Pre-install secret CLIs ──────────────────────────────────────────────
+header "Step 7/9 — Install secret CLIs (if needed)"
 case "$FLAG_SECRETS" in
     bitwarden|both)
         if [[ "$DETECTED_EPHEMERAL" == 1 ]] && [[ "$FLAG_NON_INTERACTIVE" == 1 ]]; then
@@ -215,15 +300,27 @@ case "$FLAG_SECRETS" in
                     info "Bitwarden session already authenticated; unlocking..."
                     ;;
             esac
-            export BW_SESSION
-            BW_SESSION="$(bw unlock --raw)"
-            ok "Bitwarden unlocked."
+            while true; do
+                if BW_SESSION="$(bw unlock --raw)" && [[ -n "$BW_SESSION" ]]; then
+                    export BW_SESSION
+                    ok "Bitwarden unlocked."
+                    break
+                fi
+                warn "Bitwarden unlock failed (wrong master password or session error)."
+                case "$("$GUM_BIN" choose --header "Try again, or skip Bitwarden for this run?" retry skip)" in
+                    skip)
+                        warn "Skipping Bitwarden; chezmoi will not pull Bitwarden secrets this run."
+                        unset BW_SESSION
+                        break
+                        ;;
+                esac
+            done
         fi
         ;;
 esac
 
-# ── 7. Install chezmoi ──────────────────────────────────────────────────────
-header "Step 7/8 — Install chezmoi"
+# ── 8. Install chezmoi ──────────────────────────────────────────────────────
+header "Step 8/9 — Install chezmoi"
 if ! command -v chezmoi &>/dev/null; then
     info "Installing chezmoi..."
     sh -c "$(curl -fsSL https://get.chezmoi.io)" -- -b "$HOME/.local/bin"
@@ -231,12 +328,42 @@ fi
 export PATH="$HOME/.local/bin:$PATH"
 ok "chezmoi installed: $(chezmoi --version | head -1)"
 
-# ── 8. chezmoi init --apply ─────────────────────────────────────────────────
-header "Step 8/8 — Apply dotfiles"
+# ── 9. chezmoi init --apply ─────────────────────────────────────────────────
+header "Step 9/9 — Apply dotfiles"
+
+# home/.chezmoi.toml.tmpl pins sourceDir to ~/git/nickvigilante/dotfiles/home,
+# so chezmoi reads templates from there on every apply. Make sure that path
+# exists and is on the requested branch BEFORE chezmoi init --apply, otherwise
+# the apply phase reads from a stale (or wrong-branch) clone.
+DEV_CLONE="$HOME/git/nickvigilante/dotfiles"
+if [[ ! -d "$DEV_CLONE/.git" ]]; then
+    info "Cloning dotfiles repo ($DOTFILES_BRANCH) to $DEV_CLONE..."
+    mkdir -p "$(dirname "$DEV_CLONE")"
+    git clone "$DOTFILES_REPO" "$DEV_CLONE"
+    if [[ "$DOTFILES_BRANCH" != "main" ]]; then
+        git -C "$DEV_CLONE" checkout "$DOTFILES_BRANCH"
+    fi
+else
+    info "Updating dev clone at $DEV_CLONE (target: origin/$DOTFILES_BRANCH)..."
+    git -C "$DEV_CLONE" fetch origin --quiet
+    if git -C "$DEV_CLONE" merge --ff-only "origin/$DOTFILES_BRANCH" 2>/dev/null; then
+        ok "Dev clone fast-forwarded to origin/$DOTFILES_BRANCH."
+    else
+        warn "Could not fast-forward $DEV_CLONE to origin/$DOTFILES_BRANCH"
+        warn "  (likely on a different branch, has uncommitted edits, or diverged); leaving as-is."
+        warn "If bootstrap fails next, manually 'git checkout $DOTFILES_BRANCH && git pull' in $DEV_CLONE and re-run."
+    fi
+fi
+
 display_bool="false"
 [[ "$FLAG_DISPLAY" == 1 ]] && display_bool="true"
 
+# --branch is required: without it, chezmoi clones default-branch (main)
+# into ~/.local/share/chezmoi and the apply phase reads templates from
+# there, ignoring the sourceDir override in chezmoi.toml until the second
+# invocation. Pinning the branch makes the first apply read the right code.
 chezmoi init --apply \
+    --branch "$DOTFILES_BRANCH" \
     --promptChoice "Profile=$FLAG_PROFILE" \
     --promptString "Full name=$FLAG_NAME" \
     --promptString "Email address=$FLAG_EMAIL" \

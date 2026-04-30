@@ -6,6 +6,13 @@
 
 set -euo pipefail
 
+# Suppress Homebrew's "Disable this behaviour by setting HOMEBREW_NO_INSTALL_CLEANUP=1"
+# / "Hide these hints with HOMEBREW_NO_ENV_HINTS=1" footer noise. Per-formula
+# Caveats blocks (e.g. "zsh completions installed to ...") are emitted by the
+# formulae themselves and only appear during actual installs — on re-runs where
+# `brew bundle check` exits 0, no caveats are shown.
+export HOMEBREW_NO_ENV_HINTS=1
+
 REPO_DIR="{{ .chezmoi.sourceDir }}/.."
 GUM="${HOME}/.local/bin/gum"
 [[ -x "$GUM" ]] || GUM="$(command -v gum || echo "")"
@@ -51,19 +58,28 @@ if [[ ! -f "$BREWFILE" ]]; then
 fi
 
 if ! command -v brew &>/dev/null; then
-    echo "ERROR: brew not on PATH. Run 'chezmoi apply' to trigger run_once_00-install-homebrew."
+    echo "ERROR: brew not on PATH. Re-run bootstrap/install.sh — Step 6/9 installs Homebrew."
     exit 1
 fi
 
 bundle_flags=(--file="$BREWFILE")
 command -v code &>/dev/null || bundle_flags+=(--no-vscode)
-[[ "{{ .chezmoi.os }}" == "darwin" ]] || bundle_flags+=(--no-mas)
+# Note: --no-mas was removed by Homebrew; the Brewfile already darwin-gates
+# its `mas` block, so on Linux there are no Mac App Store entries to skip.
 
-if brew bundle check "${bundle_flags[@]}" --quiet; then
+# `brew bundle check --quiet` still prints "can't satisfy your Brewfile's
+# dependencies" on failure in current Homebrew, which looks like an error.
+# Suppress its output entirely; we only care about the exit code.
+if brew bundle check "${bundle_flags[@]}" --quiet &>/dev/null; then
     exit 0
 fi
 
-if brew bundle install "${bundle_flags[@]}"; then
+echo "==> Installing missing Brewfile dependencies..."
+# --quiet suppresses brew bundle's "Using <pkg>" / "already installed and
+# up-to-date" per-entry chatter. Per-formula caveats (e.g. "zsh completions
+# installed to ...") are emitted directly by brew install on first install
+# and aren't suppressible — they don't reappear on subsequent runs.
+if brew bundle install "${bundle_flags[@]}" --quiet; then
     exit 0
 fi
 
