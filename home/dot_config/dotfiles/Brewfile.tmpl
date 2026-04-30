@@ -115,8 +115,6 @@ cask "font-0xproto-nerd-font"
 # Work-only casks
 cask "claude"             # Anthropic Claude desktop
 cask "docker-desktop"
-cask "quarto"             # Scientific publishing (TileDB)
-cask "tailscale-app"      # Mesh VPN GUI
 cask "zoom"
   {{- end }}
 
@@ -125,7 +123,6 @@ cask "zoom"
 cask "arc"                # Browser
 cask "firefox"
 cask "orion"              # WebKit browser
-cask "zen"                # Firefox fork
 cask "bitwarden"          # Password manager GUI
 cask "discord"
 cask "dolphin"            # GameCube/Wii emulator
@@ -141,7 +138,6 @@ cask "signal"
 cask "steam"
 cask "texmaker"           # LaTeX
 cask "todoist-app"
-cask "transmission"       # BitTorrent
 cask "vlc"
   {{- end }}
 
@@ -167,7 +163,6 @@ vscode "vadimcn.vscode-lldb"
 vscode "saoudrizwan.claude-dev"
 vscode "astro-build.astro-vscode"
 vscode "lkrms.inifmt"
-vscode "karunamurti.tera"
 
   {{ if eq .profile "work" -}}
 # Work-only VS Code extensions
@@ -177,7 +172,6 @@ vscode "golang.go"
   {{- end }}
 
 # ── Mac App Store ────────────────────────────────────────────────────────────
-mas "Amphetamine", id: 937984704
 mas "Developer", id: 640199958
 mas "Keynote", id: 361285480
 mas "Pages", id: 361309726
