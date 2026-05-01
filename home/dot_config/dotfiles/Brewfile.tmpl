@@ -171,18 +171,10 @@ vscode "coder.coder-remote"
 vscode "golang.go"
   {{- end }}
 
-# ── Mac App Store ────────────────────────────────────────────────────────────
-mas "Developer", id: 640199958
-mas "Keynote", id: 361285480
-mas "Pages", id: 361309726
-mas "Xcode", id: 497799835
-
-  {{ if eq .profile "personal" -}}
-# Personal-only MAS games / apps
-mas "Cult Of The Lamb", id: 1639580858
-mas "Mini Motorways", id: 1456188526
-mas "Todoist", id: 585829637
-  {{- end }}
+# Mac App Store apps (Keynote, Pages, Xcode, etc.) are NOT installed via mas —
+# the mas-cli has been broken on macOS Sonoma+ since Apple removed the private
+# APIs it relied on. Install those manually from the App Store; see README.md
+# for the curated list of MAS apps used on this setup.
 {{- end }}
 
 # ── Cargo crates (personal: primary Rust dev) ────────────────────────────────

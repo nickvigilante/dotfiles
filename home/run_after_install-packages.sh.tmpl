@@ -64,8 +64,8 @@ fi
 
 bundle_flags=(--file="$BREWFILE")
 command -v code &>/dev/null || bundle_flags+=(--no-vscode)
-# Note: --no-mas was removed by Homebrew; the Brewfile already darwin-gates
-# its `mas` block, so on Linux there are no Mac App Store entries to skip.
+# No `mas` entries in the Brewfile — App Store apps are installed manually
+# (see README.md). Homebrew also removed the --no-mas flag in 4.x.
 
 # `brew bundle check --quiet` still prints "can't satisfy your Brewfile's
 # dependencies" on failure in current Homebrew, which looks like an error.

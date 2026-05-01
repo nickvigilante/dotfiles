@@ -105,8 +105,20 @@ A background `~/.local/bin/update-packages` script auto-fires on every new shell
 
 ### macOS-specific
 
-- **Touch ID for sudo** — enabled via `/etc/pam.d/sudo_local` (survives macOS system updates, unlike `/etc/pam.d/sudo`). Configured automatically on first `chezmoi apply`.
+- **Touch ID for sudo** — enabled via `/etc/pam.d/sudo_local` (survives macOS system updates, unlike `/etc/pam.d/sudo`). Configured automatically by the bootstrap script (`bootstrap/lib/touch-id-sudo.sh`).
 - **System defaults** — Finder (show extensions, path bar, list view), Dock (auto-hide, no recent apps), keyboard (fast repeat, no autocorrect), screenshots saved to `~/Desktop/Screenshots`.
+- **Mac App Store apps** — installed manually (mas-cli is broken on Sonoma+ since Apple removed its private APIs). Curated list:
+
+  | App                                                                            | Profile  |
+  | ------------------------------------------------------------------------------ | -------- |
+  | [Keynote](https://apps.apple.com/app/keynote/id361285480)                      | both     |
+  | [Pages](https://apps.apple.com/app/pages/id361309726)                          | both     |
+  | [Numbers](https://apps.apple.com/app/numbers/id361304891)                      | both     |
+  | [Xcode](https://apps.apple.com/app/xcode/id497799835)                          | both     |
+  | [Apple Developer](https://apps.apple.com/app/apple-developer/id640199958)      | both     |
+  | [Todoist](https://apps.apple.com/app/todoist/id585829637)                      | personal |
+  | [Cult of the Lamb](https://apps.apple.com/app/cult-of-the-lamb/id1639580858)   | personal |
+  | [Mini Motorways](https://apps.apple.com/app/mini-motorways/id1456188526)       | personal |
 
 ---
 
@@ -245,8 +257,8 @@ dotfiles/
 │   ├── run_once_02-install-uv
 │   ├── run_once_03-setup-python-venv
 │   ├── run_once_05-macos-defaults
-│   ├── run_once_06-touchid-sudo
-│   ├── run_once_07-set-default-shell
+│   ├── run_once_07-vscode-symlink
+│   ├── run_once_08-set-default-shell
 │   └── run_after_install-packages.sh.tmpl  # always-run brew bundle check
 │
 ├── os/                           # native package lists (pre-Homebrew prereqs only)
@@ -284,7 +296,7 @@ bw-apply                    # unlock Bitwarden + chezmoi apply (no-op for non-Bi
 ## Adding a new machine
 
 1. Run the bootstrap script above (Gum prompts you for what can't be auto-detected).
-2. All `run_once_` scripts execute in order: Homebrew → bootstrap prereqs → uv → Python venv → (macOS defaults) → (Touch ID) → set default shell.
+2. All `run_once_` scripts execute in order: bootstrap prereqs → uv → Python venv → fonts → (macOS defaults) → (VS Code symlink) → set default shell.
 3. The always-run `run_after_install-packages.sh.tmpl` runs `brew bundle check` against the rendered Brewfile and installs anything missing.
 4. `exec zsh` to pick up the new shell config.
 5. `dotfiles doctor` to verify everything is healthy.
