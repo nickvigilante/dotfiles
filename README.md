@@ -7,8 +7,10 @@ Personal dotfiles managed with [chezmoi](https://www.chezmoi.io/). Supports macO
 ### macOS / Linux / Raspberry Pi / Ephemeral cloud VMs
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)"
+bash -c "$(curl -fsSL https://nickvigilante.com/dotfiles)"
 ```
+
+(Short alias that 302-redirects to `raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh`. `curl -fsSL` follows it transparently.)
 
 The bootstrap script downloads [Gum](https://github.com/charmbracelet/gum) for prompts, auto-detects what it can (OS, arch, WSL, ephemeral cloud VM, display, hostname, existing git config), and only asks Gum-prompted questions for what it can't infer.
 
@@ -196,6 +198,17 @@ The `.secrets` data field controls which managers are active on this machine:
 ### Ephemeral 1Password (service account)
 
 On a cloud VM, set `OP_SERVICE_ACCOUNT_TOKEN` in the environment before bootstrap (or pass `--op-token <token>`). Bootstrap stores it at `~/.config/op/token` (chmod 600), and `.zshenv` sources it on every shell. No `op signin` required.
+
+### Bitwarden SSH agent
+
+When `bitwarden` is in `--secrets`, bootstrap offers (after BW unlocks) to generate an ed25519 SSH key for this machine and upload it to your vault as a "SSH key" item named `<hostname> - Home Lab`. The local private key is wiped after a successful upload — Bitwarden becomes the single source of truth — and `~/.ssh/bw-<hostname>.pub` is kept for adding to remote `authorized_keys`.
+
+Two manual steps the CLI can't do:
+
+1. **Enable the agent in the Bitwarden desktop app** (Settings → SSH agent). The desktop app exposes the unix socket at `~/.bitwarden-ssh-agent.sock`.
+2. **`.zshenv` exports `SSH_AUTH_SOCK`** to that path automatically — but only when the socket actually exists (so plain `ssh-agent` still works when the desktop app isn't running).
+
+If the upload fails, the key files are kept at `~/.ssh/bw-<hostname>{,.pub}` so you aren't left without a key.
 
 ### Adding a secret
 

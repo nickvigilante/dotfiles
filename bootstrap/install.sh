@@ -87,6 +87,8 @@ source "$SCRIPT_DIR/lib/gum-bootstrap.sh"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/secrets.sh"
 # shellcheck source=/dev/null
+source "$SCRIPT_DIR/lib/bw-ssh-agent.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/touch-id-sudo.sh"
 
 # ── 1. Detect ─────────────────────────────────────────────────────────────────
@@ -267,14 +269,21 @@ case "$FLAG_SECRETS" in
             exit 1
         fi
         if ! command -v bw &>/dev/null; then
-            install_bw
+            if ! retry_or_skip "Bitwarden CLI install" install_bw; then
+                warn "Skipping Bitwarden for this run."
+                FLAG_SECRETS="${FLAG_SECRETS/bitwarden/none}"
+                FLAG_SECRETS="${FLAG_SECRETS/both/1password}"
+            fi
         fi
         ;;
 esac
 case "$FLAG_SECRETS" in
     1password|both)
-        install_op
-        if [[ -n "$FLAG_OP_TOKEN" ]]; then
+        if ! retry_or_skip "1Password CLI install" install_op; then
+            warn "Skipping 1Password for this run."
+            FLAG_SECRETS="${FLAG_SECRETS/1password/none}"
+            FLAG_SECRETS="${FLAG_SECRETS/both/bitwarden}"
+        elif [[ -n "$FLAG_OP_TOKEN" ]]; then
             mkdir -p "$HOME/.config/op"
             chmod 700 "$HOME/.config/op"
             printf '%s\n' "$FLAG_OP_TOKEN" > "$HOME/.config/op/token"
@@ -287,34 +296,42 @@ case "$FLAG_SECRETS" in
         ;;
 esac
 
+# Capture `bw unlock --raw` output into the global BW_SESSION so retry_or_skip
+# can treat empty output (or non-zero exit) uniformly as failure. bw prompts
+# for the master password on /dev/tty directly, so no fd plumbing is needed.
+_bw_unlock_capture() {
+    local session
+    session="$(bw unlock --raw)" || return 1
+    [[ -n "$session" ]] || return 1
+    BW_SESSION="$session"
+    export BW_SESSION
+}
+
 case "$FLAG_SECRETS" in
     bitwarden|both)
         if [[ "$FLAG_NON_INTERACTIVE" == 0 ]]; then
             bw_status_json="$(bw status 2>/dev/null || true)"
+            bw_skipped=0
             case "$bw_status_json" in
                 *'"status":"unauthenticated"'*|"")
-                    info "Logging in to Bitwarden..."
-                    bw login
+                    retry_or_skip "Bitwarden login" bw login || bw_skipped=1
                     ;;
                 *)
                     info "Bitwarden session already authenticated; unlocking..."
                     ;;
             esac
-            while true; do
-                if BW_SESSION="$(bw unlock --raw)" && [[ -n "$BW_SESSION" ]]; then
-                    export BW_SESSION
+            if [[ "$bw_skipped" == 0 ]]; then
+                if retry_or_skip "Bitwarden unlock" _bw_unlock_capture; then
                     ok "Bitwarden unlocked."
-                    break
+                    setup_bw_ssh_agent || warn "SSH key setup did not complete."
+                else
+                    bw_skipped=1
                 fi
-                warn "Bitwarden unlock failed (wrong master password or session error)."
-                case "$("$GUM_BIN" choose --header "Try again, or skip Bitwarden for this run?" retry skip)" in
-                    skip)
-                        warn "Skipping Bitwarden; chezmoi will not pull Bitwarden secrets this run."
-                        unset BW_SESSION
-                        break
-                        ;;
-                esac
-            done
+            fi
+            if [[ "$bw_skipped" == 1 ]]; then
+                warn "Skipping Bitwarden; chezmoi will not pull Bitwarden secrets this run."
+                unset BW_SESSION
+            fi
         fi
         ;;
 esac

@@ -7,8 +7,33 @@
 #                (and by install_bw on macOS only)
 #
 # Requires DETECTED_OS, DETECTED_ARCH, DETECTED_IS_PI from detect.sh.
+# Requires GUM_BIN from install.sh for retry_or_skip prompts.
 
 set -euo pipefail
+
+# ── retry_or_skip ───────────────────────────────────────────────────────────
+# Run a command and, on any failure, prompt: retry / skip / exit.
+# Returns 0 on eventual success, 1 on user-requested skip; calls `exit 1` on
+# user-requested exit. No error-message inspection — handles all failures the
+# same way (wrong 2FA, transient network, brew error, etc.).
+#
+# Usage: retry_or_skip "Bitwarden login" bw login
+retry_or_skip() {
+    local label="$1"; shift
+    while true; do
+        if "$@"; then
+            return 0
+        fi
+        printf "%s  !%s %s failed.\n" "${YELLOW:-}" "${RESET:-}" "$label" >&2
+        local choice
+        choice="$("$GUM_BIN" choose --header "$label — what now?" "retry" "skip" "exit")"
+        case "$choice" in
+            retry)  continue ;;
+            skip)   return 1 ;;
+            exit|*) printf "%s  ✗%s Aborted by user.\n" "${RED:-}" "${RESET:-}" >&2; exit 1 ;;
+        esac
+    done
+}
 
 # ── 1Password CLI install ───────────────────────────────────────────────────
 install_op() {
