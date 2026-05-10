@@ -18,7 +18,6 @@ fi
 set -euo pipefail
 
 DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/nickvigilante/dotfiles.git}"
-DOTFILES_BRANCH="${DOTFILES_BRANCH:-main}"
 SCRIPT_VERSION="2.0.0"
 
 # ── Parse flags + env vars ───────────────────────────────────────────────────
@@ -41,7 +40,6 @@ while (( "$#" )); do
         --no-display)       FLAG_DISPLAY=0; shift ;;
         --secrets)          FLAG_SECRETS="$2"; shift 2 ;;
         --op-token)         FLAG_OP_TOKEN="$2"; shift 2 ;;
-        --branch)           DOTFILES_BRANCH="$2"; shift 2 ;;
         --non-interactive)  FLAG_NON_INTERACTIVE=1; shift ;;
         --help|-h)
             cat <<EOF
@@ -53,7 +51,6 @@ Usage: install.sh [flags]
   --display | --no-display
   --secrets none|bitwarden|1password|both
   --op-token <token>          Stored at ~/.config/op/token (chmod 600)
-  --branch <name>             Branch/tag to clone (default: main; or set DOTFILES_BRANCH)
   --non-interactive           Fail on any unspecified field; no prompts
 EOF
             exit 0
@@ -71,14 +68,13 @@ warn()   { printf "%s  !%s %s\n" "$YELLOW" "$RESET" "$*" >&2; }
 err()    { printf "%s  ✗%s %s\n" "$RED" "$RESET" "$*" >&2; }
 
 # ── Locate scripts (works whether run via curl|sh or from clone) ────────────
-# `bash -c "..." -- --branch foo` makes $0 == "--", and BASH_SOURCE[0] is
-# empty under -c. `dirname --` triggers GNU's end-of-options handling and
-# errors with "missing operand"; force the value to be a path operand.
+# Under `bash -c "..."`, $0 == "--" or "bash" and BASH_SOURCE[0] is empty;
+# force a path operand so `dirname --` doesn't trigger GNU's end-of-options.
 SCRIPT_DIR="$(cd "$(dirname -- "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
 if [[ -z "$SCRIPT_DIR" ]] || [[ ! -d "$SCRIPT_DIR/lib" ]]; then
     TMP_REPO="$(mktemp -d)"
-    info "Cloning dotfiles ($DOTFILES_BRANCH) to $TMP_REPO for bootstrap libs..."
-    git clone --depth=1 -b "$DOTFILES_BRANCH" "$DOTFILES_REPO" "$TMP_REPO"
+    info "Cloning dotfiles to $TMP_REPO for bootstrap libs..."
+    git clone --depth=1 "$DOTFILES_REPO" "$TMP_REPO"
     SCRIPT_DIR="$TMP_REPO/bootstrap"
 fi
 
@@ -90,6 +86,10 @@ source "$SCRIPT_DIR/lib/preflight.sh"
 source "$SCRIPT_DIR/lib/gum-bootstrap.sh"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/secrets.sh"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/lib/bw-ssh-agent.sh"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/lib/touch-id-sudo.sh"
 
 # ── 1. Detect ─────────────────────────────────────────────────────────────────
 header "Step 1/9 — Detect platform"
@@ -257,6 +257,8 @@ else
     info "Skipping Homebrew (unsupported on $DETECTED_OS/$DETECTED_ARCH; pi=$DETECTED_IS_PI)."
 fi
 
+install_touch_id
+
 # ── 7. Pre-install secret CLIs ──────────────────────────────────────────────
 header "Step 7/9 — Install secret CLIs (if needed)"
 case "$FLAG_SECRETS" in
@@ -267,14 +269,21 @@ case "$FLAG_SECRETS" in
             exit 1
         fi
         if ! command -v bw &>/dev/null; then
-            install_bw
+            if ! retry_or_skip "Bitwarden CLI install" install_bw; then
+                warn "Skipping Bitwarden for this run."
+                FLAG_SECRETS="${FLAG_SECRETS/bitwarden/none}"
+                FLAG_SECRETS="${FLAG_SECRETS/both/1password}"
+            fi
         fi
         ;;
 esac
 case "$FLAG_SECRETS" in
     1password|both)
-        install_op
-        if [[ -n "$FLAG_OP_TOKEN" ]]; then
+        if ! retry_or_skip "1Password CLI install" install_op; then
+            warn "Skipping 1Password for this run."
+            FLAG_SECRETS="${FLAG_SECRETS/1password/none}"
+            FLAG_SECRETS="${FLAG_SECRETS/both/bitwarden}"
+        elif [[ -n "$FLAG_OP_TOKEN" ]]; then
             mkdir -p "$HOME/.config/op"
             chmod 700 "$HOME/.config/op"
             printf '%s\n' "$FLAG_OP_TOKEN" > "$HOME/.config/op/token"
@@ -287,34 +296,42 @@ case "$FLAG_SECRETS" in
         ;;
 esac
 
+# Capture `bw unlock --raw` output into the global BW_SESSION so retry_or_skip
+# can treat empty output (or non-zero exit) uniformly as failure. bw prompts
+# for the master password on /dev/tty directly, so no fd plumbing is needed.
+_bw_unlock_capture() {
+    local session
+    session="$(bw unlock --raw)" || return 1
+    [[ -n "$session" ]] || return 1
+    BW_SESSION="$session"
+    export BW_SESSION
+}
+
 case "$FLAG_SECRETS" in
     bitwarden|both)
         if [[ "$FLAG_NON_INTERACTIVE" == 0 ]]; then
             bw_status_json="$(bw status 2>/dev/null || true)"
+            bw_skipped=0
             case "$bw_status_json" in
                 *'"status":"unauthenticated"'*|"")
-                    info "Logging in to Bitwarden..."
-                    bw login
+                    retry_or_skip "Bitwarden login" bw login || bw_skipped=1
                     ;;
                 *)
                     info "Bitwarden session already authenticated; unlocking..."
                     ;;
             esac
-            while true; do
-                if BW_SESSION="$(bw unlock --raw)" && [[ -n "$BW_SESSION" ]]; then
-                    export BW_SESSION
+            if [[ "$bw_skipped" == 0 ]]; then
+                if retry_or_skip "Bitwarden unlock" _bw_unlock_capture; then
                     ok "Bitwarden unlocked."
-                    break
+                    setup_bw_ssh_agent || warn "SSH key setup did not complete."
+                else
+                    bw_skipped=1
                 fi
-                warn "Bitwarden unlock failed (wrong master password or session error)."
-                case "$("$GUM_BIN" choose --header "Try again, or skip Bitwarden for this run?" retry skip)" in
-                    skip)
-                        warn "Skipping Bitwarden; chezmoi will not pull Bitwarden secrets this run."
-                        unset BW_SESSION
-                        break
-                        ;;
-                esac
-            done
+            fi
+            if [[ "$bw_skipped" == 1 ]]; then
+                warn "Skipping Bitwarden; chezmoi will not pull Bitwarden secrets this run."
+                unset BW_SESSION
+            fi
         fi
         ;;
 esac
@@ -331,39 +348,10 @@ ok "chezmoi installed: $(chezmoi --version | head -1)"
 # ── 9. chezmoi init --apply ─────────────────────────────────────────────────
 header "Step 9/9 — Apply dotfiles"
 
-# home/.chezmoi.toml.tmpl pins sourceDir to ~/git/nickvigilante/dotfiles/home,
-# so chezmoi reads templates from there on every apply. Make sure that path
-# exists and is on the requested branch BEFORE chezmoi init --apply, otherwise
-# the apply phase reads from a stale (or wrong-branch) clone.
-DEV_CLONE="$HOME/git/nickvigilante/dotfiles"
-if [[ ! -d "$DEV_CLONE/.git" ]]; then
-    info "Cloning dotfiles repo ($DOTFILES_BRANCH) to $DEV_CLONE..."
-    mkdir -p "$(dirname "$DEV_CLONE")"
-    git clone "$DOTFILES_REPO" "$DEV_CLONE"
-    if [[ "$DOTFILES_BRANCH" != "main" ]]; then
-        git -C "$DEV_CLONE" checkout "$DOTFILES_BRANCH"
-    fi
-else
-    info "Updating dev clone at $DEV_CLONE (target: origin/$DOTFILES_BRANCH)..."
-    git -C "$DEV_CLONE" fetch origin --quiet
-    if git -C "$DEV_CLONE" merge --ff-only "origin/$DOTFILES_BRANCH" 2>/dev/null; then
-        ok "Dev clone fast-forwarded to origin/$DOTFILES_BRANCH."
-    else
-        warn "Could not fast-forward $DEV_CLONE to origin/$DOTFILES_BRANCH"
-        warn "  (likely on a different branch, has uncommitted edits, or diverged); leaving as-is."
-        warn "If bootstrap fails next, manually 'git checkout $DOTFILES_BRANCH && git pull' in $DEV_CLONE and re-run."
-    fi
-fi
-
 display_bool="false"
 [[ "$FLAG_DISPLAY" == 1 ]] && display_bool="true"
 
-# --branch is required: without it, chezmoi clones default-branch (main)
-# into ~/.local/share/chezmoi and the apply phase reads templates from
-# there, ignoring the sourceDir override in chezmoi.toml until the second
-# invocation. Pinning the branch makes the first apply read the right code.
 chezmoi init --apply \
-    --branch "$DOTFILES_BRANCH" \
     --promptChoice "Profile=$FLAG_PROFILE" \
     --promptString "Full name=$FLAG_NAME" \
     --promptString "Email address=$FLAG_EMAIL" \

@@ -7,8 +7,10 @@ Personal dotfiles managed with [chezmoi](https://www.chezmoi.io/). Supports macO
 ### macOS / Linux / Raspberry Pi / Ephemeral cloud VMs
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh)"
+bash -c "$(curl -fsSL https://nickvigilante.com/dotfiles)"
 ```
+
+(Short alias that 302-redirects to `raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh`. `curl -fsSL` follows it transparently.)
 
 The bootstrap script downloads [Gum](https://github.com/charmbracelet/gum) for prompts, auto-detects what it can (OS, arch, WSL, ephemeral cloud VM, display, hostname, existing git config), and only asks Gum-prompted questions for what it can't infer.
 
@@ -105,8 +107,20 @@ A background `~/.local/bin/update-packages` script auto-fires on every new shell
 
 ### macOS-specific
 
-- **Touch ID for sudo** — enabled via `/etc/pam.d/sudo_local` (survives macOS system updates, unlike `/etc/pam.d/sudo`). Configured automatically on first `chezmoi apply`.
+- **Touch ID for sudo** — enabled via `/etc/pam.d/sudo_local` (survives macOS system updates, unlike `/etc/pam.d/sudo`). Configured automatically by the bootstrap script (`bootstrap/lib/touch-id-sudo.sh`).
 - **System defaults** — Finder (show extensions, path bar, list view), Dock (auto-hide, no recent apps), keyboard (fast repeat, no autocorrect), screenshots saved to `~/Desktop/Screenshots`.
+- **Mac App Store apps** — installed manually (mas-cli is broken on Sonoma+ since Apple removed its private APIs). Curated list:
+
+  | App                                                                            | Profile  |
+  | ------------------------------------------------------------------------------ | -------- |
+  | [Keynote](https://apps.apple.com/app/keynote/id361285480)                      | both     |
+  | [Pages](https://apps.apple.com/app/pages/id361309726)                          | both     |
+  | [Numbers](https://apps.apple.com/app/numbers/id361304891)                      | both     |
+  | [Xcode](https://apps.apple.com/app/xcode/id497799835)                          | both     |
+  | [Apple Developer](https://apps.apple.com/app/apple-developer/id640199958)      | both     |
+  | [Todoist](https://apps.apple.com/app/todoist/id585829637)                      | personal |
+  | [Cult of the Lamb](https://apps.apple.com/app/cult-of-the-lamb/id1639580858)   | personal |
+  | [Mini Motorways](https://apps.apple.com/app/mini-motorways/id1456188526)       | personal |
 
 ---
 
@@ -185,6 +199,17 @@ The `.secrets` data field controls which managers are active on this machine:
 
 On a cloud VM, set `OP_SERVICE_ACCOUNT_TOKEN` in the environment before bootstrap (or pass `--op-token <token>`). Bootstrap stores it at `~/.config/op/token` (chmod 600), and `.zshenv` sources it on every shell. No `op signin` required.
 
+### Bitwarden SSH agent
+
+When `bitwarden` is in `--secrets`, bootstrap offers (after BW unlocks) to generate an ed25519 SSH key for this machine and upload it to your vault as a "SSH key" item named `<hostname> - Home Lab`. The local private key is wiped after a successful upload — Bitwarden becomes the single source of truth — and `~/.ssh/bw-<hostname>.pub` is kept for adding to remote `authorized_keys`.
+
+Two manual steps the CLI can't do:
+
+1. **Enable the agent in the Bitwarden desktop app** (Settings → SSH agent). The desktop app exposes the unix socket at `~/.bitwarden-ssh-agent.sock`.
+2. **`.zshenv` exports `SSH_AUTH_SOCK`** to that path automatically — but only when the socket actually exists (so plain `ssh-agent` still works when the desktop app isn't running).
+
+If the upload fails, the key files are kept at `~/.ssh/bw-<hostname>{,.pub}` so you aren't left without a key.
+
 ### Adding a secret
 
 1. Find the item name in your vault
@@ -245,8 +270,8 @@ dotfiles/
 │   ├── run_once_02-install-uv
 │   ├── run_once_03-setup-python-venv
 │   ├── run_once_05-macos-defaults
-│   ├── run_once_06-touchid-sudo
-│   ├── run_once_07-set-default-shell
+│   ├── run_once_07-vscode-symlink
+│   ├── run_once_08-set-default-shell
 │   └── run_after_install-packages.sh.tmpl  # always-run brew bundle check
 │
 ├── os/                           # native package lists (pre-Homebrew prereqs only)
@@ -284,7 +309,7 @@ bw-apply                    # unlock Bitwarden + chezmoi apply (no-op for non-Bi
 ## Adding a new machine
 
 1. Run the bootstrap script above (Gum prompts you for what can't be auto-detected).
-2. All `run_once_` scripts execute in order: Homebrew → bootstrap prereqs → uv → Python venv → (macOS defaults) → (Touch ID) → set default shell.
+2. All `run_once_` scripts execute in order: bootstrap prereqs → uv → Python venv → fonts → (macOS defaults) → (VS Code symlink) → set default shell.
 3. The always-run `run_after_install-packages.sh.tmpl` runs `brew bundle check` against the rendered Brewfile and installs anything missing.
 4. `exec zsh` to pick up the new shell config.
 5. `dotfiles doctor` to verify everything is healthy.
