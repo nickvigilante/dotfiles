@@ -33,3 +33,12 @@ fi
 if command -v starship &>/dev/null; then
   eval "$(starship init zsh)"
 fi
+
+# ── Warp Auto-Warpify ─────────────────────────────────────────────────────────
+# Emits a DCS escape sequence Warp recognizes so SSH sessions into this host
+# from a Warp client get Warp's full feature set (AI, blocks, autocomplete).
+# Non-Warp terminals silently ignore the unknown DCS string. The interactive
+# guard is redundant here (this file is only sourced for interactive shells)
+# but matches Warp's recommended form. `uname` is interpolated at shell
+# startup so the same dotfile works on macOS, Linux, and Pi.
+[[ "$-" == *i* ]] && printf '\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh", "uname": "%s" }}\x9c' "$(uname)"
