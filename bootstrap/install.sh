@@ -181,6 +181,12 @@ fi
 [[ -x "$GUM_BIN" ]] || { err "Gum binary not executable: $GUM_BIN"; exit 1; }
 ok "Gum ready: $GUM_BIN"
 
+# When piped via `curl | bash`, stdin is the pipe rather than the terminal.
+# Redirect to /dev/tty so Gum can render its interactive TUI.
+if [[ "$FLAG_NON_INTERACTIVE" == 0 ]] && [[ ! -t 0 ]]; then
+    exec < /dev/tty
+fi
+
 # ── 5. Prompt for unset values ───────────────────────────────────────────────
 header "Step 5/9 — Configure (Gum prompts for what wasn't set)"
 
