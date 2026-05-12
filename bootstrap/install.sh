@@ -92,7 +92,7 @@ source "$SCRIPT_DIR/lib/bw-ssh-agent.sh"
 source "$SCRIPT_DIR/lib/touch-id-sudo.sh"
 
 # ── 1. Detect ─────────────────────────────────────────────────────────────────
-header "Step 1/9 — Detect platform"
+header "Step 1/10 — Detect platform"
 detect_all
 ok "OS: $DETECTED_OS, Arch: $DETECTED_ARCH${DETECTED_DISTRO:+, Distro: $DETECTED_DISTRO}"
 [[ "$DETECTED_WSL" == 1 ]] && info "WSL detected"
@@ -109,11 +109,11 @@ fi
 [[ -z "$FLAG_NAME"  ]] && FLAG_NAME="$(git config --global user.name 2>/dev/null || echo '')"
 
 # ── 2. Preflight ─────────────────────────────────────────────────────────────
-header "Step 2/9 — Preflight checks"
+header "Step 2/10 — Preflight checks"
 preflight_all || { err "Preflight failed."; exit 1; }
 
 # ── 3. Bootstrap-only essentials ─────────────────────────────────────────────
-header "Step 3/9 — Install bootstrap essentials"
+header "Step 3/10 — Install bootstrap essentials"
 case "$DETECTED_OS" in
     linux)
         if [[ "$DETECTED_IS_PI" == 0 ]]; then
@@ -170,7 +170,7 @@ esac
 ok "Bootstrap essentials in place."
 
 # ── 4. Download Gum ──────────────────────────────────────────────────────────
-header "Step 4/9 — Download Gum"
+header "Step 4/10 — Download Gum"
 if command -v gum &>/dev/null; then
     GUM_BIN="$(command -v gum)"
 else
@@ -188,7 +188,7 @@ if [[ "$FLAG_NON_INTERACTIVE" == 0 ]] && [[ ! -t 0 ]]; then
 fi
 
 # ── 5. Prompt for unset values ───────────────────────────────────────────────
-header "Step 5/9 — Configure (Gum prompts for what wasn't set)"
+header "Step 5/10 — Configure (Gum prompts for what wasn't set)"
 
 prompt_required() {
     local var="$1" question="$2" choices="$3"
@@ -225,7 +225,7 @@ ok "Profile=$FLAG_PROFILE, machine=$FLAG_MACHINE, display=$FLAG_DISPLAY, secrets
 # Lifted from home/run_once_00-install-homebrew.sh.tmpl so brew is available
 # for the secret-CLI installs in step 7 (1Password on Linux + macOS bw/op).
 # Skipped on Pi and on any Linux arch other than amd64/arm64.
-header "Step 6/9 — Install Homebrew"
+header "Step 6/10 — Install Homebrew"
 brew_supported=0
 case "$DETECTED_OS" in
     darwin) brew_supported=1 ;;
@@ -266,7 +266,7 @@ fi
 install_touch_id
 
 # ── 7. Pre-install secret CLIs ──────────────────────────────────────────────
-header "Step 7/9 — Install secret CLIs (if needed)"
+header "Step 7/10 — Install secret CLIs (if needed)"
 case "$FLAG_SECRETS" in
     bitwarden|both)
         if [[ "$DETECTED_EPHEMERAL" == 1 ]] && [[ "$FLAG_NON_INTERACTIVE" == 1 ]]; then
@@ -343,7 +343,7 @@ case "$FLAG_SECRETS" in
 esac
 
 # ── 8. Install chezmoi ──────────────────────────────────────────────────────
-header "Step 8/9 — Install chezmoi"
+header "Step 8/10 — Install chezmoi"
 if ! command -v chezmoi &>/dev/null; then
     info "Installing chezmoi..."
     sh -c "$(curl -fsSL https://get.chezmoi.io)" -- -b "$HOME/.local/bin"
@@ -352,7 +352,7 @@ export PATH="$HOME/.local/bin:$PATH"
 ok "chezmoi installed: $(chezmoi --version | head -1)"
 
 # ── 9. chezmoi init --apply ─────────────────────────────────────────────────
-header "Step 9/9 — Apply dotfiles"
+header "Step 9/10 — Apply dotfiles"
 
 display_bool="false"
 [[ "$FLAG_DISPLAY" == 1 ]] && display_bool="true"
@@ -365,6 +365,29 @@ chezmoi init --apply \
     --promptBool   "Has graphical display=$display_bool" \
     --promptChoice "Secret managers=$FLAG_SECRETS" \
     "$DOTFILES_REPO"
+
+# ── 10. Set up dotfiles working copy (optional) ─────────────────────────────
+header "Step 10/10 — Set up dotfiles working copy"
+REPO_SLUG=$(printf '%s' "$DOTFILES_REPO" | sed -E 's|.*github\.com/||; s|\.git$||')
+WORKING_COPY="$HOME/git/$REPO_SLUG"
+if [[ "$FLAG_NON_INTERACTIVE" == 1 ]]; then
+    info "Skipping working copy setup (non-interactive)"
+elif "$GUM_BIN" confirm --default=false "Clone dotfiles to $WORKING_COPY and use as chezmoi source?"; then
+    mkdir -p "$WORKING_COPY"
+    if [[ ! -d "$WORKING_COPY/.git" ]]; then
+        git clone "$DOTFILES_REPO" "$WORKING_COPY"
+    fi
+    CHEZMOI_CONFIG="$HOME/.config/chezmoi/chezmoi.toml"
+    SOURCE_DIR="$WORKING_COPY/home"
+    if ! grep -q '^\[chezmoi\]' "$CHEZMOI_CONFIG" 2>/dev/null; then
+        { printf '[chezmoi]\nsourceDir = "%s"\n\n' "$SOURCE_DIR"; cat "$CHEZMOI_CONFIG"; } \
+            > "${CHEZMOI_CONFIG}.tmp" && mv "${CHEZMOI_CONFIG}.tmp" "$CHEZMOI_CONFIG"
+    else
+        warn "chezmoi.toml already has a [chezmoi] section; set sourceDir manually to $SOURCE_DIR"
+    fi
+    ok "Working copy: $WORKING_COPY"
+    ok "chezmoi source: $SOURCE_DIR"
+fi
 
 # ── Cleanup ─────────────────────────────────────────────────────────────────
 gum_cleanup_temp 2>/dev/null || true
