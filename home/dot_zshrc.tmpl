@@ -63,5 +63,5 @@ source "$SHELL_CONFIG/completions.zsh"
 ("$HOME/.local/bin/update-packages" &>/dev/null &) 2>/dev/null || true
 {{ if or (eq .machine "server") (eq .machine "pi") }}
 # ── Warp SSH integration ───────────────────────────────────────────────────────
-[[ "$-" == *i* ]] && printf '\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh", "uname": "{{ .chezmoi.os | title }}"}}\x9c'
+[[ "$-" == *i* ]] && printf 'P$$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh", "uname": "{{ .chezmoi.os | title }}"}}�'
 {{- end }}
