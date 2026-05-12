@@ -89,6 +89,8 @@ source "$SCRIPT_DIR/lib/secrets.sh"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/bw-ssh-agent.sh"
 # shellcheck source=/dev/null
+source "$SCRIPT_DIR/lib/ssh-config.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/touch-id-sudo.sh"
 
 # ── 1. Detect ─────────────────────────────────────────────────────────────────
@@ -330,6 +332,7 @@ case "$FLAG_SECRETS" in
                 if retry_or_skip "Bitwarden unlock" _bw_unlock_capture; then
                     ok "Bitwarden unlocked."
                     setup_bw_ssh_agent || warn "SSH key setup did not complete."
+                    setup_ssh_config  || warn "SSH config setup did not complete."
                 else
                     bw_skipped=1
                 fi
