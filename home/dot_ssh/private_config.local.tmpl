@@ -1,5 +1,0 @@
-{{- if or (eq .secrets "bitwarden") (eq .secrets "both") -}}
-{{ (bitwarden "item" "ssh-config-local").notes }}
-{{- else -}}
-# No Bitwarden configured — populate ~/.ssh/config.local manually.
-{{- end -}}
