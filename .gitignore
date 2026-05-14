@@ -19,3 +19,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Claude Code session data (machine-local)
+.claude/
