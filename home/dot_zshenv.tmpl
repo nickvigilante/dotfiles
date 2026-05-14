@@ -34,9 +34,15 @@ fi
 # when "SSH agent" is enabled in its settings. Gate on socket presence so
 # ssh still works (via the system agent or no agent) when the desktop app
 # isn't running or the toggle is off.
-if [[ -S "$HOME/.bitwarden-ssh-agent.sock" ]]; then
-    export SSH_AUTH_SOCK="$HOME/.bitwarden-ssh-agent.sock"
+{{- if eq .chezmoi.os "linux" }}
+_bw_sock="$HOME/snap/bitwarden/current/.bitwarden-ssh-agent.sock"
+{{- else }}
+_bw_sock="$HOME/.bitwarden-ssh-agent.sock"
+{{- end }}
+if [[ -S "$_bw_sock" ]]; then
+    export SSH_AUTH_SOCK="$_bw_sock"
 fi
+unset _bw_sock
 {{- end }}
 
 # ── Secrets ────────────────────────────────────────────────────────────────────

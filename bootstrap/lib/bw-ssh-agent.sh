@@ -109,7 +109,7 @@ setup_bw_ssh_agent() {
         info "Add this to remote ~/.ssh/authorized_keys:"
         printf '    %s\n' "$(cat "$pub_path")"
         info "To use the key, enable 'SSH agent' in the Bitwarden desktop app's settings."
-        info "  (The agent listens on \$HOME/.bitwarden-ssh-agent.sock; .zshenv exports SSH_AUTH_SOCK when present.)"
+        info "  (The agent listens on \$HOME/.bitwarden-ssh-agent.sock (or snap/bitwarden/current/... on Linux Snap); .zshenv exports SSH_AUTH_SOCK when present.)"
     else
         # Upload failed — preserve both files at the standard location so the
         # user can retry later with `bw create item` manually, or fall back to
