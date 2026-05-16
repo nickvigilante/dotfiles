@@ -118,47 +118,57 @@ preflight_all || { err "Preflight failed."; exit 1; }
 header "Step 3/10 — Install bootstrap essentials"
 case "$DETECTED_OS" in
     linux)
-        if [[ "$DETECTED_IS_PI" == 0 ]]; then
-            info "Confirming sudo authentication (fingerprint, Touch ID, or password)..."
-            sudo -v
-            ok "Sudo authenticated."
-            if command -v apt-get &>/dev/null; then
-                info "Installing apt prereqs..."
-                sudo apt-get update -qq
-                sudo apt-get install -y curl git zsh ca-certificates build-essential file procps gnupg lsb-release
-            elif command -v dnf &>/dev/null; then
-                info "Installing dnf prereqs..."
-                sudo dnf install -y curl git zsh ca-certificates @development-tools file procps-ng gnupg2
-            fi
+        info "Confirming sudo authentication (fingerprint, Touch ID, or password)..."
+        sudo -v
+        ok "Sudo authenticated."
 
-            # snapd: required for Bitwarden CLI (snap install bw) on Linux,
-            # baseline-installed on every non-Pi Linux machine regardless of
-            # --secrets choice so future snap-based tools just work.
-            if ! command -v snap &>/dev/null; then
-                info "Installing snapd..."
-                if command -v apt-get &>/dev/null; then
-                    sudo apt-get install -y snapd
-                elif command -v dnf &>/dev/null; then
-                    sudo dnf install -y snapd
-                    # Fedora ships snapd but no /snap symlink; classically-
-                    # confined snaps need it. Bitwarden's snap is strict, but
-                    # creating the symlink keeps other snaps working too.
-                    [[ -e /snap ]] || sudo ln -sf /var/lib/snapd/snap /snap
-                else
-                    warn "snapd installer not implemented for this distro."
-                    warn "  Bitwarden CLI installs from snap; --secrets bitwarden will fail in step 7."
-                fi
-                if command -v systemctl &>/dev/null && command -v snap &>/dev/null; then
-                    sudo systemctl enable --now snapd.socket
-                    # Without this wait, the next 'snap install' can fail with
-                    # "too early for operation" on a freshly-enabled snapd.
-                    sudo snap wait system seed.loaded
-                    ok "snapd installed."
-                fi
+        # apt / dnf prereqs apply to every Linux machine, Pi included —
+        # Pi OS minimal images don't always ship zsh / build-essential /
+        # gnupg, and apt is the right channel for these on 32-bit ARM
+        # (no Homebrew there). The Pi-vs-non-Pi distinction matters only
+        # for snapd below.
+        if command -v apt-get &>/dev/null; then
+            info "Installing apt prereqs..."
+            sudo apt-get update -qq
+            sudo apt-get install -y curl git zsh ca-certificates build-essential file procps gnupg lsb-release
+        elif command -v dnf &>/dev/null; then
+            info "Installing dnf prereqs..."
+            sudo dnf install -y curl git zsh ca-certificates @development-tools file procps-ng gnupg2
+        fi
+
+        # snapd: required for Bitwarden CLI (snap install bw) on non-Pi
+        # Linux, baseline-installed regardless of --secrets choice so
+        # future snap-based tools just work. Skipped on Pi because armv6
+        # has no snap support at all and armv7's snap story is rough
+        # enough that --secrets bitwarden/1password is explicitly errored
+        # out on Pi anyway (see lib/secrets.sh).
+        if [[ "$DETECTED_IS_PI" == 0 ]] && ! command -v snap &>/dev/null; then
+            info "Installing snapd..."
+            if command -v apt-get &>/dev/null; then
+                sudo apt-get install -y snapd
+            elif command -v dnf &>/dev/null; then
+                sudo dnf install -y snapd
+                # Fedora ships snapd but no /snap symlink; classically-
+                # confined snaps need it. Bitwarden's snap is strict, but
+                # creating the symlink keeps other snaps working too.
+                [[ -e /snap ]] || sudo ln -sf /var/lib/snapd/snap /snap
+            else
+                warn "snapd installer not implemented for this distro."
+                warn "  Bitwarden CLI installs from snap; --secrets bitwarden will fail in step 7."
             fi
-            # /snap/bin holds symlinks to snap-installed apps. On Fedora and
-            # similar, it isn't on $PATH until next login — prepend it now so
-            # 'command -v bw' works in step 7 of this same run.
+            if command -v systemctl &>/dev/null && command -v snap &>/dev/null; then
+                sudo systemctl enable --now snapd.socket
+                # Without this wait, the next 'snap install' can fail with
+                # "too early for operation" on a freshly-enabled snapd.
+                sudo snap wait system seed.loaded
+                ok "snapd installed."
+            fi
+        fi
+        # /snap/bin holds symlinks to snap-installed apps. On Fedora and
+        # similar, it isn't on $PATH until next login — prepend it now so
+        # 'command -v bw' works in step 7 of this same run. Skipped on
+        # Pi (nothing in /snap/bin to find).
+        if [[ "$DETECTED_IS_PI" == 0 ]]; then
             case ":${PATH}:" in
                 *:/snap/bin:*) : ;;
                 *) export PATH="/snap/bin:$PATH" ;;
@@ -347,9 +357,69 @@ esac
 
 # ── 8. Install chezmoi ──────────────────────────────────────────────────────
 header "Step 8/10 — Install chezmoi"
+# Direct GitHub download using DETECTED_ARCH. The official installer at
+# get.chezmoi.io guesses the arch from `uname -m` and on Pi Zero
+# (`armv6l`) constructs a 404'd URL with bare "arm" instead of "armv6"
+# (and similarly for armv7l). Doing the download ourselves with the
+# explicit arch suffix sidesteps the heuristic entirely on every arch.
+install_chezmoi_direct() {
+    local os_suffix arch_suffix version tarball url tmp_dir
+    case "$DETECTED_OS" in
+        darwin)  os_suffix="darwin" ;;
+        linux)   os_suffix="linux" ;;
+        windows) os_suffix="windows" ;;
+        *) err "chezmoi install: unsupported OS: $DETECTED_OS"; return 1 ;;
+    esac
+    case "$DETECTED_ARCH" in
+        amd64)  arch_suffix="amd64" ;;
+        arm64)  arch_suffix="arm64" ;;
+        armv7l) arch_suffix="armv7" ;;
+        armv6l) arch_suffix="armv6" ;;
+        *) err "chezmoi install: unsupported arch: $DETECTED_ARCH"; return 1 ;;
+    esac
+
+    # Resolve the "latest" tag via the GitHub redirect rather than the
+    # API so we don't need a token or hit rate limits.
+    local effective
+    effective="$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+        https://github.com/twpayne/chezmoi/releases/latest)" || {
+        err "Could not resolve chezmoi latest release URL."
+        return 1
+    }
+    version="${effective##*/v}"
+    [[ -n "$version" && "$version" != "$effective" ]] || {
+        err "Could not parse chezmoi version from redirect: $effective"
+        return 1
+    }
+
+    tarball="chezmoi_${version}_${os_suffix}_${arch_suffix}.tar.gz"
+    url="https://github.com/twpayne/chezmoi/releases/download/v${version}/${tarball}"
+
+    tmp_dir="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    info "Downloading chezmoi ${version} (${os_suffix}_${arch_suffix})..."
+    curl -fsSL "$url" -o "$tmp_dir/$tarball" || {
+        err "chezmoi download failed: $url"
+        return 1
+    }
+
+    tar -xzf "$tmp_dir/$tarball" -C "$tmp_dir" || {
+        err "chezmoi tarball extract failed."
+        return 1
+    }
+
+    mkdir -p "$HOME/.local/bin"
+    install -m 0755 "$tmp_dir/chezmoi" "$HOME/.local/bin/chezmoi" || {
+        err "chezmoi binary install failed."
+        return 1
+    }
+}
+
 if ! command -v chezmoi &>/dev/null; then
     info "Installing chezmoi..."
-    sh -c "$(curl -fsSL https://get.chezmoi.io)" -- -b "$HOME/.local/bin"
+    install_chezmoi_direct || { err "chezmoi install failed."; exit 1; }
 fi
 export PATH="$HOME/.local/bin:$PATH"
 ok "chezmoi installed: $(chezmoi --version | head -1)"
