@@ -190,7 +190,6 @@ cargo "cargo-edit"          # `cargo upgrade` to bump dep versions
 # ── Go tools (work: primary Go dev) ──────────────────────────────────────────
 {{ if eq .profile "work" -}}
 go "github.com/golangci/golangci-lint/cmd/golangci-lint"
-go "github.com/coder/coder/v2/enterprise/cmd/coder"
 {{- end }}
 
 # ── uv-installed Python tools ────────────────────────────────────────────────
