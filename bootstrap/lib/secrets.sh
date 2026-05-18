@@ -51,11 +51,14 @@ install_op() {
             brew install --cask 1password-cli
             ;;
         linux)
-            if [[ "${DETECTED_IS_PI:-0}" == 1 ]]; then
-                echo "ERROR: 1Password CLI unsupported on 32-bit ARM (no Linuxbrew)." >&2
-                echo "  Use --secrets none or --secrets bitwarden." >&2
-                return 1
-            fi
+            case "$DETECTED_ARCH" in
+                amd64|arm64) ;;
+                *)
+                    echo "ERROR: 1Password CLI unsupported on 32-bit ARM (no Linuxbrew)." >&2
+                    echo "  Use --secrets none. (Bitwarden CLI is also unsupported on 32-bit ARM — no snap or Linuxbrew there either.)" >&2
+                    return 1
+                    ;;
+            esac
             if ! command -v brew &>/dev/null; then
                 echo "ERROR: Homebrew required for 1Password CLI on Linux but brew is not on PATH." >&2
                 echo "  install.sh Step 6/9 should have installed it; check that step's output." >&2
@@ -97,11 +100,14 @@ install_bw() {
             brew install bitwarden-cli
             ;;
         linux)
-            if [[ "${DETECTED_IS_PI:-0}" == 1 ]]; then
-                echo "ERROR: Bitwarden CLI unsupported on 32-bit ARM (no snap or Linuxbrew)." >&2
-                echo "  Use --secrets none or --secrets 1password." >&2
-                return 1
-            fi
+            case "$DETECTED_ARCH" in
+                amd64|arm64) ;;
+                *)
+                    echo "ERROR: Bitwarden CLI unsupported on 32-bit ARM (no snap or Linuxbrew)." >&2
+                    echo "  Use --secrets none." >&2
+                    return 1
+                    ;;
+            esac
             if ! command -v snap &>/dev/null; then
                 echo "ERROR: snapd required for Bitwarden CLI on Linux but snap is not on PATH." >&2
                 echo "  install.sh Step 3/9 should have installed it; check that step's output." >&2
