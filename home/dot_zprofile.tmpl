@@ -18,3 +18,10 @@ elif [[ -f /home/linuxbrew/.linuxbrew/bin/brew ]]; then
     eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 {{- end }}
+
+# Put GNU make and GNU getopt ahead of system versions. HOMEBREW_PREFIX is
+# exported by `brew shellenv` above; gate on it so ARM Linux (no Homebrew)
+# silently skips this block.
+if [[ -n "${HOMEBREW_PREFIX:-}" ]]; then
+    export PATH="${HOMEBREW_PREFIX}/opt/make/libexec/gnubin:${HOMEBREW_PREFIX}/opt/gnu-getopt/bin:$PATH"
+fi
