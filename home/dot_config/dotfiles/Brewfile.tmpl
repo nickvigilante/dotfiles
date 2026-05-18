@@ -46,6 +46,8 @@ brew "bottom"        # htop alt: graphs over time, mouse, layouts (binary: btm)
 brew "hyperfine"     # CLI benchmarking tool
 brew "glow"          # Markdown renderer for the terminal
 brew "sd"            # sed replacement: PCRE syntax, no GNU/BSD -i divergence
+brew "make"          # GNU make (macOS ships 3.81; use as `make` via libexec/gnubin)
+brew "gnu-getopt"    # GNU getopt with long-option support (keg-only)
 
 # ── macOS-only formulae ──────────────────────────────────────────────────────
 {{ if eq .chezmoi.os "darwin" -}}
