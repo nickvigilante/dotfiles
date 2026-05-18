@@ -122,11 +122,12 @@ case "$DETECTED_OS" in
         sudo -v
         ok "Sudo authenticated."
 
-        # apt / dnf prereqs apply to every Linux machine, Pi included —
-        # Pi OS minimal images don't always ship zsh / build-essential /
-        # gnupg, and apt is the right channel for these on 32-bit ARM
-        # (no Homebrew there). The Pi-vs-non-Pi distinction matters only
-        # for snapd below.
+        # apt / dnf prereqs apply to every Linux machine, including
+        # both 32-bit and 64-bit Pis — Pi OS minimal images don't
+        # always ship zsh / build-essential / gnupg, and apt is the
+        # right channel for these on 32-bit ARM (where Homebrew isn't
+        # supported). The 32-bit vs 64-bit distinction matters only
+        # for snapd and Homebrew below.
         if command -v apt-get &>/dev/null; then
             info "Installing apt prereqs..."
             sudo apt-get update -qq
@@ -136,13 +137,19 @@ case "$DETECTED_OS" in
             sudo dnf install -y curl git zsh ca-certificates @development-tools file procps-ng gnupg2
         fi
 
-        # snapd: required for Bitwarden CLI (snap install bw) on non-Pi
-        # Linux, baseline-installed regardless of --secrets choice so
-        # future snap-based tools just work. Skipped on Pi because armv6
-        # has no snap support at all and armv7's snap story is rough
-        # enough that --secrets bitwarden/1password is explicitly errored
-        # out on Pi anyway (see lib/secrets.sh).
-        if [[ "$DETECTED_IS_PI" == 0 ]] && ! command -v snap &>/dev/null; then
+        # snapd: required for Bitwarden CLI (snap install bw) on
+        # 64-bit Linux, baseline-installed regardless of --secrets
+        # choice so future snap-based tools just work. Skipped on
+        # 32-bit ARM (armv6/armv7) because armv6 has no snap support
+        # at all and armv7's snap story is rough enough that
+        # --secrets bitwarden/1password is explicitly errored out on
+        # 32-bit ARM anyway (see lib/secrets.sh). A 64-bit Pi (Pi 4
+        # or Pi 5 with a 64-bit OS → aarch64) uses snap just fine.
+        snap_supported=0
+        case "$DETECTED_ARCH" in
+            amd64|arm64) snap_supported=1 ;;
+        esac
+        if [[ "$snap_supported" == 1 ]] && ! command -v snap &>/dev/null; then
             info "Installing snapd..."
             if command -v apt-get &>/dev/null; then
                 sudo apt-get install -y snapd
@@ -164,11 +171,11 @@ case "$DETECTED_OS" in
                 ok "snapd installed."
             fi
         fi
-        # /snap/bin holds symlinks to snap-installed apps. On Fedora and
-        # similar, it isn't on $PATH until next login — prepend it now so
-        # 'command -v bw' works in step 7 of this same run. Skipped on
-        # Pi (nothing in /snap/bin to find).
-        if [[ "$DETECTED_IS_PI" == 0 ]]; then
+        # /snap/bin holds symlinks to snap-installed apps. On Fedora
+        # and similar, it isn't on $PATH until next login — prepend
+        # it now so 'command -v bw' works in step 7 of this same run.
+        # Skipped on 32-bit ARM (nothing in /snap/bin to find).
+        if [[ "$snap_supported" == 1 ]]; then
             case ":${PATH}:" in
                 *:/snap/bin:*) : ;;
                 *) export PATH="/snap/bin:$PATH" ;;
@@ -236,17 +243,16 @@ ok "Profile=$FLAG_PROFILE, machine=$FLAG_MACHINE, display=$FLAG_DISPLAY, secrets
 # ── 6. Install Homebrew ─────────────────────────────────────────────────────
 # Lifted from home/run_once_00-install-homebrew.sh.tmpl so brew is available
 # for the secret-CLI installs in step 7 (1Password on Linux + macOS bw/op).
-# Skipped on Pi and on any Linux arch other than amd64/arm64.
+# Linuxbrew supports amd64 and arm64 (officially since 2023) — including
+# 64-bit Pis. 32-bit ARM (armv6/armv7) falls through and is skipped.
 header "Step 6/10 — Install Homebrew"
 brew_supported=0
 case "$DETECTED_OS" in
     darwin) brew_supported=1 ;;
     linux)
-        if [[ "$DETECTED_IS_PI" == 0 ]]; then
-            case "$DETECTED_ARCH" in
-                amd64|arm64) brew_supported=1 ;;
-            esac
-        fi
+        case "$DETECTED_ARCH" in
+            amd64|arm64) brew_supported=1 ;;
+        esac
         ;;
 esac
 
@@ -272,7 +278,7 @@ if [[ "$brew_supported" == 1 ]]; then
     eval "$("$BREW_BIN" shellenv)"
     ok "Homebrew available: $(brew --version | head -1)"
 else
-    info "Skipping Homebrew (unsupported on $DETECTED_OS/$DETECTED_ARCH; pi=$DETECTED_IS_PI)."
+    info "Skipping Homebrew (unsupported on $DETECTED_OS/$DETECTED_ARCH)."
 fi
 
 install_touch_id
