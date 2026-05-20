@@ -1,22 +1,4 @@
 {
-  "enabledPlugins": {
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "cloudflare@claude-plugins-official": true,
-    "warp@claude-code-warp": true,
-    "frontend-design@claude-plugins-official": true,
-    "github@claude-plugins-official": true
-  },
-  "extraKnownMarketplaces": {
-    "claude-code-warp": {
-      "source": {
-        "source": "github",
-        "repo": "warpdotdev/claude-code-warp"
-      }
-    }
-  },
-  "theme": "dark",
-  "agentPushNotifEnabled": true,
   "permissions": {
     "allow": [
       "Bash(git log *)",
@@ -277,5 +259,24 @@
       "Bash(helm template *)",
       "Bash(helm plugin list)"
     ]
-  }
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "cloudflare@claude-plugins-official": true,
+    "warp@claude-code-warp": true,
+    "frontend-design@claude-plugins-official": true,
+    "github@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    }
+  },
+  "theme": "dark",
+  "remoteControlAtStartup": false,
+  "agentPushNotifEnabled": true
 }
