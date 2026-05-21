@@ -3,6 +3,13 @@
 # Each block is guarded — safe to source on any machine regardless of what's installed.
 # Sourced from ~/.zshrc after oh-my-zsh is initialized.
 
+{{- if eq .profile "work" }}
+# ── Nix — package manager ─────────────────────────────────────────────────────
+if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+fi
+{{- end }}
+
 # ── zoxide — smarter cd (must init after compinit) ────────────────────────────
 if command -v zoxide &>/dev/null; then
   eval "$(zoxide init zsh)"
