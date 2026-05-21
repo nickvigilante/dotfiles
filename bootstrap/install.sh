@@ -379,7 +379,7 @@ install_chezmoi_direct() {
     case "$DETECTED_ARCH" in
         amd64)  arch_suffix="amd64" ;;
         arm64)  arch_suffix="arm64" ;;
-        armv7l) arch_suffix="armv7" ;;
+        armv7l) arch_suffix="armv6" ;;  # linux_armv7.tar.gz not published; armv6 runs on armv7
         armv6l) arch_suffix="armv6" ;;
         *) err "chezmoi install: unsupported arch: $DETECTED_ARCH"; return 1 ;;
     esac
