@@ -1,0 +1,15 @@
+# ripgrep configuration
+# https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md#configuration-file
+
+# Case-insensitive unless the pattern contains uppercase letters.
+--smart-case
+
+# Show column numbers alongside line numbers.
+--column
+
+# Follow symlinks.
+--follow
+
+# Truncate long lines in output rather than printing raw bytes.
+--max-columns=200
+--max-columns-preview
