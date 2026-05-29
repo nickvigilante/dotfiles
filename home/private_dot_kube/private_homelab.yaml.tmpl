@@ -1,0 +1,9 @@
+{{- /* Home-lab k3s admin kubeconfig — a cluster-admin credential, so it is
+       NEVER stored in cleartext in this repo. At `chezmoi apply` time it is
+       pulled from the Bitwarden item "Homelab Kubeconfig" (a Secure Note
+       holding the full kubeconfig, with the server already pointed at
+       gandalf.tail395fc0.ts.net:6443). Requires bw to be unlocked
+       (BW_SESSION) when applying. Written 0600 via the private_ prefix, and
+       only on personal non-server devices (see ../.chezmoiignore).
+       See homelab #132. */ -}}
+{{ (bitwarden "item" "Homelab Kubeconfig").notes }}
