@@ -1,0 +1,11 @@
+# chezmoi ignore rules (this file is itself templated).
+#
+# The home-lab admin kubeconfig (~/.kube/homelab.yaml) is a cluster-admin
+# credential. Deploy it ONLY on personal, non-server devices — never work
+# machines (profile != "personal"), and not on the cluster nodes themselves
+# (machine == "server", which already have /etc/rancher/k3s/k3s.yaml). The
+# matching KUBECONFIG export in dot_config/shell/exports.zsh.tmpl uses the
+# same gate. See homelab #132.
+{{ if or (ne .profile "personal") (eq .machine "server") -}}
+.kube/homelab.yaml
+{{ end -}}

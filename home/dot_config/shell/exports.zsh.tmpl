@@ -35,4 +35,13 @@ export FZF_DEFAULT_OPTS="--height 40% --layout=reverse --border"
 # export AWS_PROFILE="work"
 {{ else -}}
 # Personal profile — add personal exports here.
+{{ if ne .machine "server" -}}
+
+# ── Homelab k3s ───────────────────────────────────────────────────────────────
+# Drive the home-lab cluster from this device over the tailnet. The kubeconfig
+# is deployed by chezmoi to ~/.kube/homelab.yaml (Bitwarden-sourced, personal
+# non-server devices only — see .chezmoiignore). Prepend it so kubectl/helm
+# work out of the box, while preserving any other KUBECONFIG entries.
+export KUBECONFIG="$HOME/.kube/homelab.yaml${KUBECONFIG:+:$KUBECONFIG}"
+{{ end -}}
 {{- end }}
