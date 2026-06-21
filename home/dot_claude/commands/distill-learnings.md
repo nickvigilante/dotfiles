@@ -3,7 +3,8 @@ description: Mine recent Claude Code transcripts for recurring patterns and prop
 argument-hint: "[max_sessions] (default 15) — caps work per run so you can spread it over time"
 ---
 
-Distill durable learnings from my recent Claude Code sessions into proposed skills and memories. Be incremental and cheap, and DO NOT write anything until I approve.
+Distill durable learnings from my recent Claude Code sessions into proposed skills and memories.
+Be incremental and cheap, and DO NOT write anything until I approve.
 
 ## Procedure
 

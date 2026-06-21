@@ -7,9 +7,12 @@ description: Use whenever writing or editing ANY Markdown — READMEs, docs/, PR
 
 ## Semantic line breaks (the important one)
 
-Break lines at **semantic boundaries**, not at a fixed column width. One sentence — or one independent clause — per line. Let the renderer soft-wrap; never hard-wrap prose at 80/100 columns.
+Break lines at **semantic boundaries**, not at a fixed column width.
+One sentence — or one independent clause — per line.
+Let the renderer soft-wrap; never hard-wrap prose at 80/100 columns.
 
-Why: prose changes then produce **one-line diffs** at the clause that changed, instead of reflowing a whole paragraph. Reviews and `git blame` stay legible.
+Why: prose changes then produce **one-line diffs** at the clause that changed, instead of reflowing a whole paragraph.
+Reviews and `git blame` stay legible.
 
 ```markdown
 <!-- yes: semantic line breaks -->

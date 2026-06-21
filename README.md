@@ -1,6 +1,7 @@
 # dotfiles
 
-Personal dotfiles managed with [chezmoi](https://www.chezmoi.io/). Supports macOS, Ubuntu, Fedora, Raspberry Pi (Raspbian/Ubuntu), and Windows (Cygwin).
+Personal dotfiles managed with [chezmoi](https://www.chezmoi.io/).
+Supports macOS, Ubuntu, Fedora, Raspberry Pi (Raspbian/Ubuntu), and Windows (Cygwin).
 
 ## Quick start
 
@@ -14,16 +15,18 @@ bash -c "$(curl -fsSL https://nickvigilante.com/dotfiles)"
 
 The bootstrap script downloads [Gum](https://github.com/charmbracelet/gum) for prompts, auto-detects what it can (OS, arch, WSL, ephemeral cloud VM, display, hostname, existing git config), and only asks Gum-prompted questions for what it can't infer.
 
-| Prompt          | Options / values                                                 |
-| --------------- | ---------------------------------------------------------------- |
-| Profile         | `work` or `personal`                                             |
-| Full name       | used in git config                                               |
-| Email address   | used in git config (always prompted; never auto-detected)        |
-| Machine role    | `laptop`, `desktop`, `server`, `pi`, or `ephemeral`              |
-| Display         | `true`/`false` — gates GUI casks, terminal apps, VS Code         |
-| Secret managers | `none`, `bitwarden`, `1password`, or `both`                      |
+| Prompt | Options / values |
+| --- | --- |
+| Profile | `work` or `personal` |
+| Full name | used in git config |
+| Email address | used in git config (always prompted; never auto-detected) |
+| Machine role | `laptop`, `desktop`, `server`, `pi`, or `ephemeral` |
+| Display | `true`/`false` — gates GUI casks, terminal apps, VS Code |
+| Secret managers | `none`, `bitwarden`, `1password`, or `both` |
 
-Answers are saved to `~/.config/chezmoi/chezmoi.toml`. The file is generated from `home/.chezmoi.toml.tmpl` and includes a comment header showing the equivalent **non-interactive bootstrap command** for the current machine — copy/paste reproduces the same setup elsewhere. Edit later with `chezmoi edit-config`.
+Answers are saved to `~/.config/chezmoi/chezmoi.toml`.
+The file is generated from `home/.chezmoi.toml.tmpl` and includes a comment header showing the equivalent **non-interactive bootstrap command** for the current machine — copy/paste reproduces the same setup elsewhere.
+Edit later with `chezmoi edit-config`.
 
 ### Non-interactive bootstrap (for cloud-init / Terraform / scripts)
 
@@ -36,7 +39,9 @@ bash -c "$(curl -fsSL .../install.sh)" -- \
   --non-interactive
 ```
 
-Available flags: `--profile`, `--name`, `--email`, `--machine`, `--display | --no-display`, `--secrets`, `--op-token <token>`, `--non-interactive`. Each has an env-var equivalent (`DOTFILES_PROFILE`, `DOTFILES_DISPLAY=1|0`, etc.). With `--non-interactive`, any unspecified field that can't be auto-detected aborts with an error.
+Available flags: `--profile`, `--name`, `--email`, `--machine`, `--display | --no-display`, `--secrets`, `--op-token <token>`, `--non-interactive`.
+Each has an env-var equivalent (`DOTFILES_PROFILE`, `DOTFILES_DISPLAY=1|0`, etc.).
+With `--non-interactive`, any unspecified field that can't be auto-detected aborts with an error.
 
 ### Windows (elevated PowerShell)
 
@@ -55,23 +60,26 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 - `.zprofile` — Homebrew initialization for login shells.
 - `.zshrc` — Oh My ZSH, plugins, aliases, functions, profile-specific config.
 
-Oh My ZSH and its plugins are managed as external git repos by chezmoi (see `.chezmoiexternal.toml`) and updated weekly on `chezmoi update`. Auto-update runs without prompting.
+Oh My ZSH and its plugins are managed as external git repos by chezmoi (see `.chezmoiexternal.toml`) and updated weekly on `chezmoi update`.
+Auto-update runs without prompting.
 
 Shell config is split into fragments under `~/.config/shell/`:
 
-| File                | Purpose                                            |
-| ------------------- | -------------------------------------------------- |
-| `aliases.zsh`       | Cross-platform aliases                             |
-| `aliases_macos.zsh` | macOS-only aliases (Finder, Homebrew, pbcopy)      |
-| `aliases_linux.zsh` | Linux-only aliases (apt/dnf shortcuts, clipboard)  |
-| `functions.zsh`     | Utility functions (mkcd, extract, serve, groot, …) |
-| `exports.zsh`       | Editor, pager, fzf, bat, and profile exports       |
-| `work.zsh`          | Work profile additions                             |
-| `personal.zsh`      | Personal profile additions                         |
+| File | Purpose |
+| --- | --- |
+| `aliases.zsh` | Cross-platform aliases |
+| `aliases_macos.zsh` | macOS-only aliases (Finder, Homebrew, pbcopy) |
+| `aliases_linux.zsh` | Linux-only aliases (apt/dnf shortcuts, clipboard) |
+| `functions.zsh` | Utility functions (mkcd, extract, serve, groot, …) |
+| `exports.zsh` | Editor, pager, fzf, bat, and profile exports |
+| `work.zsh` | Work profile additions |
+| `personal.zsh` | Personal profile additions |
 
 ### Python (uv only)
 
-[uv](https://docs.astral.sh/uv/) is installed via its official installer (not Homebrew) so it works identically on all platforms. A machine-wide default venv is created at `~/venv` and sits first on `PATH`, making it the default `python` and `pip`. Project-specific venvs (`.venv/` in the project directory) take precedence when active.
+[uv](https://docs.astral.sh/uv/) is installed via its official installer (not Homebrew) so it works identically on all platforms.
+A machine-wide default venv is created at `~/venv` and sits first on `PATH`, making it the default `python` and `pip`.
+Project-specific venvs (`.venv/` in the project directory) take precedence when active.
 
 No pyenv, conda, or system Python involvement.
 
@@ -79,19 +87,25 @@ No pyenv, conda, or system Python involvement.
 
 One unified Brewfile, gated on (OS × profile × display × secrets) axes:
 
-| Layer                   | Source                                       | Used by                                                   |
-| ----------------------- | -------------------------------------------- | --------------------------------------------------------- |
-| Cross-platform CLI tools | `home/dot_config/dotfiles/Brewfile.tmpl`    | macOS, Linux laptops, ephemeral cloud VMs (via Linuxbrew) |
-| Pre-Homebrew prereqs (apt) | `os/linux/bootstrap.apt`                  | Ubuntu/Debian — installs minimal `curl git zsh build-essential` before Homebrew |
-| Pre-Homebrew prereqs (dnf) | `os/linux/bootstrap.dnf`                  | Fedora                                                    |
-| Pi-only packages        | `os/raspberry-pi/packages.apt`              | Raspberry Pi (Homebrew not used on Pi)                    |
-| Windows packages        | `os/windows/packages.choco`                  | Windows (Chocolatey)                                      |
+| Layer | Source | Used by |
+| --- | --- | --- |
+| Cross-platform CLI tools | `home/dot_config/dotfiles/Brewfile.tmpl` | macOS, Linux laptops, ephemeral cloud VMs (via Linuxbrew) |
+| Pre-Homebrew prereqs (apt) | `os/linux/bootstrap.apt` | Ubuntu/Debian — installs minimal `curl git zsh build-essential` before Homebrew |
+| Pre-Homebrew prereqs (dnf) | `os/linux/bootstrap.dnf` | Fedora |
+| Pi-only packages | `os/raspberry-pi/packages.apt` | Raspberry Pi (Homebrew not used on Pi) |
+| Windows packages | `os/windows/packages.choco` | Windows (Chocolatey) |
 
-The Brewfile uses chezmoi Go-template guards on `.chezmoi.os`, `.profile`, `.display`, and `.secrets` to install the right slice for each machine. Casks and VS Code extensions are gated on `.display && .chezmoi.os == "darwin"` (Linux Homebrew has no casks anyway). 32-bit ARM machines (original Pi Zero, old SBCs) are detected via `.chezmoi.arch` and skip Homebrew entirely.
+The Brewfile uses chezmoi Go-template guards on `.chezmoi.os`, `.profile`, `.display`, and `.secrets` to install the right slice for each machine.
+Casks and VS Code extensions are gated on `.display && .chezmoi.os == "darwin"` (Linux Homebrew has no casks anyway).
+32-bit ARM machines (original Pi Zero, old SBCs) are detected via `.chezmoi.arch` and skip Homebrew entirely.
 
-**Adding a package:** edit `home/dot_config/dotfiles/Brewfile.tmpl` (gated under the right `{{ if ... }}` block) and run `chezmoi apply`. The always-run `run_after_install-packages.sh.tmpl` calls `brew bundle check` first (fast no-op when satisfied) and only installs if drift is detected. Single-package failures are reported at the end without blocking the whole sync.
+**Adding a package:** edit `home/dot_config/dotfiles/Brewfile.tmpl` (gated under the right `{{ if ... }}` block) and run `chezmoi apply`.
+The always-run `run_after_install-packages.sh.tmpl` calls `brew bundle check` first (fast no-op when satisfied) and only installs if drift is detected.
+Single-package failures are reported at the end without blocking the whole sync.
 
-**Pi caveat:** Linuxbrew on `aarch64` Pi 4/5 works but bottle coverage is poor and source-builds are slow. The `.machine == "pi"` gate routes Pis to the apt-only flow regardless of arch — generally the right default. Override by setting `.machine` to `laptop`/`server` if you really want Homebrew on a beefier Pi.
+**Pi caveat:** Linuxbrew on `aarch64` Pi 4/5 works but bottle coverage is poor and source-builds are slow.
+The `.machine == "pi"` gate routes Pis to the apt-only flow regardless of arch — generally the right default.
+Override by setting `.machine` to `laptop`/`server` if you really want Homebrew on a beefier Pi.
 
 ### Updates and maintenance
 
@@ -101,9 +115,11 @@ dotfiles doctor          # health check (machine + tooling + Brewfile + secrets)
 dotfiles palette-import  # show the manual Warp-theme-iteration workflow
 ```
 
-`dotfiles doctor` walks the data axes (os, arch, machine, display, profile, secrets) and verifies your tooling, files, Brewfile state, and `~/.env` permissions all match expectations. Run it whenever something feels off.
+`dotfiles doctor` walks the data axes (os, arch, machine, display, profile, secrets) and verifies your tooling, files, Brewfile state, and `~/.env` permissions all match expectations.
+Run it whenever something feels off.
 
-A background `~/.local/bin/update-packages` script auto-fires on every new shell, throttled to once per 24 h via `~/.cache/dotfiles/last_update`. Run manually with `update-packages` or `update-packages --force` to bypass the throttle.
+A background `~/.local/bin/update-packages` script auto-fires on every new shell, throttled to once per 24 h via `~/.cache/dotfiles/last_update`.
+Run manually with `update-packages` or `update-packages --force` to bypass the throttle.
 
 ### macOS-specific
 
@@ -111,16 +127,16 @@ A background `~/.local/bin/update-packages` script auto-fires on every new shell
 - **System defaults** — Finder (show extensions, path bar, list view), Dock (auto-hide, no recent apps), keyboard (fast repeat, no autocorrect), screenshots saved to `~/Desktop/Screenshots`.
 - **Mac App Store apps** — installed manually (mas-cli is broken on Sonoma+ since Apple removed its private APIs). Curated list:
 
-  | App                                                                            | Profile  |
-  | ------------------------------------------------------------------------------ | -------- |
-  | [Keynote](https://apps.apple.com/app/keynote/id361285480)                      | both     |
-  | [Pages](https://apps.apple.com/app/pages/id361309726)                          | both     |
-  | [Numbers](https://apps.apple.com/app/numbers/id361304891)                      | both     |
-  | [Xcode](https://apps.apple.com/app/xcode/id497799835)                          | both     |
-  | [Apple Developer](https://apps.apple.com/app/apple-developer/id640199958)      | both     |
-  | [Todoist](https://apps.apple.com/app/todoist/id585829637)                      | personal |
-  | [Cult of the Lamb](https://apps.apple.com/app/cult-of-the-lamb/id1639580858)   | personal |
-  | [Mini Motorways](https://apps.apple.com/app/mini-motorways/id1456188526)       | personal |
+  | App | Profile |
+  | --- | --- |
+  | [Keynote](https://apps.apple.com/app/keynote/id361285480) | both |
+  | [Pages](https://apps.apple.com/app/pages/id361309726) | both |
+  | [Numbers](https://apps.apple.com/app/numbers/id361304891) | both |
+  | [Xcode](https://apps.apple.com/app/xcode/id497799835) | both |
+  | [Apple Developer](https://apps.apple.com/app/apple-developer/id640199958) | both |
+  | [Todoist](https://apps.apple.com/app/todoist/id585829637) | personal |
+  | [Cult of the Lamb](https://apps.apple.com/app/cult-of-the-lamb/id1639580858) | personal |
+  | [Mini Motorways](https://apps.apple.com/app/mini-motorways/id1456188526) | personal |
 
 ---
 
@@ -147,7 +163,8 @@ Three axes beyond profile:
 
 ### Ephemeral cloud VMs (e.g., AWS EC2 dev box)
 
-Bootstrap detects ephemeral environments automatically. For non-interactive provisioning (cloud-init / Terraform `user_data`), pre-set the 1Password service-account token in the VM's environment:
+Bootstrap detects ephemeral environments automatically.
+For non-interactive provisioning (cloud-init / Terraform `user_data`), pre-set the 1Password service-account token in the VM's environment:
 
 ```sh
 export OP_SERVICE_ACCOUNT_TOKEN="ops_..."
@@ -156,13 +173,16 @@ bash -c "$(curl -fsSL .../install.sh)" -- \
   --no-display --non-interactive
 ```
 
-Bootstrap stores the token at `~/.config/op/token` (chmod 600), and `~/.zshenv` sources it for every shell. `op whoami` and `chezmoi`'s `onepasswordRead` will work without an interactive `op signin`.
+Bootstrap stores the token at `~/.config/op/token` (chmod 600), and `~/.zshenv` sources it for every shell.
+`op whoami` and `chezmoi`'s `onepasswordRead` will work without an interactive `op signin`.
 
-**Bitwarden is unsupported on ephemeral / non-interactive boxes** — the master-password unlock step has no service-account equivalent. Use `--secrets none` or `--secrets 1password` on ephemeral.
+**Bitwarden is unsupported on ephemeral / non-interactive boxes** — the master-password unlock step has no service-account equivalent.
+Use `--secrets none` or `--secrets 1password` on ephemeral.
 
 ## Terminal configs
 
-[Warp](https://www.warp.dev) and [Ghostty](https://ghostty.org) configs live under `home/dot_warp/` and `home/dot_config/ghostty/` respectively. Both consume `home/.chezmoidata/palette.toml` — a single source-of-truth color palette (Tokyo Night Storm × Material Ocean blend) — so changing one hex value in the palette regenerates both terminals' themes plus Gum prompt styling on the next `chezmoi apply`.
+[Warp](https://www.warp.dev) and [Ghostty](https://ghostty.org) configs live under `home/dot_warp/` and `home/dot_config/ghostty/` respectively.
+Both consume `home/.chezmoidata/palette.toml` — a single source-of-truth color palette (Tokyo Night Storm × Material Ocean blend) — so changing one hex value in the palette regenerates both terminals' themes plus Gum prompt styling on the next `chezmoi apply`.
 
 The included theme is named **Vigilante**. To iterate:
 
@@ -176,32 +196,39 @@ The included theme is named **Vigilante**. To iterate:
 
 ## Secrets and environment variables
 
-`~/.env` (chmod 600) is generated by chezmoi from `home/private_dot_env.tmpl` and sourced by `.zshenv` on every shell start. The template pulls values from your password managers at apply time — plaintext secrets are never stored in this repo.
+`~/.env` (chmod 600) is generated by chezmoi from `home/private_dot_env.tmpl` and sourced by `.zshenv` on every shell start.
+The template pulls values from your password managers at apply time — plaintext secrets are never stored in this repo.
 
 ### Per-machine secret manager choice
 
 The `.secrets` data field controls which managers are active on this machine:
 
-| `.secrets`    | Bitwarden | 1Password | Notes                                                                  |
-| ------------- | :-------: | :-------: | ---------------------------------------------------------------------- |
-| `none`        |           |           | `~/.env` renders empty. Default for `personal` profile.                |
-| `bitwarden`   |     ✓     |           | `bw login` + `bw-apply` to unlock. Real machines only.                 |
-| `1password`   |           |     ✓     | Default for `work` profile. Service-account flow on ephemeral.         |
-| `both`        |     ✓     |     ✓     | On ephemeral boxes only the 1Password half is functional.              |
+| `.secrets` | Bitwarden | 1Password | Notes |
+| --- | :-: | :-: | --- |
+| `none` | | | `~/.env` renders empty. Default for `personal` profile. |
+| `bitwarden` | ✓ | | `bw login` + `bw-apply` to unlock. Real machines only. |
+| `1password` | | ✓ | Default for `work` profile. Service-account flow on ephemeral. |
+| `both` | ✓ | ✓ | On ephemeral boxes only the 1Password half is functional. |
 
 ### First-time setup (real machines)
 
 **1Password** — once per machine: `op signin` (uses system Keychain on macOS for subsequent calls).
 
-**Bitwarden** — once per machine: `bw login`. Then use `bw-apply` instead of bare `chezmoi apply` whenever `~/.env` may need re-rendering. `bw-apply` (defined in `~/.config/shell/functions.zsh.tmpl`) unlocks Bitwarden, sets `BW_SESSION`, and runs `chezmoi apply`. It's a no-op for the unlock step on machines whose `.secrets` doesn't include `bitwarden`.
+**Bitwarden** — once per machine: `bw login`.
+Then use `bw-apply` instead of bare `chezmoi apply` whenever `~/.env` may need re-rendering.
+`bw-apply` (defined in `~/.config/shell/functions.zsh.tmpl`) unlocks Bitwarden, sets `BW_SESSION`, and runs `chezmoi apply`.
+It's a no-op for the unlock step on machines whose `.secrets` doesn't include `bitwarden`.
 
 ### Ephemeral 1Password (service account)
 
-On a cloud VM, set `OP_SERVICE_ACCOUNT_TOKEN` in the environment before bootstrap (or pass `--op-token <token>`). Bootstrap stores it at `~/.config/op/token` (chmod 600), and `.zshenv` sources it on every shell. No `op signin` required.
+On a cloud VM, set `OP_SERVICE_ACCOUNT_TOKEN` in the environment before bootstrap (or pass `--op-token <token>`).
+Bootstrap stores it at `~/.config/op/token` (chmod 600), and `.zshenv` sources it on every shell.
+No `op signin` required.
 
 ### Bitwarden SSH agent
 
-When `bitwarden` is in `--secrets`, bootstrap offers (after BW unlocks) to generate an ed25519 SSH key for this machine and upload it to your vault as a "SSH key" item named `<hostname> - Home Lab`. The local private key is wiped after a successful upload — Bitwarden becomes the single source of truth — and `~/.ssh/bw-<hostname>.pub` is kept for adding to remote `authorized_keys`.
+When `bitwarden` is in `--secrets`, bootstrap offers (after BW unlocks) to generate an ed25519 SSH key for this machine and upload it to your vault as a "SSH key" item named `<hostname> - Home Lab`.
+The local private key is wiped after a successful upload — Bitwarden becomes the single source of truth — and `~/.ssh/bw-<hostname>.pub` is kept for adding to remote `authorized_keys`.
 
 Two manual steps the CLI can't do:
 
@@ -231,11 +258,15 @@ export AWS_KEY="{{ onepasswordRead "op://Work Vault/AWS/access_key_id" }}"
 
 ### Session management
 
-`BW_SESSION` is set in memory only — it doesn't persist across reboots. On a fresh terminal after a restart, run `bw-apply` once to re-unlock. Use `bw-lock` to explicitly clear the session.
+`BW_SESSION` is set in memory only — it doesn't persist across reboots.
+On a fresh terminal after a restart, run `bw-apply` once to re-unlock.
+Use `bw-lock` to explicitly clear the session.
 
 ### On the bootstrap chicken-and-egg
 
-`~/.env` template references to `{{ bitwarden ... }}` / `{{ onepasswordRead ... }}` need the `bw`/`op` CLI present at template *render* time, not after. Bootstrap pre-installs the relevant CLIs (apt-repo for `op` on Linux, brew on macOS, direct download for `bw` on Linux) before calling `chezmoi init --apply`. Service-account / interactive auth happens in the same step, so the first apply renders `~/.env` correctly without a second pass.
+`~/.env` template references to `{{ bitwarden ... }}` / `{{ onepasswordRead ... }}` need the `bw`/`op` CLI present at template *render* time, not after.
+Bootstrap pre-installs the relevant CLIs (apt-repo for `op` on Linux, brew on macOS, direct download for `bw` on Linux) before calling `chezmoi init --apply`.
+Service-account / interactive auth happens in the same step, so the first apply renders `~/.env` correctly without a second pass.
 
 ---
 

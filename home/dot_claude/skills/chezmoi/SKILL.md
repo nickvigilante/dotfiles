@@ -5,7 +5,9 @@ description: Use when adding, editing, moving, or applying any dotfile managed b
 
 # chezmoi (this user's setup)
 
-This user's dotfiles are managed by **chezmoi** (`chezmoi --version` → v2.70.x). Edits to a managed file are pointless if you only touch the live target — they get overwritten on the next `chezmoi apply` and never sync to other machines. Always go through the **source**.
+This user's dotfiles are managed by **chezmoi** (`chezmoi --version` → v2.70.x).
+Edits to a managed file are pointless if you only touch the live target — they get overwritten on the next `chezmoi apply` and never sync to other machines.
+Always go through the **source**.
 
 ## The layout (verified)
 
@@ -63,7 +65,8 @@ cd ~/git/nickvigilante/dotfiles && git pull --ff-only && chezmoi apply
 
 ## Per-host scoping (important for skills/agents)
 
-Skill _descriptions_ load into every session on every machine. To keep a machine-specific skill (e.g. a 3D-printing skill) off the work machine, either keep it in a project's `.claude/skills/` instead of global `dot_claude/skills/`, or gate it with a templated `.chezmoiignore`:
+Skill _descriptions_ load into every session on every machine.
+To keep a machine-specific skill (e.g. a 3D-printing skill) off the work machine, either keep it in a project's `.claude/skills/` instead of global `dot_claude/skills/`, or gate it with a templated `.chezmoiignore`:
 
 ```
 {{ if ne .chezmoi.hostname "personal-box" }}

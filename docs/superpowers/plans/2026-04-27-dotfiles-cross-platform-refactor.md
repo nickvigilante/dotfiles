@@ -1,10 +1,15 @@
 # Dotfiles Cross-Platform Refactor — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task.
+> Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Refactor the dotfiles repo to (a) work on a fresh work Mac, (b) support ephemeral Ubuntu cloud VMs with a full dev toolkit, (c) track Warp + Ghostty configs with a shared color palette, (d) replace chezmoi prompts with Gum.
 
-**Architecture:** chezmoi remains the source-of-truth tool. Add new data-model fields (`display`, `secrets`, `arch`, `machine=ephemeral`). Replace per-OS Brewfiles with one unified, chezmoi-templated Brewfile gated on (OS × profile × display × secrets) axes. Bootstrap downloads Gum once, auto-detects what it can, prompts for the rest, and pre-installs secret CLIs before `chezmoi init`. Always-run `run_after_install-packages.sh.tmpl` invokes `brew bundle check` (fast, self-healing) for non-Pi machines and apt for Pis.
+**Architecture:** chezmoi remains the source-of-truth tool.
+Add new data-model fields (`display`, `secrets`, `arch`, `machine=ephemeral`).
+Replace per-OS Brewfiles with one unified, chezmoi-templated Brewfile gated on (OS × profile × display × secrets) axes.
+Bootstrap downloads Gum once, auto-detects what it can, prompts for the rest, and pre-installs secret CLIs before `chezmoi init`.
+Always-run `run_after_install-packages.sh.tmpl` invokes `brew bundle check` (fast, self-healing) for non-Pi machines and apt for Pis.
 
 **Tech Stack:** chezmoi (Go templates), bash 5.x, Gum 0.14+, Homebrew/Linuxbrew, apt/dnf, 1Password CLI (with service account token for ephemeral), Bitwarden CLI.
 
@@ -17,14 +22,17 @@
 ## Conventions
 
 - All paths are repo-relative unless prefixed with `~/` or `/`.
-- chezmoi source root is `home/`. The `dot_` prefix → `.` in `$HOME` (e.g. `home/dot_zshrc.tmpl` → `~/.zshrc`).
+- chezmoi source root is `home/`.
+  The `dot_` prefix → `.` in `$HOME` (e.g. `home/dot_zshrc.tmpl` → `~/.zshrc`).
 - Verify-style steps say what to *run* and what to *expect* — if the actual differs, stop and report; do not auto-fix.
 - "Commit" steps use Conventional Commits and avoid co-author trailers (per user preference 2026-04-27).
 - All shell scripts must `set -euo pipefail` and run `shellcheck` clean.
 
 ## Subagent dispatch hints
 
-Tasks marked **[parallel-safe]** can be dispatched concurrently in the same dispatch wave. Tasks marked **[sequential]** must complete before downstream tasks start. Each PR ends with a single integration commit + push.
+Tasks marked **[parallel-safe]** can be dispatched concurrently in the same dispatch wave.
+Tasks marked **[sequential]** must complete before downstream tasks start.
+Each PR ends with a single integration commit + push.
 
 ---
 
@@ -59,7 +67,10 @@ Expected (per spec, Phase 0):
 
 - [ ] **Step 2: For run_once_04 + run_onchange — if there are real edits, note them; if not, plan to discard since the files are deleted in Phase 2 anyway**
 
-These two files are deleted in Phase 2. Any salvage value depends on whether the diff contains real changes vs. whitespace/cruft. **If real**: apply now and commit so the deletion in Phase 2 still removes the (improved) file. **If not real**: skip; just `git restore` them.
+These two files are deleted in Phase 2.
+Any salvage value depends on whether the diff contains real changes vs. whitespace/cruft.
+**If real**: apply now and commit so the deletion in Phase 2 still removes the (improved) file.
+**If not real**: skip; just `git restore` them.
 
 - [ ] **Step 3: No commit for this task — it's a research step. Carry decisions into A2-A5.**
 
@@ -78,7 +89,8 @@ Expected to show: removal of `tap "homebrew/cask-fonts"`, addition of `# sldkfml
 
 - [ ] **Step 2: Remove the stray `# sldkfmldksfdml` comment**
 
-Edit `os/macos/Brewfile`. Delete the line `# sldkfmldksfdml` (it's debugging cruft).
+Edit `os/macos/Brewfile`.
+Delete the line `# sldkfmldksfdml` (it's debugging cruft).
 
 - [ ] **Step 3: Verify the diff is clean**
 
@@ -99,7 +111,8 @@ Expected: only the deprecated-tap removal and `age` → `rage` change remain.
 git diff HEAD -- home/.chezmoi.toml.tmpl
 ```
 
-Expected: alignment normalization + `[diff] pager = "delta"` block. **Keep as-is — no changes needed**.
+Expected: alignment normalization + `[diff] pager = "delta"` block.
+**Keep as-is — no changes needed**.
 
 ## Task A4: Apply gitconfig salvage (currently unstaged)
 
@@ -282,7 +295,8 @@ git add -u notes.md cask.json formula.json macos-versions.json db.sql.zst 2>/dev
 git status --short
 ```
 
-Expected: only the Phase 0 changes staged. No `M` (modified) or `??` (untracked) entries except the explicitly-deferred WIP and the new `.claude/` directory (which we leave alone).
+Expected: only the Phase 0 changes staged.
+No `M` (modified) or `??` (untracked) entries except the explicitly-deferred WIP and the new `.claude/` directory (which we leave alone).
 
 - [ ] **Step 3: Commit**
 
@@ -340,7 +354,10 @@ EOF
 
 # PR B — Foundation, Unified Brewfile, Bootstrap (Phases 1+2+3)
 
-This PR is the bulk of the refactor. After PR A merges, branch off `main` for PR B work. **Tasks B1–B4 [parallel-safe]** can be dispatched concurrently. Tasks B5+ depend on B1–B4 and ordered as listed.
+This PR is the bulk of the refactor.
+After PR A merges, branch off `main` for PR B work.
+**Tasks B1–B4 [parallel-safe]** can be dispatched concurrently.
+Tasks B5+ depend on B1–B4 and ordered as listed.
 
 ## Task B0: Branch off latest main for PR B
 
@@ -404,7 +421,8 @@ pager = "delta"
 
 Notes:
 - `$isWSL` / `$hasDisplayLinux` / `$defaultDisplay` are template helpers used to set sensible defaults — they don't appear in `[data]`.
-- We keep the `promptChoiceOnce` / `promptStringOnce` / `promptBoolOnce` chezmoi-native prompts here. The new bootstrap script (Task B14) pre-fills them via `--promptString` / `--promptChoice` / `--promptBool` flags so the user actually sees Gum prompts in the bootstrap, not chezmoi's native prompts.
+- We keep the `promptChoiceOnce` / `promptStringOnce` / `promptBoolOnce` chezmoi-native prompts here.
+  The new bootstrap script (Task B14) pre-fills them via `--promptString` / `--promptChoice` / `--promptBool` flags so the user actually sees Gum prompts in the bootstrap, not chezmoi's native prompts.
 - The rerun-comment header reflects the *current* machine's answers, so copy/paste reproduces this machine's setup elsewhere.
 
 - [ ] **Step 2: Verify the template parses**
@@ -511,7 +529,8 @@ git commit -m "feat(palette): add shared Tokyo Night × Material Ocean palette"
 **Files (no edits — capture only):**
 - Create: `/tmp/current.Brewfile` (working dump, not committed)
 
-This task collects the data needed for B5 (writing the unified Brewfile). It must run on Nick's current work Mac to capture installed packages.
+This task collects the data needed for B5 (writing the unified Brewfile).
+It must run on Nick's current work Mac to capture installed packages.
 
 - [ ] **Step 1: Run dump**
 
@@ -525,7 +544,9 @@ Expected: roughly 50–150 lines of `tap`/`brew`/`cask`/`vscode`/`mas` directive
 
 - [ ] **Step 2: Categorize each line into one of: cross-platform, mac-only, work-only, personal-only, display-required, secrets-related**
 
-This is a classification task done collaboratively with Nick. Output: a worksheet listing each entry and its category. Save the worksheet at `/tmp/Brewfile-classified.md` (also not committed).
+This is a classification task done collaboratively with Nick.
+Output: a worksheet listing each entry and its category.
+Save the worksheet at `/tmp/Brewfile-classified.md` (also not committed).
 
 Format:
 ```
@@ -587,7 +608,8 @@ tar -czf /tmp/snapshots/ghostty-2026-04-27.tar.gz -C ~/.config ghostty 2>/dev/nu
 mkdir -p home/dot_config/dotfiles
 ```
 
-Create `home/dot_config/dotfiles/Brewfile.tmpl` using the classification from Task B3. Below is the structural skeleton with the axis guards in place — fill the package lists from B3's worksheet:
+Create `home/dot_config/dotfiles/Brewfile.tmpl` using the classification from Task B3.
+Below is the structural skeleton with the axis guards in place — fill the package lists from B3's worksheet:
 
 ```ruby
 # Unified Brewfile — rendered to ~/.config/dotfiles/Brewfile by chezmoi.
@@ -709,7 +731,8 @@ vscode "anthropic.claude-code"
 {{- end }}
 ```
 
-The above is structural; **the full package list comes from Task B3's worksheet**. Add every classified line in the appropriate section.
+The above is structural; **the full package list comes from Task B3's worksheet**.
+Add every classified line in the appropriate section.
 
 - [ ] **Step 2: Render and inspect**
 
@@ -717,7 +740,8 @@ The above is structural; **the full package list comes from Task B3's worksheet*
 chezmoi cat ~/.config/dotfiles/Brewfile | head -100
 ```
 
-Expected: rendered Brewfile reflects the current machine's data. Verify:
+Expected: rendered Brewfile reflects the current machine's data.
+Verify:
 - All cross-platform brew lines present
 - macOS-only block appears (since this is a Mac)
 - Work block appears (since `.profile == "work"`)
@@ -732,7 +756,8 @@ chezmoi apply ~/.config/dotfiles/Brewfile
 brew bundle check --file=~/.config/dotfiles/Brewfile --verbose
 ```
 
-Expected: most should pass since the dump was just taken. Anything missing → review classification.
+Expected: most should pass since the dump was just taken.
+Anything missing → review classification.
 
 - [ ] **Step 4: Commit**
 
@@ -971,7 +996,8 @@ fi
 chezmoi execute-template --init --promptChoice profile=work --promptString name=Nick --promptString email=foo --promptChoice machine=ephemeral --promptBool display=false --promptChoice secrets=1password < home/run_once_01-install-bootstrap-prereqs.sh.tmpl
 ```
 
-Expected: full bash script for Linux ephemeral. Mac/Pi cases should render to a near-empty script (just the shebang).
+Expected: full bash script for Linux ephemeral.
+Mac/Pi cases should render to a near-empty script (just the shebang).
 
 - [ ] **Step 3: Commit**
 
@@ -1449,7 +1475,9 @@ git commit -m "feat(bootstrap): add gum binary downloader with checksum verifica
 
 ## Task B14b: Create `bootstrap/lib/secrets.sh`
 
-`bootstrap/install.sh` (Task B16) sources this to install `op`/`bw` before `chezmoi init`. Logically belongs to the secrets work in PR C, but install.sh's hard dependency means it must land in the same PR.
+`bootstrap/install.sh` (Task B16) sources this to install `op`/`bw` before `chezmoi init`.
+Logically belongs to the secrets work in PR C,
+but install.sh's hard dependency means it must land in the same PR.
 
 **Files:**
 - Create: `bootstrap/lib/secrets.sh`
@@ -1652,7 +1680,8 @@ git commit -m "feat(palette): add Gum styling exports rendered from palette"
 **Files:**
 - Modify: `bootstrap/install.sh`
 
-This is the biggest single file. It composes everything from B12–B15.
+This is the biggest single file.
+It composes everything from B12–B15.
 
 - [ ] **Step 1: Replace contents**
 
@@ -1942,7 +1971,8 @@ Expected: clean working tree, ~10–15 commits since `main`.
 chezmoi apply --dry-run --verbose 2>&1 | head -50
 ```
 
-Look for errors. Investigate any unexpected diffs.
+Look for errors.
+Investigate any unexpected diffs.
 
 - [ ] **Step 3: Push and open PR**
 
@@ -2053,7 +2083,8 @@ git commit -m "feat(secrets): gate ~/.env template on .secrets data field"
 **Files:**
 - Modify: `home/dot_config/shell/functions.zsh`
 
-This file isn't templated yet. Adding template logic requires renaming with `.tmpl` suffix.
+This file isn't templated yet.
+Adding template logic requires renaming with `.tmpl` suffix.
 
 - [ ] **Step 1: Rename to add `.tmpl` suffix**
 
@@ -2497,7 +2528,8 @@ Update sections to reflect the new flow:
 - Document the rerun-comment header
 - Note the Pi-fleet caveat (apt-only)
 
-(See README.md for the exact starting point — keep structure, update content. Apply the same prose tone as the existing README.)
+(See README.md for the exact starting point — keep structure, update content.
+Apply the same prose tone as the existing README.)
 
 - [ ] **Step 2: Commit**
 
@@ -2529,7 +2561,8 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/nickvigilante/dotfiles/nic
   --non-interactive
 ```
 
-Time it. Expected: 5–10 minutes.
+Time it.
+Expected: 5–10 minutes.
 
 - [ ] **Step 4: After completion, verify**
 

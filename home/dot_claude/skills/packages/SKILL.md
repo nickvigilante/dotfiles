@@ -5,7 +5,10 @@ description: Use when installing, removing, upgrading, or auditing any system/ap
 
 # Package management (declarative, cross-machine)
 
-This user dumps cross-machine state into their chezmoi dotfiles repo for consistency. The rule: **installing a package = editing its manifest, not running a bare install.** A bare `brew install x` on one machine drifts — it won't exist on the others and is lost on reinstall. Always go through the declarative manifest, then let chezmoi apply it everywhere.
+This user dumps cross-machine state into their chezmoi dotfiles repo for consistency.
+The rule: **installing a package = editing its manifest, not running a bare install.**
+A bare `brew install x` on one machine drifts — it won't exist on the others and is lost on reinstall.
+Always go through the declarative manifest, then let chezmoi apply it everywhere.
 
 See the **`chezmoi`** skill for source-path/apply/PR mechanics; this skill is about the manifests and managers.
 
@@ -28,7 +31,9 @@ See the **`chezmoi`** skill for source-path/apply/PR mechanics; this skill is ab
    {{ end }}
    ```
 
-**Brewfile entry types** — verified against the installed brew (`grep -rh 'PACKAGE_TYPE =' "$(brew --repository)/Library/Homebrew/bundle"`), **12 types**: `tap`, `brew`, `cask`, `mas` (Mac App Store), `vscode` (VS Code extension), `cargo` (Rust crates), `go` (Go binaries), `npm` (npm globals), `uv` (Python tools), `flatpak` (Linux apps), `krew` (kubectl plugins), `winget` (Windows). Re-verify on a new machine — the set grows over releases. (Note: `whalebrew` was **removed**; stale docs/blogs still list it.)
+**Brewfile entry types** — verified against the installed brew (`grep -rh 'PACKAGE_TYPE =' "$(brew --repository)/Library/Homebrew/bundle"`), **12 types**: `tap`, `brew`, `cask`, `mas` (Mac App Store), `vscode` (VS Code extension), `cargo` (Rust crates), `go` (Go binaries), `npm` (npm globals), `uv` (Python tools), `flatpak` (Linux apps), `krew` (kubectl plugins), `winget` (Windows).
+Re-verify on a new machine — the set grows over releases.
+(Note: `whalebrew` was **removed**; stale docs/blogs still list it.)
 
 ## Workflows
 
@@ -39,7 +44,8 @@ See the **`chezmoi`** skill for source-path/apply/PR mechanics; this skill is ab
 
 ## brew bundle is your near-universal manifest
 
-Those 12 types mean a **single Brewfile declares far more than Homebrew formulae** — it natively covers cargo crates, go binaries, npm globals, uv (Python) tools, flatpaks, krew plugins, winget (Windows), Mac App Store apps, and VS Code extensions. For all of those, **do NOT make separate manifests** — one `brew bundle` installs them:
+Those 12 types mean a **single Brewfile declares far more than Homebrew formulae** — it natively covers cargo crates, go binaries, npm globals, uv (Python) tools, flatpaks, krew plugins, winget (Windows), Mac App Store apps, and VS Code extensions.
+For all of those, **do NOT make separate manifests** — one `brew bundle` installs them:
 ```ruby
 tap  "homebrew/bundle"
 brew "ripgrep"
@@ -69,7 +75,8 @@ Gate platform-specific lines with templating (`{{ if eq .chezmoi.os "darwin" }}`
 | **mise / asdf** | **`.tool-versions` / `mise.toml`** | own declarative manifest, preferred for language runtimes |
 | **Nix / home-manager** | **`home.packages`** | fully declarative; the config *is* the manifest |
 
-**Bold = its own native declarative manifest** — track that file directly, don't shoehorn into a list+script. Everything else here: dump the list to a chezmoi-tracked file + a `run_onchange_` installer (same shape as the brew one above).
+**Bold = its own native declarative manifest** — track that file directly, don't shoehorn into a list+script.
+Everything else here: dump the list to a chezmoi-tracked file + a `run_onchange_` installer (same shape as the brew one above).
 
 ## Which manager to use (heuristics — starting point; the user will refine)
 
@@ -80,7 +87,9 @@ Pick the first that cleanly applies:
 4. **What-it-IS types** — `cask` (macOS GUI), `flatpak` (Linux GUI), `mas` (Mac App Store-only), `winget` (Windows), `krew` (kubectl plugins), `vscode` (editor extensions).
 5. **mise/asdf** — NOT for tools; for pinning language *runtimes* (node/python/go versions). `.tool-versions` is the manifest.
 
-Tie-breakers: prefer prebuilt binaries (brew bottles, `cargo-binstall`) over source builds — faster, especially in ephemeral Coder workspaces. One tool → one manager (no double-install drift). If a tool is only needed inside a specific Coder workspace, prefer baking it into that workspace's image/template over global dotfiles.
+Tie-breakers: prefer prebuilt binaries (brew bottles, `cargo-binstall`) over source builds — faster, especially in ephemeral Coder workspaces.
+One tool → one manager (no double-install drift).
+If a tool is only needed inside a specific Coder workspace, prefer baking it into that workspace's image/template over global dotfiles.
 
 ## Decision guide (where to record)
 - One package, used on **all** machines (e.g. rtk) → common section of the Brewfile.
