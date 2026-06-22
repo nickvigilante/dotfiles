@@ -6,9 +6,11 @@
       "Bash(git show *)",
       "Bash(git status *)",
       "Bash(git blame *)",
-      "Bash(git branch *)",
-      "Bash(git tag *)",
-      "Bash(git remote *)",
+      "Bash(git tag -l*)",
+      "Bash(git tag)",
+      "Bash(git remote -v)",
+      "Bash(git remote show *)",
+      "Bash(git remote get-url *)",
       "Bash(git ls-files *)",
       "Bash(git stash list *)",
       "Bash(git rev-parse *)",
@@ -16,14 +18,15 @@
       "Bash(git worktree list *)",
       "Bash(git for-each-ref *)",
       "Bash(git shortlog *)",
-      "Bash(git reflog *)",
+      "Bash(git reflog show *)",
+      "Bash(git reflog)",
       "Bash(git -C * log *)",
       "Bash(git -C * diff *)",
       "Bash(git -C * show *)",
       "Bash(git -C * status *)",
       "Bash(git -C * blame *)",
-      "Bash(git -C * branch *)",
-      "Bash(git -C * remote *)",
+      "Bash(git -C * remote -v)",
+      "Bash(git -C * remote show *)",
       "Bash(git -C * rev-parse *)",
       "Bash(git -C * stash list *)",
       "Bash(gh pr list *)",
@@ -73,6 +76,9 @@
       "Bash(brew tap-info *)",
       "Bash(brew bundle check *)",
       "Bash(brew bundle list *)",
+      "Bash(brew list)",
+      "Bash(brew list *)",
+      "Bash(brew tap)",
       "Bash(cargo tree *)",
       "Bash(cargo metadata *)",
       "Bash(cargo search *)",
@@ -81,9 +87,12 @@
       "Bash(rustup toolchain list)",
       "Bash(rustup component list *)",
       "Bash(rustup check)",
-      "Bash(curl http://localhost:*)",
       "Bash(curl --head *)",
       "Bash(curl -I *)",
+      "Bash(curl -X GET http://localhost:*)",
+      "Bash(curl -X HEAD http://localhost:*)",
+      "Bash(curl -X OPTIONS http://localhost:*)",
+      "Bash(curl -X TRACE http://localhost:*)",
       "Bash(sw_vers)",
       "Bash(defaults read *)",
       "Bash(system_profiler *)",
@@ -257,7 +266,37 @@
       "Bash(helm dependency list *)",
       "Bash(helm lint *)",
       "Bash(helm template *)",
-      "Bash(helm plugin list)"
+      "Bash(helm plugin list)",
+      "Bash(rtk ls *)",
+      "Bash(rtk tree *)",
+      "Bash(rtk read *)",
+      "Bash(rtk grep *)",
+      "Bash(rtk wc *)",
+      "Bash(rtk diff *)",
+      "Bash(rtk du *)",
+      "Bash(rtk df *)",
+      "Bash(rtk ps *)",
+      "Bash(rtk gain *)",
+      "Bash(rtk discover)",
+      "Bash(rtk cc-economics *)",
+      "Bash(rtk session *)",
+      "Bash(rtk config show)",
+      "Bash(rtk --version)",
+      "Bash(rtk --help)",
+      "Bash(jq *)",
+      "Bash(stat *)",
+      "Bash(file *)",
+      "Bash(which *)",
+      "Bash(tail *)",
+      "Bash(date *)"
+    ],
+    "deny": [
+      "Bash(git branch -d *)",
+      "Bash(git branch -D *)",
+      "Bash(git branch --delete *)",
+      "Bash(rtk git branch -d *)",
+      "Bash(rtk git branch -D *)",
+      "Bash(rtk git branch --delete *)"
     ]
   },
   "enabledPlugins": {
@@ -278,5 +317,18 @@
   },
   "theme": "dark",
   "remoteControlAtStartup": false,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rtk hook claude"
+          }
+        ]
+      }
+    ]
+  }
 }
