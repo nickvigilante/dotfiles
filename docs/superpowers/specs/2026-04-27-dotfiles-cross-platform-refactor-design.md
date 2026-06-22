@@ -7,18 +7,26 @@
 ## Goals
 
 1. Onboard a new work Mac to the existing dotfiles repo with minimal friction.
-2. Add first-class support for ephemeral Ubuntu cloud VMs (primarily AWS-style dev VMs; occasionally short-lived containers) such that a single `curl | sh` command produces a usable full dev environment in 5–10 min.
-3. Track Warp and Ghostty terminal configurations in the repo, including a shared color palette consumed by both terminals plus our Gum-based prompt styling.
+2. Add first-class support for ephemeral Ubuntu cloud VMs (primarily AWS-style dev VMs; occasionally short-lived containers)
+  such that a single `curl | sh` command produces a usable full dev environment in 5–10 min.
+3. Track Warp and Ghostty terminal configurations in the repo,
+  including a shared color palette consumed by both terminals plus our Gum-based prompt styling.
 4. Replace chezmoi's built-in prompts with [Gum](https://github.com/charmbracelet/gum)-driven prompts that auto-detect what they can and only ask for what they must.
 5. Capture everything currently installed via Homebrew on the work Mac into the new unified Brewfile.
 6. Salvage the recent uncommitted work in a clean PR before the new work begins.
 
 ## Non-goals
 
-- Cross-package-manager package mapping (e.g., maintaining a TOML map of "this is the brew name, this is the apt name, this is the dnf name" for each tool). The previous `home/.chezmoidata/package-details.toml` experiment is being abandoned. We treat Homebrew as the universal CLI layer for any "full toolkit" machine (Mac, Linux laptop, ephemeral Ubuntu) and treat native package managers as bootstrap-only.
-- Bitwarden support on ephemeral / headless boxes. Bitwarden has no service-account-style auth flow that works without storing the master password; declared unsupported with a clear bootstrap warning. Easy to revisit later.
-- A custom `.tmTheme` for `bat` initially. Use a stock dark theme and add custom theming later if needed.
-- Major Windows refactor. The Windows bootstrap (`install.ps1`) gets minor compatibility tweaks but is not the focus of this work.
+- Cross-package-manager package mapping (e.g., maintaining a TOML map of "this is the brew name, this is the apt name, this is the dnf name" for each tool).
+  The previous `home/.chezmoidata/package-details.toml` experiment is being abandoned.
+  We treat Homebrew as the universal CLI layer for any "full toolkit" machine (Mac, Linux laptop, ephemeral Ubuntu) and treat native package managers as bootstrap-only.
+- Bitwarden support on ephemeral / headless boxes.
+  Bitwarden has no service-account-style auth flow that works without storing the master password; declared unsupported with a clear bootstrap warning.
+  Easy to revisit later.
+- A custom `.tmTheme` for `bat` initially.
+  Use a stock dark theme and add custom theming later if needed.
+- Major Windows refactor.
+  The Windows bootstrap (`install.ps1`) gets minor compatibility tweaks but is not the focus of this work.
 
 ## Approach
 
@@ -41,23 +49,31 @@ display  = false         # bool                            (NEW)
 secrets  = "1password"   # none | bitwarden | 1password | both   (NEW)
 ```
 
-`machine = "ephemeral"` indicates a cloud VM / container / Codespace. Distinct from `server` because ephemeral implies "fresh OS, full toolkit installed quickly, may be torn down."
+`machine = "ephemeral"` indicates a cloud VM / container / Codespace.
+Distinct from `server` because ephemeral implies "fresh OS, full toolkit installed quickly, may be torn down."
 
-`display` is orthogonal to `machine`. Gates GUI casks (Rectangle, DisplayLink, VS Code, Warp, Ghostty), VS Code extensions, and Warp/Ghostty configs themselves.
+`display` is orthogonal to `machine`.
+Gates GUI casks (Rectangle, DisplayLink, VS Code, Warp, Ghostty), VS Code extensions, and Warp/Ghostty configs themselves.
 
 `secrets` replaces today's implicit "work → 1Password, everyone → Bitwarden" rule with an explicit per-machine choice.
 
 ### Architecture support
 
-Linuxbrew supports **`x86_64`** (full bottle coverage) and **`aarch64`** / **`arm64`** (partial bottles, source-builds for the rest). It does **not** support 32-bit ARM (`armv6l`, `armv7l`) — original Pi Zero, old Pi 1/2/3 in 32-bit mode, miscellaneous SBCs.
+Linuxbrew supports **`x86_64`** (full bottle coverage) and **`aarch64`** / **`arm64`** (partial bottles, source-builds for the rest).
+It does **not** support 32-bit ARM (`armv6l`, `armv7l`) — original Pi Zero, old Pi 1/2/3 in 32-bit mode, miscellaneous SBCs.
 
-The bootstrap auto-detects `arch` via `uname -m` and the Homebrew install scripts gate on it (see "Run-script flow"). On 32-bit ARM machines:
+The bootstrap auto-detects `arch` via `uname -m` and the Homebrew install scripts gate on it (see "Run-script flow").
+On 32-bit ARM machines:
 
 - `run_once_00-install-homebrew` exits successfully without installing brew.
 - `run_after_install-packages` falls through to the apt branch even when `.machine != "pi"`.
-- If `.machine` was auto-detected as something other than `pi` on a 32-bit ARM box (rare — generally only happens on weird SBCs), bootstrap warns the user that they may want to set `--machine pi` explicitly so the Pi-specific apt list (`os/raspberry-pi/packages.apt`) is used instead of the generic Linux one.
+- If `.machine` was auto-detected as something other than `pi` on a 32-bit ARM box (rare — generally only happens on weird SBCs),
+  bootstrap warns the user that they may want to set `--machine pi` explicitly so the Pi-specific apt list (`os/raspberry-pi/packages.apt`) is used instead of the generic Linux one.
 
-**Pi-fleet note:** Pi 4 / Pi 5 / Pi Zero 2 W are `aarch64` and *could* technically use Linuxbrew, but bottle coverage is poor and source-builds are slow on a Pi. The `.machine == "pi"` gate routes them to apt regardless of arch — that's the right default. If you ever want Linuxbrew on a beefier Pi, override by setting `.machine` to `laptop` or `server` instead of `pi`.
+**Pi-fleet note:** Pi 4 / Pi 5 / Pi Zero 2 W are `aarch64` and *could* technically use Linuxbrew,
+but bottle coverage is poor and source-builds are slow on a Pi.
+The `.machine == "pi"` gate routes them to apt regardless of arch — that's the right default.
+If you ever want Linuxbrew on a beefier Pi, override by setting `.machine` to `laptop` or `server` instead of `pi`.
 
 ### Auto-detection rules
 
@@ -81,11 +97,16 @@ The bootstrap auto-detects `arch` via `uname -m` and the Homebrew install script
 `bootstrap/install.sh` is rewritten to:
 
 1. **Detect OS/arch.** Bail clearly on unsupported platforms.
-2. **Pre-flight disk check.** Required free space: macOS ~12 GB, Linux+display ~8 GB, Linux headless ~5 GB. If insufficient, exit with Gum-rendered error.
-3. **Install bootstrap-only essentials.** macOS: nothing (Homebrew handles Xcode CLI tools). Ubuntu/Debian/Pi: `sudo apt-get install -y curl git zsh ca-certificates build-essential file procps`. Fedora: equivalent dnf install.
+2. **Pre-flight disk check.** Required free space: macOS ~12 GB, Linux+display ~8 GB, Linux headless ~5 GB.
+  If insufficient, exit with Gum-rendered error.
+3. **Install bootstrap-only essentials.** macOS: nothing (Homebrew handles Xcode CLI tools).
+  Ubuntu/Debian/Pi: `sudo apt-get install -y curl git zsh ca-certificates build-essential file procps`.
+  Fedora: equivalent dnf install.
 4. **Download Gum binary** (pinned version, checksum verified) to `~/.local/bin/gum.tmp`.
 5. **Auto-detect machine config** per the table above.
-6. **Pre-install secret CLIs based on `--secrets`**: install `bw` and/or `op` via official direct-download or apt before chezmoi init. **This is critical**: chezmoi templates reference these tools at *render* time, before the Brewfile's `run_*` script can install them. (See "Failure modes" below.)
+6. **Pre-install secret CLIs based on `--secrets`**: install `bw` and/or `op` via official direct-download or apt before chezmoi init.
+  **This is critical**: chezmoi templates reference these tools at *render* time, before the Brewfile's `run_*` script can install them.
+  (See "Failure modes" below.)
 7. **Authenticate secret managers** if applicable:
    - Bitwarden: `bw login` (interactive) → `BW_SESSION=$(bw unlock --raw)`.
    - 1Password: if `OP_SERVICE_ACCOUNT_TOKEN` set, no signin needed; otherwise `op signin` (interactive, sets up Keychain on Mac).
@@ -110,7 +131,8 @@ Equivalents via env vars: `DOTFILES_PROFILE`, `DOTFILES_MACHINE`, `DOTFILES_DISP
 
 ### Replayable rerun command
 
-`home/.chezmoi.toml.tmpl` renders a comment header showing the equivalent non-interactive bootstrap command for the current machine. Copy/paste reproduces this machine's setup elsewhere:
+`home/.chezmoi.toml.tmpl` renders a comment header showing the equivalent non-interactive bootstrap command for the current machine.
+Copy/paste reproduces this machine's setup elsewhere:
 
 ```toml
 # ────────────────────────────────────────────────────────────
@@ -196,11 +218,14 @@ The single `home/dot_config/dotfiles/Brewfile.tmpl` gates each line on these axe
 | `.secrets ∈ {1password, both}` | machine data | `1password-cli` |
 | `.machine == "pi"` | machine data | Skips the unified Brewfile entirely; uses `os/raspberry-pi/packages.apt` instead |
 
-`.machine == "ephemeral"` deliberately gates *nothing* in the Brewfile. The orthogonal axes (`.display`, `.chezmoi.os`, `.profile`) already select the right packages; ephemeral is purely a label that influences bootstrap behavior (defaults like `display=false`, secrets handling).
+`.machine == "ephemeral"` deliberately gates *nothing* in the Brewfile.
+The orthogonal axes (`.display`, `.chezmoi.os`, `.profile`) already select the right packages; ephemeral is purely a label that influences bootstrap behavior (defaults like `display=false`, secrets handling).
 
 ### Brewfile content sourcing
 
-Initial population: `brew bundle dump --force --describe` from the current work Mac. Each line manually classified (cross-platform CLI / mac-only / work-only / display-only / etc.) with user input on ambiguous cases. Existing `home/Brewfile.tmpl` WIP draft is folded in as additional input.
+Initial population: `brew bundle dump --force --describe` from the current work Mac.
+Each line manually classified (cross-platform CLI / mac-only / work-only / display-only / etc.) with user input on ambiguous cases.
+Existing `home/Brewfile.tmpl` WIP draft is folded in as additional input.
 
 ## Run-script flow
 
@@ -222,7 +247,9 @@ Considered two approaches:
 - **A:** put Brewfile content in `.chezmoitemplates/Brewfile`, indirect from a passthrough `Brewfile.tmpl`, hash-trigger via `{{ template "Brewfile" . | sha256sum }}` in a `run_onchange_*` script.
 - **B:** keep Brewfile content in `home/dot_config/dotfiles/Brewfile.tmpl` directly, use an always-run `run_*` script that calls `brew bundle check --quiet` as the trigger.
 
-**Chose B** because: (i) it self-heals against drift — manually uninstalling a package and running `chezmoi apply` re-installs it; (ii) the Brewfile lives at the path its name implies (no `.chezmoitemplates/` indirection); (iii) the per-apply cost is bounded (~300-800 ms) and `chezmoi apply` is invoked manually, not on every shell start.
+**Chose B** because: (i) it self-heals against drift — manually uninstalling a package and running `chezmoi apply` re-installs it;
+(ii) the Brewfile lives at the path its name implies (no `.chezmoitemplates/` indirection);
+(iii) the per-apply cost is bounded (~300-800 ms) and `chezmoi apply` is invoked manually, not on every shell start.
 
 ### Resilient brew install (pseudocode)
 
@@ -285,7 +312,8 @@ Auth mechanism per `secrets` value:
 
 ### `OP_SERVICE_ACCOUNT_TOKEN` storage on ephemeral
 
-Tightly scoped: bootstrap writes the token to `~/.config/op/token` (chmod 600, user-owned), and `.zshenv` sources it when `secrets ∈ {1password, both}`. Easier to loosen later (e.g., to `/etc/profile.d/op.sh` for system-wide) than to tighten.
+Tightly scoped: bootstrap writes the token to `~/.config/op/token` (chmod 600, user-owned), and `.zshenv` sources it when `secrets ∈ {1password, both}`.
+Easier to loosen later (e.g., to `/etc/profile.d/op.sh` for system-wide) than to tighten.
 
 ## Terminal configs and shared palette
 
@@ -349,7 +377,9 @@ bright_cyan     = "#82e8ff"
 bright_white    = "#ffffff"
 ```
 
-Starter values are a Tokyo Night Storm × Material Ocean blend with a green/teal push — vibrant, dark, cool-leaning, higher contrast than Catppuccin Mocha. Outrun-leaning. The user can edit and `chezmoi apply` to regenerate all consumer themes.
+Starter values are a Tokyo Night Storm × Material Ocean blend with a green/teal push — vibrant, dark, cool-leaning, higher contrast than Catppuccin Mocha.
+Outrun-leaning.
+The user can edit and `chezmoi apply` to regenerate all consumer themes.
 
 ### Consumers
 
@@ -363,7 +393,8 @@ Starter values are a Tokyo Night Storm × Material Ocean blend with a green/teal
 
 Treat Warp's in-app theme editor as **off-limits** for managed themes (chezmoi-managed file always wins).
 
-To iterate on the palette: in Warp, duplicate the current theme as `vigilante-wip`, edit visually, then run `dotfiles palette-import vigilante-wip` (a small helper script — Phase 5):
+To iterate on the palette: in Warp, duplicate the current theme as `vigilante-wip`, edit visually,
+then run `dotfiles palette-import vigilante-wip` (a small helper script — Phase 5):
 
 1. Reads `~/.warp/themes/vigilante-wip.yaml`.
 2. Maps colors back to semantic tokens (Gum-prompts for ambiguous mappings).
@@ -373,7 +404,8 @@ To iterate on the palette: in Warp, duplicate the current theme as `vigilante-wi
 
 ## Migration plan
 
-Phased; each phase is independently shippable. Target shape: **3 PRs**, with the underlying phase boundaries available as natural split points if the implementation moves faster than expected.
+Phased; each phase is independently shippable.
+Target shape: **3 PRs**, with the underlying phase boundaries available as natural split points if the implementation moves faster than expected.
 
 ### Phase 0 (PR A) — Cleanup
 
@@ -456,7 +488,8 @@ Phase 6 — Update flow + smoke test:
 
 1. **Fresh Mac:** `bootstrap/install.sh` → answers via Gum → 5–10 min later, full toolkit installed, `~/.env` populated from 1Password, Warp + Ghostty themed, `dotfiles-doctor` all green.
 2. **Fresh Ubuntu ephemeral:** `OP_SERVICE_ACCOUNT_TOKEN=ops_… curl … | sh -s -- --profile work --machine ephemeral --secrets 1password --no-display --non-interactive` → 5–10 min later, zsh as default shell, full CLI toolkit via Linuxbrew, `~/.env` populated, no GUI cruft, `dotfiles-doctor` all green for the headless case.
-3. **Existing personal Mac:** `chezmoi update` post-merge produces no surprising diffs — same packages installed, same shell behavior. Verified by snapshot of `brew leaves` before/after.
+3. **Existing personal Mac:** `chezmoi update` post-merge produces no surprising diffs — same packages installed, same shell behavior.
+  Verified by snapshot of `brew leaves` before/after.
 4. **Re-run idempotence:** running bootstrap a second time on either machine is fast no-op.
 
 ## Open questions / future work
