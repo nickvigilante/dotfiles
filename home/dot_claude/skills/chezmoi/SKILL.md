@@ -29,6 +29,19 @@ Always go through the **source**.
 | `run_once_` / `run_onchange_` scripts | run on apply                                               |
 | `.chezmoiignore`                      | targets to skip (supports per-host templating)             |
 
+## Safe edit workflow (do this FIRST, before touching any managed file)
+
+1. **Sync the source.** Run `chezmoi git pull` (pulls the source repo) before editing — otherwise you branch off stale `main` and collide with merged PRs.
+   If the user merges a PR partway through your task, **repeat** `chezmoi git pull` before continuing.
+2. **Drift-check before applying.** Run `chezmoi apply --dry-run` (or `chezmoi diff`) and read the diff.
+   The point is to catch a live target that was **manually modified out-of-band** — a `chezmoi apply` replaces the whole target file, so any such drift is silently overwritten.
+   Concretely compare the live file against the rendered source and list what apply would **lose** vs **add**.
+3. **Reconcile drift, don't clobber it.** If the live file holds something not in the source that should survive (a tool that writes straight to the live file is the usual cause — e.g. `rtk hook claude` installs its hook into `~/.claude/settings.json`), capture it into the source first (`chezmoi add`, or add the block to the source by hand) so apply preserves it and it reproduces on other machines.
+   Only discard live drift once you've confirmed it's unwanted (0 entries lost).
+4. **Apply only what changed.** If `chezmoi git pull` brought in nothing and you made no source edits, there's nothing to apply.
+5. **If `chezmoi apply` aborts** with "has changed since chezmoi last wrote it", that's the drift guard refusing to overwrite a manually-edited target.
+   Resolve the drift per step 3, then re-run; use `chezmoi apply --force` **only** after the dry-run confirms zero unintended loss.
+
 ## Workflows
 
 **Add a new dotfile to management** (capture an existing live file into the source):
