@@ -86,6 +86,10 @@
       "Bash(rustup check)",
       "Bash(curl --head *)",
       "Bash(curl -I *)",
+      "Bash(curl -X GET http://localhost:*)",
+      "Bash(curl -X HEAD http://localhost:*)",
+      "Bash(curl -X OPTIONS http://localhost:*)",
+      "Bash(curl -X TRACE http://localhost:*)",
       "Bash(sw_vers)",
       "Bash(defaults read *)",
       "Bash(system_profiler *)",
@@ -284,10 +288,12 @@
       "Bash(date *)"
     ],
     "deny": [
-      "Bash(git branch -D *)",
       "Bash(git branch -d *)",
+      "Bash(git branch -D *)",
+      "Bash(git branch --delete *)",
+      "Bash(rtk git branch -d *)",
       "Bash(rtk git branch -D *)",
-      "Bash(rtk git branch -d *)"
+      "Bash(rtk git branch --delete *)"
     ]
   },
   "enabledPlugins": {
