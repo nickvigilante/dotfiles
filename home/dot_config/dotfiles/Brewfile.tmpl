@@ -50,6 +50,15 @@ brew "sd"            # sed replacement: PCRE syntax, no GNU/BSD -i divergence
 brew "make"          # GNU make (macOS ships 3.81; use as `make` via libexec/gnubin)
 brew "gnu-getopt"    # GNU getopt with long-option support (keg-only)
 
+# Repo quality gate (CI + pre-commit) — see docs/superpowers/plans/2026-06-22-repo-housekeeping-ci.md
+brew "actionlint"        # GitHub Actions workflow linter
+brew "markdownlint-cli2" # Markdown linter
+brew "pre-commit"        # Git hook framework
+brew "shellcheck"        # Shell script static analysis
+brew "shfmt"             # Shell script formatter
+brew "taplo"             # TOML toolkit (formatter + linter)
+brew "yamllint"          # YAML linter
+
 # ── macOS-only formulae ──────────────────────────────────────────────────────
 {{ if eq .chezmoi.os "darwin" -}}
 brew "mas"           # Mac App Store CLI
