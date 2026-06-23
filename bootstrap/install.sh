@@ -456,16 +456,16 @@ elif "$GUM_BIN" confirm --default=false "Clone dotfiles to $WORKING_COPY and use
     if [[ ! -d "$WORKING_COPY/.git" ]]; then
         git clone "$DOTFILES_REPO" "$WORKING_COPY"
     fi
-    CHEZMOI_CONFIG="$HOME/.config/chezmoi/chezmoi.toml"
-    SOURCE_DIR="$WORKING_COPY/home"
-    if ! grep -q '^\[chezmoi\]' "$CHEZMOI_CONFIG" 2>/dev/null; then
-        { printf '[chezmoi]\nsourceDir = "%s"\n\n' "$SOURCE_DIR"; cat "$CHEZMOI_CONFIG"; } \
-            > "${CHEZMOI_CONFIG}.tmp" && mv "${CHEZMOI_CONFIG}.tmp" "$CHEZMOI_CONFIG"
-    else
-        warn "chezmoi.toml already has a [chezmoi] section; set sourceDir manually to $SOURCE_DIR"
+    # Replace ~/.local/share/chezmoi with a symlink to the working copy so
+    # chezmoi's default source dir points here without any sourceDir config.
+    # .chezmoiroot=home in the repo root handles the source subdirectory.
+    CHEZMOI_DEFAULT_SOURCE="$HOME/.local/share/chezmoi"
+    if [[ -d "$CHEZMOI_DEFAULT_SOURCE" && ! -L "$CHEZMOI_DEFAULT_SOURCE" ]]; then
+        rm -rf "$CHEZMOI_DEFAULT_SOURCE"
     fi
+    ln -sf "$WORKING_COPY" "$CHEZMOI_DEFAULT_SOURCE"
     ok "Working copy: $WORKING_COPY"
-    ok "chezmoi source: $SOURCE_DIR"
+    ok "chezmoi source: $WORKING_COPY/home (via symlink at $CHEZMOI_DEFAULT_SOURCE)"
 fi
 
 # ── Cleanup ─────────────────────────────────────────────────────────────────
