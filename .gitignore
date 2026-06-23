@@ -25,3 +25,6 @@ Thumbs.db
 
 # Worktrees (created by Claude sessions to work in parallel)
 .worktrees/
+
+# Subagent-driven-development scratch (ledger, briefs, reports)
+.superpowers/
