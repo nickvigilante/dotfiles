@@ -360,6 +360,7 @@
   "theme": "dark",
   "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
+  "tui": "fullscreen",
   "hooks": {
     "PreToolUse": [
       {
