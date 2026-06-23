@@ -1,0 +1,29 @@
+[Default Applications]
+text/html=firefox_firefox.desktop
+x-scheme-handler/http=firefox_firefox.desktop
+x-scheme-handler/https=firefox_firefox.desktop
+x-scheme-handler/about=firefox_firefox.desktop
+x-scheme-handler/unknown=firefox_firefox.desktop
+application/yaml=code.desktop
+text/plain=code_code.desktop
+text/markdown=code.desktop
+text/csv=code_code.desktop
+application/xhtml+xml=app.zen_browser.zen.desktop
+video/quicktime=vlc_vlc.desktop
+video/x-matroska=vlc_vlc.desktop
+x-scheme-handler/claude-cli=claude-code-url-handler.desktop
+video/mp4=vlc_vlc.desktop
+
+[Added Associations]
+application/pdf=okular_okular.desktop;
+application/yaml=code.desktop;
+text/plain=code.desktop;code_code.desktop;
+text/markdown=code.desktop;
+text/csv=code_code.desktop;
+x-scheme-handler/http=app.zen_browser.zen.desktop;
+text/html=app.zen_browser.zen.desktop;
+application/xhtml+xml=app.zen_browser.zen.desktop;
+x-scheme-handler/https=app.zen_browser.zen.desktop;
+video/quicktime=vlc_vlc.desktop;
+video/x-matroska=vlc_vlc.desktop;
+video/mp4=vlc_vlc.desktop;
