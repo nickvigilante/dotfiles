@@ -19,3 +19,13 @@ It's faster and respects `.gitignore` by default.
 Use `find` only when you need to **act on** the matches — `-exec`/`-execdir` to run a command per file, `-delete`, or anything that changes the filesystem.
 
 Keep `fd` purely for searching: don't use its exec modes (`fd -x`/`-X`) — route any run-a-command-per-result or modify step through `find`, so "search" and "modify" stay cleanly separated.
+
+# Worktrees
+
+Multiple Claude sessions may be active in the same repo at the same time.
+Always use a git worktree for any branch-based work —
+never commit directly on `main` or share a branch with another session.
+
+- Place worktrees in `.worktrees/<branch-name>` at the repo root
+- Consent is pre-granted — create the worktree without asking
+- Follow `superpowers:using-git-worktrees` for full setup details

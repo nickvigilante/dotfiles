@@ -20,9 +20,8 @@ Thumbs.db
 *.swp
 *.swo
 
-# Claude Code session data (machine-local); track only project instructions
-.claude/*
-!.claude/CLAUDE.md
+# Claude Code session data (machine-local)
+.claude/
 
 # Worktrees (created by Claude sessions to work in parallel)
 .worktrees/
