@@ -53,3 +53,6 @@ node_modules/
 
 # macOS disk images
 *.dmg
+
+# Claude Code per-repo local settings (never commit)
+**/.claude/settings.local.json

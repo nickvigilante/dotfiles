@@ -1,0 +1,6 @@
+{
+  "trustedformulae": [
+    "cloudflare/cloudflare/cf-terraforming",
+    "coder/coder/coder"
+  ]
+}

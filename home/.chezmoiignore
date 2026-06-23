@@ -16,6 +16,8 @@
 #
 # Secrets / credentials — NEVER track in plaintext. If one ever needs to
 # reproduce across machines, template it via Bitwarden (see .kube above).
+# (.config/gh/hosts.yml is the secret sibling of the tracked gh/config.yml;
+# it holds the GitHub host/user identity, and off macOS the OAuth token.)
 .config/gh/hosts.yml
 .config/rclone/rclone.conf
 .simplefin_access_url
