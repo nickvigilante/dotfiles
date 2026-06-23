@@ -9,3 +9,8 @@
 {{ if or (ne .profile "personal") (eq .machine "server") -}}
 .kube/homelab.yaml
 {{ end -}}
+
+# Secret sibling of the tracked ~/.config/gh/config.yml. hosts.yml holds the
+# GitHub host/user identity (and, off macOS, the OAuth token); never track
+# plaintext. Template via Bitwarden if it ever needs to reproduce.
+.config/gh/hosts.yml
