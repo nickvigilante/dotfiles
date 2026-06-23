@@ -22,3 +22,6 @@ Thumbs.db
 
 # Claude Code session data (machine-local)
 .claude/
+
+# Worktrees (created by Claude sessions to work in parallel)
+.worktrees/
