@@ -49,6 +49,11 @@ source "$SHELL_CONFIG/aliases_macos.zsh"
 source "$SHELL_CONFIG/aliases_linux.zsh"
 {{- end }}
 
+# macOS-specific environment
+{{- if eq .chezmoi.os "darwin" }}
+export DOCKER_HOST="unix://${HOME}/.config/colima/default/docker.sock"
+{{- end }}
+
 # Profile-specific configuration
 {{- if eq .profile "work" }}
 source "$SHELL_CONFIG/work.zsh"
