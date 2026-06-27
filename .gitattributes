@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.png binary
+*.lua linguist-vendored
+home/dot_config/nvim/lazy-lock.json linguist-generated
