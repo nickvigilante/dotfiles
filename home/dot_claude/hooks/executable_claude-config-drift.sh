@@ -10,8 +10,10 @@ set -uo pipefail
 
 command -v chezmoi >/dev/null 2>&1 || exit 0
 
-# Presence check only — surface that drift exists, not the diff itself.
-if chezmoi diff ~/.claude 2>/dev/null | grep -q .; then
+# Presence check only — use `chezmoi status` (not `diff`): `chezmoi diff` on a
+# directory argument prints nothing, while `status` reports per-file drift in
+# either direction. Any status line means there's something to reconcile.
+if chezmoi status ~/.claude 2>/dev/null | grep -q .; then
   echo "⚠️  ~/.claude has drifted from the chezmoi source. Run /chezmoi-sync to review and reconcile (once a session)."
 fi
 
