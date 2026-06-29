@@ -76,7 +76,7 @@ chezmoi add ~/.claude/agents/foo.md        # -> home/dot_claude/agents/foo.md (u
 cd ~/git/nickvigilante/dotfiles
 git checkout -b <topic>
 git add home/dot_claude/...
-git commit -m "feat(claude): ..."     # conventional commits; end body with Co-Authored-By trailer
+git commit -m "feat(claude): ..."     # conventional commits; see the commit-and-pr skill for the trailer
 git push -u origin <topic>
 gh pr create --fill
 ```
