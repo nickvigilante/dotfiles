@@ -34,7 +34,7 @@ import sys
 # Directories under which compiling/running your own Rust code is considered
 # trusted. cwd must be inside one of these for the cargo fast-path to fire.
 TRUSTED_DEV_ROOTS = [
-    os.path.expanduser("~/git"),
+    os.path.expanduser("~/git/nickvigilante"),
     os.path.expanduser("~/rust"),
 ]
 
