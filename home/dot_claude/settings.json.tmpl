@@ -1,0 +1,160 @@
+{
+  "permissions": {
+    "allow": [
+{{- range $base, $spec := .permissions.commands }}
+{{-   $heads := list $base }}
+{{-   if has $base $.permissions.rtk_wraps }}{{ $heads = append $heads (printf "rtk %s" $base) }}{{ end }}
+{{-   if hasKey $spec "extra_heads" }}{{ range $eh := $spec.extra_heads }}{{ $heads = append $heads $eh }}{{ end }}{{ end }}
+{{-   range $head := $heads }}
+{{-     range $arg := $spec.args }}
+      "Bash({{ $head }} {{ $arg }})",
+{{-     end }}
+{{-   end }}
+{{- end }}
+{{- range $tool := .permissions.rtk_only_tools }}
+      "Bash(rtk {{ $tool }} *)",
+{{- end }}
+      "Bash(chezmoi diff *)",
+      "Bash(chezmoi status *)",
+      "Bash(chezmoi data)",
+      "Bash(chezmoi doctor)",
+      "Bash(chezmoi verify *)",
+      "Bash(chezmoi cat *)",
+      "Bash(chezmoi managed *)",
+      "Bash(chezmoi unmanaged *)",
+      "Bash(chezmoi ignored *)",
+      "Bash(chezmoi target-path *)",
+      "Bash(chezmoi source-path *)",
+      "Bash(brew info *)",
+      "Bash(brew search *)",
+      "Bash(brew outdated)",
+      "Bash(brew deps *)",
+      "Bash(brew uses *)",
+      "Bash(brew leaves)",
+      "Bash(brew desc *)",
+      "Bash(brew doctor)",
+      "Bash(brew tap-info *)",
+      "Bash(brew bundle check *)",
+      "Bash(brew bundle list *)",
+      "Bash(brew list)",
+      "Bash(brew list *)",
+      "Bash(brew tap)",
+      "Bash(rustup show)",
+      "Bash(rustup target list)",
+      "Bash(rustup toolchain list)",
+      "Bash(rustup component list *)",
+      "Bash(rustup check)",
+      "Bash(sw_vers)",
+      "Bash(defaults read *)",
+      "Bash(system_profiler *)",
+      "Bash(mdls *)",
+      "Bash(plutil -p *)",
+      "Bash(diskutil info *)",
+      "Bash(diskutil list)",
+      "Bash(pkgutil --pkgs *)",
+      "Bash(pkgutil --pkg-info *)",
+      "Bash(xcode-select -p)",
+      "Bash(launchctl list *)",
+      "Bash(softwareupdate -l)",
+      "Bash(duti -x *)",
+      "Bash(duti -l *)",
+      "Bash(shellcheck *)",
+      "Bash(gitleaks version)",
+      "Bash(gitleaks git *)",
+      "Bash(ffmpeg -version)",
+      "Bash(ffprobe *)",
+      "Bash(cf-terraforming version)",
+      "Bash(helm version*)",
+      "Bash(helm env)",
+      "Bash(helm list*)",
+      "Bash(helm ls*)",
+      "Bash(helm status *)",
+      "Bash(helm history *)",
+      "Bash(helm get hooks *)",
+      "Bash(helm get notes *)",
+      "Bash(helm get metadata *)",
+      "Bash(helm repo list*)",
+      "Bash(helm search *)",
+      "Bash(helm dependency list *)",
+      "Bash(helm lint *)",
+      "Bash(helm template *)",
+      "Bash(helm plugin list)",
+      "Bash(rtk gain *)",
+      "Bash(rtk discover)",
+      "Bash(rtk cc-economics *)",
+      "Bash(rtk session *)",
+      "Bash(rtk config show)",
+      "Bash(rtk --version)",
+      "Bash(rtk --help)",
+      "Bash(jq *)",
+      "Bash(stat *)",
+      "Bash(file *)",
+      "Bash(which *)",
+      "Bash(tail *)",
+      "Bash(date *)",
+      "Bash(echo \"exit $?\")",
+      "Bash(echo exit $?)",
+      "Bash(echo $?)",
+      "Bash(pwd)",
+      "Bash(true)",
+      "Bash(:)"
+    ],
+    "deny": [
+      "Bash(git branch -d *)",
+      "Bash(git branch -D *)",
+      "Bash(git branch --delete *)",
+      "Bash(rtk git branch -d *)",
+      "Bash(rtk git branch -D *)",
+      "Bash(rtk git branch --delete *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rtk hook claude"
+          },
+          {
+            "type": "command",
+            "command": "\"$HOME/.claude/hooks/permission-prefilter.py\""
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "cloudflare@claude-plugins-official": true,
+    "warp@claude-code-warp": true,
+    "frontend-design@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "plugin-dev@claude-plugins-official": true,
+    "playground@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "mcp-server-dev@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    }
+  },
+  "tui": "fullscreen",
+  "theme": "dark",
+  "remoteControlAtStartup": false,
+  "agentPushNotifEnabled": true
+}
