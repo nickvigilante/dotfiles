@@ -41,6 +41,20 @@ A few targets are **rendered** from data in `home/.chezmoidata/`, not stored lit
   - **Verify before apply:** `chezmoi execute-template < home/dot_claude/settings.json.tmpl | jq .` must be valid JSON and a **superset** of the prior allowlist (diff the sorted `.permissions.allow` — never silently drop entries).
 - **Code-executing commands are NOT allowlisted.** `cargo test/clippy/build/run` (inside trusted dev roots) and read-only `python -c` one-liners are auto-approved at runtime by the `PreToolUse` hook `home/dot_claude/hooks/executable_permission-prefilter.py`. Trusted roots and the python safety denylist are constants at the top of that file — tune behavior there, not in the allowlist.
 
+## Claude config sync (`/chezmoi-sync`)
+
+`~/.claude` accumulates drift because Claude Code, plugins, and `rtk` write straight to the live files.
+The `/chezmoi-sync` command reconciles it — bidirectional, per-element, human-gated — and a `SessionStart` hook (`dot_claude/hooks/executable_claude-config-drift.sh`) nudges you once a session when drift exists.
+
+- **Tracked (portable config):** under `dot_claude/` — `settings.json.tmpl`, `CLAUDE.md`, `RTK.md`, `agents/`, `commands/`, `skills/`, `hooks/`.
+- **Never tracked (machine-local state/secrets):** `~/.claude.json` plus the `settings.local.json` / `*cache*.json` / `daemon.status.json` / `.distill-watermark` set — all in `.chezmoiignore`.
+
+Reconciling drift:
+
+- **normal file** — live newer → `chezmoi add` (capture up); source newer → `chezmoi apply` (push down).
+- **`settings.json` is a generated target** — never `chezmoi add` it; reconcile at the source (permission entries → `permissions.toml`; `enabledPlugins` / other → the `.tmpl` static block), then `chezmoi apply` (see "Generated targets" above).
+- Captured changes land as **one branch → PR** so every machine converges on merge; never a PR per element.
+
 ## Safe edit workflow (do this FIRST, before touching any managed file)
 
 1. **Sync the source.** Run `chezmoi git pull` (pulls the source repo) before editing — otherwise you branch off stale `main` and collide with merged PRs.
