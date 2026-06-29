@@ -16,8 +16,8 @@ Bidirectional and **human-gated**: show me each drifted element and let me choos
 
 1. **Sync the source first.** `chezmoi git pull` so you compare against current `main` and don't branch off stale source. Note anything it brought in.
 
-2. **Enumerate drift robustly — per path, not in one shot.** Get the managed list (`chezmoi managed`, filtered to the scope) and run `chezmoi diff <path>` for each, so one failing template can't abort the scan.
-   - **Template-render failures are expected** for Bitwarden-templated targets (e.g. `~/.kube/homelab.yaml`). On error, report that path as "unresolvable (templated secret) — skipped". Never guess at its contents.
+2. **Enumerate drift with `chezmoi status <scope>`,** then inspect per path. `chezmoi status` reliably reports per-file drift in both directions — note that `chezmoi diff` on a *directory* argument prints nothing, so use per-*file* `chezmoi diff <path>` only for the detail view of each drifted path.
+   - **Template-render failures are expected** for Bitwarden-templated targets (e.g. `~/.kube/homelab.yaml`). Inspect per path so one failing template can't abort the scan; report such a path as "unresolvable (templated secret) — skipped" and never guess at its contents.
 
 3. **Classify each drifted path BEFORE proposing an action:**
    - **Ignored / machine-local state** (matches `.chezmoiignore` — e.g. `~/.claude.json`, `~/.claude/settings.local.json`, `~/.claude/*cache*.json`) → **never touch.** These are per-machine by design.
@@ -32,7 +32,7 @@ Bidirectional and **human-gated**: show me each drifted element and let me choos
 4. **Present, don't act.** Show a numbered table — `# | path | direction | classification | proposed action | 1-line diff summary` — then STOP and ask which to accept (per element: accept / skip).
 
 5. **On my approval only:**
-   - *push-down* applies → `chezmoi apply <path>` per accepted path (these just sync live from already-merged source; no commit).
+   - *push-down* applies → `chezmoi apply <path>` per accepted path (these just sync live from already-merged source; no commit). If apply reports "changed since chezmoi last wrote it" (the live file was edited out-of-band), re-confirm the diff, then re-run with `chezmoi apply --force <path>`.
    - *capture-up* and *generated-target source edits* → stage in the source repo, create **one** descriptively-named branch for the batch (e.g. `chore/<machine>-config-sync-<topic>`), commit per the `commit-and-pr` skill (`Assisted-by: AI`, no `Co-Authored-By`), push, and open a PR with `gh pr create`. **Do not merge** unless I say so.
 
 6. **Report** what was captured up, pushed down, and skipped/unresolvable, plus the PR link.
