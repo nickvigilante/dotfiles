@@ -26,6 +26,17 @@
 .terraform.d/credentials.tfrc.json
 .claude.json
 #
+# Claude Code machine-local state / caches. Portable Claude config lives in
+# dot_claude/ (settings.json.tmpl, CLAUDE.md, agents/, commands/, skills/,
+# hooks/); the entries below are per-machine state, never tracked — so a broad
+# `chezmoi add` (e.g. from /chezmoi-sync) can't capture them.
+.claude/settings.local.json
+.claude/daemon.status.json
+.claude/mcp-needs-auth-cache.json
+.claude/stats-cache.json
+.claude/.distill-watermark
+.claude/hooks/__pycache__/
+#
 # Intentional non-secret excludes (stock defaults, machine state, or obsolete):
 #   .bashrc / .profile          stock Ubuntu + machine-local conda init
 #   .hyper.js / .config/tabby    obsolete — migrated to ghostty (managed)
