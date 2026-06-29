@@ -29,3 +29,12 @@ never commit directly on `main` or share a branch with another session.
 - Place worktrees in `.worktrees/<branch-name>` at the repo root
 - Consent is pre-granted — create the worktree without asking
 - Follow `superpowers:using-git-worktrees` for full setup details
+
+# Claude Code permissions
+
+The Bash permission allowlist in `~/.claude/settings.json` is **generated**, not hand-written.
+To allow a read-only command, add its subcommand to `home/.chezmoidata/permissions.toml` and `chezmoi apply` —
+never edit `settings.json` directly (neither the source `.tmpl` nor the live file), and don't reach for the `update-config` skill to do it.
+One entry there grants the vanilla, `rtk`, and (for git) `chezmoi git`/`git -C *` forms together.
+Code-execution prompts (`cargo`, `python -c`) are gated at runtime by `dot_claude/hooks/permission-prefilter.py`, not the allowlist.
+See the `chezmoi` skill ("Generated targets") for the full workflow.

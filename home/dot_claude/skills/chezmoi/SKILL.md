@@ -14,7 +14,7 @@ Always go through the **source**.
 - **chezmoi source dir:** `~/.local/share/chezmoi` — which is a **symlink to the git repo** `~/git/nickvigilante/dotfiles`. They are the same directory; edit either path.
 - **`.chezmoiroot` = `home`**, so the actual source root is `~/git/nickvigilante/dotfiles/home/` (chezmoi resolves `chezmoi source-path` to `.../dotfiles/home`).
 - **Remote:** `github.com/nickvigilante/dotfiles`. Changes land via **branch + PR** (see merged PRs #12/#13), not direct commits to `main`.
-- Live targets map from the source by stripping the `home/` root and decoding the name prefixes below. Example: `home/dot_claude/settings.json` → `~/.claude/settings.json`.
+- Live targets map from the source by stripping the `home/` root and decoding the name prefixes below. Example: `home/dot_claude/CLAUDE.md` → `~/.claude/CLAUDE.md`. (Note: `~/.claude/settings.json` is **generated** from a `.tmpl` + data — see "Generated targets" below.)
 
 ## Name decoding (source → target)
 
@@ -28,6 +28,18 @@ Always go through the **source**.
 | `foo.tmpl`                            | Go-templated (per-host/per-OS values)                      |
 | `run_once_` / `run_onchange_` scripts | run on apply                                               |
 | `.chezmoiignore`                      | targets to skip (supports per-host templating)             |
+
+## Generated targets (don't hand-edit the rendered output)
+
+A few targets are **rendered** from data in `home/.chezmoidata/`, not stored literally. Editing the output — the `.tmpl`'s static text, or the live file — instead of the data either gets regenerated away or breaks the single source of truth.
+
+- **`~/.claude/settings.json`** ← `home/dot_claude/settings.json.tmpl` + `home/.chezmoidata/permissions.toml`.
+  The Bash permission allowlist for `git`/`gh`/`pnpm`/`npm`/`cargo`/`kubectl`/`curl` is **generated** by looping over `permissions.toml`, which expands each read-only subcommand across its wrapper "heads" (vanilla, `rtk`, and for git also `git -C *` and `chezmoi git`).
+  - **To allow a read-only command:** add the subcommand to the right list in `permissions.toml` — NOT the `.tmpl` static block, and never the live file. One entry grants every wrapper form at once (the rtk-parity invariant). This is the correct move even when a request would otherwise route through the `update-config` skill.
+  - **To allow a brand-new base command:** add a `[permissions.commands.<cmd>]` table, and add the command to `rtk_wraps` too if `rtk` proxies it (check `rtk --help`).
+  - A genuinely one-off entry that isn't part of a wrapped family can stay as a static line in the `.tmpl`.
+  - **Verify before apply:** `chezmoi execute-template < home/dot_claude/settings.json.tmpl | jq .` must be valid JSON and a **superset** of the prior allowlist (diff the sorted `.permissions.allow` — never silently drop entries).
+- **Code-executing commands are NOT allowlisted.** `cargo test/clippy/build/run` (inside trusted dev roots) and read-only `python -c` one-liners are auto-approved at runtime by the `PreToolUse` hook `home/dot_claude/hooks/executable_permission-prefilter.py`. Trusted roots and the python safety denylist are constants at the top of that file — tune behavior there, not in the allowlist.
 
 ## Safe edit workflow (do this FIRST, before touching any managed file)
 
