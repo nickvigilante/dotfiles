@@ -372,8 +372,7 @@
     "plugin-dev@claude-plugins-official": true,
     "playground@claude-plugins-official": true,
     "explanatory-output-style@claude-plugins-official": true,
-    "mcp-server-dev@claude-plugins-official": true,
-    "semgrep@claude-plugins-official": false
+    "mcp-server-dev@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-code-warp": {
