@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "auto",
     "allow": [
 {{- range $base, $spec := .permissions.commands }}
 {{-   $heads := list $base }}
@@ -108,6 +109,7 @@
       "Bash(rtk git branch --delete *)"
     ]
   },
+  "model": "claude-fable-5",
   "hooks": {
     "PreToolUse": [
       {
@@ -136,24 +138,27 @@
     ]
   },
   "enabledPlugins": {
-    "rust-analyzer-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": false,
     "superpowers@claude-plugins-official": true,
-    "cloudflare@claude-plugins-official": true,
+    "cloudflare@claude-plugins-official": false,
     "warp@claude-code-warp": true,
-    "frontend-design@claude-plugins-official": true,
-    "github@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": false,
+    "github@claude-plugins-official": false,
+    "skill-creator@claude-plugins-official": false,
     "security-guidance@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
-    "code-review@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "feature-dev@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "pr-review-toolkit@claude-plugins-official": true,
-    "plugin-dev@claude-plugins-official": true,
-    "playground@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": false,
+    "code-review@claude-plugins-official": false,
+    "context7@claude-plugins-official": false,
+    "feature-dev@claude-plugins-official": false,
+    "claude-code-setup@claude-plugins-official": false,
+    "pr-review-toolkit@claude-plugins-official": false,
+    "plugin-dev@claude-plugins-official": false,
+    "playground@claude-plugins-official": false,
     "explanatory-output-style@claude-plugins-official": true,
-    "mcp-server-dev@claude-plugins-official": true
+    "mcp-server-dev@claude-plugins-official": false
+  },
+  "skillOverrides": {
+    "notion-mcp-waf": "off"
   },
   "extraKnownMarketplaces": {
     "claude-code-warp": {
