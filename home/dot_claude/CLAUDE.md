@@ -30,6 +30,16 @@ never commit directly on `main` or share a branch with another session.
 - Consent is pre-granted — create the worktree without asking
 - Follow `superpowers:using-git-worktrees` for full setup details
 
+# Parallel subagents
+
+Default to dispatching multiple subagents in parallel (single message, multiple tool calls) whenever the pending work is genuinely independent —
+don't wait to be asked, and don't treat it as a special case reserved for obviously-huge workloads.
+This applies broadly — code, files, research, Figma/design work, anything with an Agent-style delegation mechanism — not just one domain.
+
+- **Verify independence first.** No two agents should write the same file, mutate the same remote resource (e.g. the same Figma file's same nodes/components), or otherwise touch shared state concurrently.
+- **Genuine dependencies still run sequentially.** A fix must land before its re-review; a shared component or module must be finished before something that depends on it is built.
+- **Don't trust a "stalled" label.** A background agent marked stalled can still be running and later land conflicting edits over work another agent already completed and had reviewed as correct — re-check actual state before assuming it's dead.
+
 # Claude Code permissions
 
 The Bash permission allowlist in `~/.claude/settings.json` is **generated**, not hand-written.
