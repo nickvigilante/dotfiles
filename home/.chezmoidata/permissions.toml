@@ -2,14 +2,22 @@
 #
 # Consumed by home/dot_claude/settings.json.tmpl. Each base command's args are
 # expanded across its heads: the vanilla form, the rtk-wrapped form (when rtk wraps
-# it, per rtk_wraps), plus any extra_heads (git also gets `git -C *` and
-# `chezmoi git`). Add a read-only subcommand ONCE here and every wrapper form is
-# granted in lockstep -- this is what keeps rtk at 100% permission parity.
+# it, per rtk_wraps), plus any extra_heads (git also gets `chezmoi git`). Add a
+# read-only subcommand ONCE here and every wrapper form is granted in lockstep --
+# this is what keeps rtk at 100% permission parity.
 #
 # A space before `*` is required for Claude Code prefix matching. A bare entry (no
 # trailing ` *`) matches that exact invocation only. List ONLY read-only,
-# non-mutating, non-exfiltrating subcommands. Heads like `git -C *` belong in
-# extra_heads, NOT args.
+# non-mutating, non-exfiltrating subcommands.
+#
+# A head must NEVER contain a wildcard. A head's text sits BEFORE the subcommand,
+# and Claude Code matches these patterns as plain strings with no tokenisation, so
+# a `*` there also matches the base command's own global options and pre-approves
+# them. `git -C *` was removed for exactly this reason: it expanded to rules like
+# `Bash(git -C * log *)`, which matches
+#   git -C /repo -c core.pager=<cmd> log
+# and runs <cmd> with no prompt. --exec-path and --upload-pack are the same
+# hazard. Wildcards belong only AFTER the subcommand, in args.
 
 [permissions]
 # Base commands whose output rtk rewrites via its hook (source: `rtk --help`).
@@ -82,7 +90,7 @@ rtk_only_tools = [
 # NOTE: scalar keys above must precede these sub-tables (TOML ordering rule).
 
 [permissions.commands.git]
-extra_heads = ["git -C *", "chezmoi git"]
+extra_heads = ["chezmoi git"]
 args = [
   "log *",
   "diff *",
