@@ -34,7 +34,8 @@ Always go through the **source**.
 A few targets are **rendered** from data in `home/.chezmoidata/`, not stored literally. Editing the output — the `.tmpl`'s static text, or the live file — instead of the data either gets regenerated away or breaks the single source of truth.
 
 - **`~/.claude/settings.json`** ← `home/dot_claude/settings.json.tmpl` + `home/.chezmoidata/permissions.toml`.
-  The Bash permission allowlist for `git`/`gh`/`pnpm`/`npm`/`cargo`/`kubectl`/`curl` is **generated** by looping over `permissions.toml`, which expands each read-only subcommand across its wrapper "heads" (vanilla, `rtk`, and for git also `git -C *` and `chezmoi git`).
+  The Bash permission allowlist for `git`/`gh`/`pnpm`/`npm`/`cargo`/`kubectl`/`curl` is **generated** by looping over `permissions.toml`, which expands each read-only subcommand across its wrapper "heads" (vanilla, `rtk`, and for git also `chezmoi git`).
+  - **Heads must never contain a wildcard.** A head sits before the subcommand and Claude Code matches these patterns as plain strings, so a `*` there also matches the base command's global options and pre-approves them — `Bash(git -C * log *)` matched `git -C /repo -c core.pager=<cmd> log` and ran `<cmd>` unprompted. Wildcards belong only after the subcommand, in `args`.
   - **To allow a read-only command:** add the subcommand to the right list in `permissions.toml` — NOT the `.tmpl` static block, and never the live file. One entry grants every wrapper form at once (the rtk-parity invariant). This is the correct move even when a request would otherwise route through the `update-config` skill.
   - **To allow a brand-new base command:** add a `[permissions.commands.<cmd>]` table, and add the command to `rtk_wraps` too if `rtk` proxies it (check `rtk --help`).
   - A genuinely one-off entry that isn't part of a wrapped family can stay as a static line in the `.tmpl`.
