@@ -3,10 +3,15 @@
 # The home-lab admin kubeconfig (~/.kube/homelab.yaml) is a cluster-admin
 # credential. Deploy it ONLY on personal, non-server devices — never work
 # machines (profile != "personal"), and not on the cluster nodes themselves
-# (machine == "server", which already have /etc/rancher/k3s/k3s.yaml). The
-# matching KUBECONFIG export in dot_config/shell/exports.zsh.tmpl uses the
-# same gate. See homelab #132.
-{{ if or (ne .profile "personal") (eq .machine "server") -}}
+# (machine == "server", which already have /etc/rancher/k3s/k3s.yaml). Also
+# never during an automated container-image build — those images publish
+# publicly, so `chezmoi apply` there must never fetch a live secret no
+# matter which .profile/.machine values the build happens to pass. Image
+# builds set DOTFILES_IMAGE_BUILD (any non-empty value) before running
+# `chezmoi apply`; see homelab-dev-templates images/base/DOTFILES-AUDIT.md.
+# The matching KUBECONFIG export in dot_config/shell/exports.zsh.tmpl uses
+# the profile/machine half of this gate. See homelab #132.
+{{ if or (ne .profile "personal") (eq .machine "server") (env "DOTFILES_IMAGE_BUILD") -}}
 .kube/homelab.yaml
 {{ end -}}
 
