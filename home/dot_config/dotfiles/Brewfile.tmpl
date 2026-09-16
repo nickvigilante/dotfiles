@@ -3,7 +3,7 @@
 # Edit this template; run `chezmoi apply` to regenerate.
 
 # ── Taps ─────────────────────────────────────────────────────────────────────
-{{ if eq .profile "work" -}}
+{{ if or (eq .profile "work") (eq .profile "personal") -}}
 tap "coder/coder"
 {{- end }}
 
@@ -104,6 +104,7 @@ brew "tailscale"        # Mesh VPN (CLI)
 {{ if eq .profile "personal" -}}
 brew "fish"          # Friendly shell (alternative)
 brew "ollama"        # Local LLM runtime
+brew "coder/coder/coder" # Coder.com CLI — manages the homelab Coder deployment/templates
 {{- end }}
 
 # ── GUI casks (macOS + display only — Linux Homebrew has no casks) ──────────
