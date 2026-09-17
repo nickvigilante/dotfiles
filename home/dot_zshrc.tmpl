@@ -66,3 +66,7 @@ source "$SHELL_CONFIG/completions.zsh"
 
 # ── Package update check (24h throttle, non-blocking) ─────────────────────────
 ("$HOME/.local/bin/update-packages" &>/dev/null &) 2>/dev/null || true
+
+# >>> requesty cli installer >>>
+export PATH="{{ .chezmoi.homeDir }}/.requesty/bin:$PATH"
+# <<< requesty cli installer <<<
