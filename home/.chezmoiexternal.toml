@@ -15,3 +15,13 @@
     type          = "git-repo"
     url           = "https://github.com/zsh-users/zsh-syntax-highlighting.git"
     refreshPeriod = "168h"
+
+{{ if eq .profile "personal" -}}
+# Requesty CLI — home machines only (profile "personal"), matches the
+# gating used for the coder CLI in Brewfile.tmpl.
+[".requesty/bin"]
+    type          = "archive"
+    url           = "https://github.com/requestyai/cli/releases/latest/download/requesty_{{ .chezmoi.os }}_{{ .chezmoi.arch }}.tar.gz"
+    exact         = true
+    refreshPeriod = "168h"
+{{- end }}
