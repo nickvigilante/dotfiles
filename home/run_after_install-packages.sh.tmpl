@@ -50,6 +50,14 @@ echo "32-bit ARM detected; Homebrew not supported on this architecture. Skipping
 exit 0
 {{- end }}
 
+{{ if env "DOTFILES_IMAGE_BUILD" -}}
+# Container image builds (see homelab-dev-templates) install their own tool
+# set directly in the Dockerfile — no Homebrew is present in that context,
+# and this script would otherwise hard-fail on "brew not on PATH" below.
+echo "DOTFILES_IMAGE_BUILD set; package installation is handled by the image's own Dockerfile. Skipping."
+exit 0
+{{- end }}
+
 BREWFILE="$HOME/.config/dotfiles/Brewfile"
 
 if [[ ! -f "$BREWFILE" ]]; then
