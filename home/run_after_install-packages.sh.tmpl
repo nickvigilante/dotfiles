@@ -63,9 +63,16 @@ if ! command -v brew &>/dev/null; then
 fi
 
 bundle_flags=(--file="$BREWFILE")
-command -v code &>/dev/null || bundle_flags+=(--no-vscode)
 # No `mas` entries in the Brewfile — App Store apps are installed manually
-# (see README.md). Homebrew also removed the --no-mas flag in 4.x.
+# (see README.md). Homebrew has removed bundle's --no-mas and --no-vscode
+# switches over time (most recently --no-vscode, confirmed against the
+# currently-installed Homebrew: `brew bundle install --no-vscode` now fails
+# with "Error: Invalid usage: The install subcommand does not accept the
+# --no-vscode switch."). Nothing here explicitly skips vscode entries when
+# `code` isn't on PATH — `brew bundle` skips/warns on those per-entry on its
+# own; explicitly passing a flag current Homebrew no longer accepts turned
+# every code-less machine's *first* `brew bundle install` attempt into a
+# guaranteed failure, forcing the per-package fallback below on every run.
 
 # `brew bundle check --quiet` still prints "can't satisfy your Brewfile's
 # dependencies" on failure in current Homebrew, which looks like an error.
@@ -90,16 +97,24 @@ while IFS= read -r line; do
     case "$line" in
         brew\ *)
             pkg=$(echo "$line" | sed -E 's/^brew "([^"]+)".*/\1/')
-            brew install "$pkg" || failed+=("$pkg")
+            # </dev/null is load-bearing: without it, `brew install` (which
+            # can shell out to `git` for a tap update on the first install of
+            # a new formula) inherits this loop's own stdin — the same pipe
+            # `read -r line` is drawing from via process substitution below.
+            # Observed in practice: `brew install git` swallowed the rest of
+            # the piped Brewfile lines, so the loop silently processed only
+            # its first entry and every other formula was never installed,
+            # with no non-zero exit to signal it.
+            brew install "$pkg" </dev/null || failed+=("$pkg")
             ;;
         cask\ *)
             pkg=$(echo "$line" | sed -E 's/^cask "([^"]+)".*/\1/')
-            brew install --cask "$pkg" || failed+=("cask:$pkg")
+            brew install --cask "$pkg" </dev/null || failed+=("cask:$pkg")
             ;;
         vscode\ *)
             if command -v code &>/dev/null; then
                 pkg=$(echo "$line" | sed -E 's/^vscode "([^"]+)".*/\1/')
-                code --install-extension "$pkg" --force || failed+=("vscode:$pkg")
+                code --install-extension "$pkg" --force </dev/null || failed+=("vscode:$pkg")
             fi
             ;;
     esac
