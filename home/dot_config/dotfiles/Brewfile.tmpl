@@ -105,6 +105,7 @@ brew "tailscale"        # Mesh VPN (CLI)
 brew "fish"          # Friendly shell (alternative)
 brew "ollama"        # Local LLM runtime
 brew "coder/coder/coder" # Coder.com CLI — manages the homelab Coder deployment/templates
+brew "opentofu"      # OpenTofu — the infrastructure repo's contexts (homelab, cloudflare, coder)
 {{- end }}
 
 # ── GUI casks (macOS + display only — Linux Homebrew has no casks) ──────────
@@ -195,6 +196,7 @@ vscode "golang.go"
 # (etc.) if you need them on the off-profile machine occasionally.
 {{ if eq .profile "personal" -}}
 cargo "cargo-edit"          # `cargo upgrade` to bump dep versions
+cargo "bws"                 # Bitwarden Secrets Manager CLI (no Homebrew formula); used by the infrastructure repo's coder/tofu.sh
 {{- end }}
 
 # ── Go tools (work: primary Go dev) ──────────────────────────────────────────
