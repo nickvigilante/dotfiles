@@ -1,0 +1,10 @@
+# Hermetic chezmoi config for CI and pre-commit template validation.
+# Mirrors the [data] keys that home/.chezmoi.toml.tmpl writes on a real
+# machine, with fixed values so nothing depends on prompts or a secret manager.
+[data]
+profile = "work"
+name    = "CI User"
+email   = "ci@example.invalid"
+machine = "laptop"
+display = false
+secrets = "none"

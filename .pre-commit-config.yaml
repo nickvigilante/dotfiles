@@ -1,6 +1,6 @@
 # Single source of truth for repo checks. CI runs `pre-commit run --all-files`.
 # chezmoi note: never point a syntax parser at a raw .tmpl — see the
-# chezmoi-render hook (added in a later task) for template validation.
+# chezmoi-templates hook for template validation.
 default_install_hook_types: [pre-commit, commit-msg]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -49,3 +49,14 @@ repos:
         types: [text]
         files: '\.(sh|bash)$|(^|/)(executable_)?(dotfiles|update-packages)$'
         exclude: '\.tmpl$|\.zsh$'
+  # Hermetic: renders every managed target with a fixed CI config (no user
+  # config, source, or secret manager), then syntax-checks and shellchecks the
+  # rendered scripts. Also runs when its own inputs change.
+  - repo: local
+    hooks:
+      - id: chezmoi-templates
+        name: chezmoi templates render + shell syntax
+        entry: scripts/ci/lint-chezmoi-templates.sh
+        language: script
+        pass_filenames: false
+        files: '^(home/|scripts/ci/|\.shellcheckrc$)'

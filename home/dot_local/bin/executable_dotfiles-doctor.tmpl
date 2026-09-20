@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # dotfiles-doctor — health check.
+# shellcheck disable=SC2015  # ok/fail/info only echo, so A && B || C behaves as if/else
+# shellcheck disable=SC2088  # "~" in the messages is display text, not a path to expand
 
 set -euo pipefail
 
