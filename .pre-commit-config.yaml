@@ -6,11 +6,18 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # Whitespace fixers stay off chezmoi templates: the template file is
+      # rendered into the deployed file, so its whitespace is output.
+      # Covers home/**/*.tmpl and the files chezmoi templates without a
+      # .tmpl suffix (.chezmoiignore, .chezmoiremove, .chezmoiexternal.*).
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
+        exclude: &chezmoi_templates '^home/(.*\.tmpl|\.chezmoi(ignore|remove|external\.[a-z]+))$'
       - id: end-of-file-fixer
+        exclude: *chezmoi_templates
       - id: mixed-line-ending
         args: [--fix=lf]
+        exclude: *chezmoi_templates
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=512]
