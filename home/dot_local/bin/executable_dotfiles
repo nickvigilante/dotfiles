@@ -4,15 +4,15 @@
 set -euo pipefail
 
 case "${1:-}" in
-    update)
-        chezmoi update
-        update-packages --force
-        ;;
-    doctor)
-        exec dotfiles-doctor
-        ;;
-    palette-import)
-        cat <<'EOF'
+	update)
+		chezmoi update
+		update-packages --force
+		;;
+	doctor)
+		exec dotfiles-doctor
+		;;
+	palette-import)
+		cat << 'EOF'
 palette-import: manual flow for now.
 
   1. In Warp, duplicate your active theme as 'vigilante-wip' and edit it visually.
@@ -25,9 +25,9 @@ palette-import: manual flow for now.
 
 Auto-import is deferred per design spec.
 EOF
-        ;;
-    ""|--help|-h)
-        cat <<EOF
+		;;
+	"" | --help | -h)
+		cat << EOF
 Usage: dotfiles <command>
 
 Commands:
@@ -35,10 +35,10 @@ Commands:
   doctor           run health check
   palette-import   show the manual palette-iteration workflow
 EOF
-        ;;
-    *)
-        echo "Unknown command: $1"
-        echo "Run 'dotfiles --help' for usage."
-        exit 1
-        ;;
+		;;
+	*)
+		echo "Unknown command: $1"
+		echo "Run 'dotfiles --help' for usage."
+		exit 1
+		;;
 esac

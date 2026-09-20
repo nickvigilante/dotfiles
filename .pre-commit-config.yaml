@@ -49,6 +49,18 @@ repos:
         types: [text]
         files: '\.(sh|bash)$|(^|/)(executable_)?(dotfiles|update-packages)$'
         exclude: '\.tmpl$|\.zsh$'
+  # Same file set as shellcheck above, so both shell hooks cover the same
+  # scripts. Tabs match .editorconfig. `-w` rewrites files in place.
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.10.0-2
+    hooks:
+      - id: shfmt
+        args: [-i, '0', -ci, -sr, -w]
+        # Default `types: [shell]` would skip the extensionless scripts (see the
+        # shellcheck hook), so select them by `files` instead.
+        types: [text]
+        files: '\.(sh|bash)$|(^|/)(executable_)?(dotfiles|update-packages)$'
+        exclude: '\.tmpl$|\.zsh$'
   # Hermetic: renders every managed target with a fixed CI config (no user
   # config, source, or secret manager), then syntax-checks and shellchecks the
   # rendered scripts. Also runs when its own inputs change.
