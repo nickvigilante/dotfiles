@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Break-glass access to the homelab's read-only MCP servers when Coder is down.
+#
+#   mcp-breakglass up      port-forward both in-cluster servers to localhost
+#   mcp-breakglass down    stop the port-forwards
+#   mcp-breakglass status  show which forwards are running
+#
+# It uses the admin kubeconfig over Tailscale, so it needs no other credential.
+# The local ports match the containers' ports (8080 and 8000), which is what
+# mcp-grafana's default loopback Host allowlist expects.
+set -euo pipefail
+
+NAMESPACE="${MCP_BREAKGLASS_NAMESPACE:-claude-mcp}"
+KUBECONFIG_FILE="${MCP_BREAKGLASS_KUBECONFIG:-$HOME/.kube/homelab.yaml}"
+STATE_DIR="${MCP_BREAKGLASS_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/mcp-breakglass}"
+FORWARDS="${MCP_BREAKGLASS_FORWARDS:-kubernetes-mcp:8080 grafana-mcp:8000}"
+
+die() {
+  printf 'mcp-breakglass: %s\n' "$*" >&2
+  exit 1
+}
+
+port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+is_running() { [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
+
+wait_for_port() {
+  for _ in $(seq 1 20); do
+    port_open "$1" && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+stop_one() {
+  local pidfile="$1"
+  if is_running "$pidfile"; then kill "$(cat "$pidfile")" 2>/dev/null || true; fi
+  rm -f "$pidfile"
+}
+
+up() {
+  command -v kubectl >/dev/null 2>&1 || die "kubectl is not installed"
+  [ -r "$KUBECONFIG_FILE" ] || die "kubeconfig not found: $KUBECONFIG_FILE"
+  mkdir -p "$STATE_DIR"
+  local pair svc port pidfile
+  for pair in $FORWARDS; do
+    svc="${pair%%:*}"
+    port="${pair##*:}"
+    pidfile="$STATE_DIR/$svc.pid"
+    if is_running "$pidfile"; then
+      echo "$svc already forwarded on localhost:$port"
+      continue
+    fi
+    port_open "$port" && die "localhost:$port is already in use; run 'mcp-breakglass down' to clean up any forward that already started"
+    nohup kubectl --kubeconfig "$KUBECONFIG_FILE" -n "$NAMESPACE" \
+      port-forward "svc/$svc" "$port:$port" >"$STATE_DIR/$svc.log" 2>&1 &
+    echo $! >"$pidfile"
+    disown
+    if ! wait_for_port "$port"; then
+      stop_one "$pidfile"
+      die "$svc did not come up; see $STATE_DIR/$svc.log; run 'mcp-breakglass down' to clean up any forward that already started"
+    fi
+    echo "$svc -> http://localhost:$port/mcp"
+  done
+}
+
+down() {
+  local pair svc
+  for pair in $FORWARDS; do
+    svc="${pair%%:*}"
+    stop_one "$STATE_DIR/$svc.pid"
+    echo "$svc stopped"
+  done
+}
+
+status() {
+  local pair svc port
+  for pair in $FORWARDS; do
+    svc="${pair%%:*}"
+    port="${pair##*:}"
+    if is_running "$STATE_DIR/$svc.pid"; then
+      echo "$svc running on localhost:$port"
+    else
+      echo "$svc not running"
+    fi
+  done
+}
+
+case "${1:-}" in
+up) up ;;
+down) down ;;
+status) status ;;
+*) die "usage: mcp-breakglass up|down|status" ;;
+esac
