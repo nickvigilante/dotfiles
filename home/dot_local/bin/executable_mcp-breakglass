@@ -50,14 +50,14 @@ up() {
       echo "$svc already forwarded on localhost:$port"
       continue
     fi
-    port_open "$port" && die "localhost:$port is already in use"
+    port_open "$port" && die "localhost:$port is already in use; run 'mcp-breakglass down' to clean up any forward that already started"
     nohup kubectl --kubeconfig "$KUBECONFIG_FILE" -n "$NAMESPACE" \
       port-forward "svc/$svc" "$port:$port" >"$STATE_DIR/$svc.log" 2>&1 &
     echo $! >"$pidfile"
     disown
     if ! wait_for_port "$port"; then
       stop_one "$pidfile"
-      die "$svc did not come up; see $STATE_DIR/$svc.log"
+      die "$svc did not come up; see $STATE_DIR/$svc.log; run 'mcp-breakglass down' to clean up any forward that already started"
     fi
     echo "$svc -> http://localhost:$port/mcp"
   done
