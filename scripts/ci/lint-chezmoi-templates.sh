@@ -18,6 +18,10 @@
 # Env:   CHEZMOI_CI_PROFILE  personal (default) | work
 set -euo pipefail
 
+# An inherited DOTFILES_IMAGE_BUILD makes .chezmoiignore drop a template from
+# the managed set, so it would silently go unchecked.
+unset DOTFILES_IMAGE_BUILD
+
 repo=$(git rev-parse --show-toplevel)
 profile=${CHEZMOI_CI_PROFILE:-personal}
 config="$repo/scripts/ci/chezmoi-config/$profile.toml"
@@ -49,6 +53,9 @@ rm -f "$src/.chezmoiexternal.toml"
 cat > "$scratch/bin/bw" << 'EOF'
 #!/bin/sh
 # Stub for `bw get item <name>`: a Secure Note with placeholder contents.
+# The fake password below is not a secret. The pinned betterleaks (v1.3.1) does
+# not flag it, but newer releases may report it as a low-confidence generic
+# password; add an inline allow marker here when the pin is raised.
 printf '{"name":"ci-stub","notes":"ci-stub-note","login":{"username":"ci","password":"ci-stub"}}\n'
 EOF
 cat > "$scratch/bin/op" << 'EOF'

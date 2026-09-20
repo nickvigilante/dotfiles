@@ -9,10 +9,11 @@ repos:
       # Whitespace fixers stay off chezmoi templates: the template file is
       # rendered into the deployed file, so its whitespace is output.
       # Covers home/**/*.tmpl and the files chezmoi templates without a
-      # .tmpl suffix (.chezmoiignore, .chezmoiremove, .chezmoiexternal.*).
+      # .tmpl suffix (.chezmoiignore, .chezmoiremove, .chezmoiexternal.*, and
+      # everything under .chezmoitemplates/, whose files carry no suffix).
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
-        exclude: &chezmoi_templates '^home/(.*\.tmpl|\.chezmoi(ignore|remove|external\.[a-z]+))$'
+        exclude: &chezmoi_templates '^home/(.*\.tmpl|\.chezmoi(ignore|remove|external\.[a-z]+)|\.chezmoitemplates/.*)$'
       - id: end-of-file-fixer
         exclude: *chezmoi_templates
       - id: mixed-line-ending
@@ -108,10 +109,10 @@ repos:
       - id: yamllint
         args: [-c, .yamllint.yaml]
   # taplo rewrites files, so it stays off chezmoi templates (whitespace in a
-  # template is rendered output): *.tmpl, and the files chezmoi templates
-  # without a .tmpl suffix (.chezmoiignore, .chezmoiremove, .chezmoiexternal.*).
+  # template is rendered output). It reuses the same exclude as the whitespace
+  # fixers above (the chezmoi_templates anchor).
   - repo: https://github.com/ComPWA/taplo-pre-commit
     rev: v0.9.3
     hooks:
       - id: taplo-format
-        exclude: '\.tmpl$|^home/\.chezmoi(ignore|remove|external\.[a-z]+)$'
+        exclude: *chezmoi_templates

@@ -19,6 +19,14 @@
 #   a) a Co-Authored-By (or Assisted-by) trailer that names a vendor token;
 #   b) a "Generated with", "Built with", "Made with", "Created with",
 #      "Written with" or "Authored by" style footer line that names one.
+#
+# Known false positives (both are blocked, by design of a shape-only match):
+#   - a human co-author, or an Assisted-by value, that contains a listed token,
+#     for example a person whose given name equals one of the tokens, or an
+#     email domain that contains one;
+#   - a footer-shaped line that starts with "Made with" followed by a
+#     token-like ordinary word, for example a phrase about a text cursor.
+# Reword the line so it no longer has the trailer or footer shape.
 set -euo pipefail
 
 # AI vendor, product and model tokens. This list and the sample strings in
