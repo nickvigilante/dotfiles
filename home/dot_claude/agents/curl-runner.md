@@ -11,6 +11,7 @@ You exist so curl invocations are well-formed _by construction_: the permission 
 A second, conflicting method flag would let a request mutate state under a "safe" prefix — so you never produce one.
 
 Rules:
+
 - Emit ONE command per call, with at MOST ONE method flag (`-X` / `--request`).
 Never stack two.
 - Put the method once, immediately before the URL.

@@ -16,12 +16,15 @@ See the **`chezmoi`** skill for source-path/apply/PR mechanics; this skill is ab
 
 1. **Brewfile** is the source of truth (chezmoi-managed, e.g. `dot_config/Brewfile` → `~/.config/Brewfile`).
 2. A **`run_onchange_`** script re-runs `brew bundle` whenever the Brewfile changes — embed the file's hash so chezmoi detects edits:
+
    ```sh
    # run_onchange_install-packages.sh.tmpl
    # Brewfile hash: {{ include ".config/Brewfile" | sha256sum }}
    brew bundle --file="$HOME/.config/Brewfile"
    ```
+
 3. **Per-host differences** via templating — common packages everywhere, machine-specific gated:
+
    ```ruby
    # Brewfile.tmpl
    brew "rtk"            # everywhere (genuine cross-machine use, incl. work)
@@ -46,6 +49,7 @@ Re-verify on a new machine — the set grows over releases.
 
 Those 12 types mean a **single Brewfile declares far more than Homebrew formulae** — it natively covers cargo crates, go binaries, npm globals, uv (Python) tools, flatpaks, krew plugins, winget (Windows), Mac App Store apps, and VS Code extensions.
 For all of those, **do NOT make separate manifests** — one `brew bundle` installs them:
+
 ```ruby
 tap  "homebrew/bundle"
 brew "ripgrep"
@@ -60,6 +64,7 @@ flatpak "com.spotify.Client"
 krew    "ns"
 winget  "Microsoft.PowerToys"   # only applied on the Windows machine
 ```
+
 Gate platform-specific lines with templating (`{{ if eq .chezmoi.os "darwin" }}` / `"linux"` / hostname).
 
 ## What brew bundle does NOT cover (these still need the dump-list + `run_onchange_` pattern)
@@ -81,6 +86,7 @@ Everything else here: dump the list to a chezmoi-tracked file + a `run_onchange_
 ## Which manager to use (heuristics — starting point; the user will refine)
 
 Pick the first that cleanly applies:
+
 1. **Native OS manager (apt/dnf/pacman)** — for system libraries, daemons, or anything other packages depend on at the OS level. Especially on servers and **Coder workspaces**, where duplicating system libs via brew causes drift/bloat. (Not in the Brewfile.)
 2. **`brew`** — general CLI tools/dev utilities available as a bottle. Fastest (prebuilt), one update path, one manifest. The default for most things.
 3. **Language type in the Brewfile (`cargo`/`go`/`npm`/`uv`)** — when the tool ships primarily through that ecosystem, isn't in brew, or you want the latest. Still one `brew bundle`.
@@ -92,6 +98,7 @@ One tool → one manager (no double-install drift).
 If a tool is only needed inside a specific Coder workspace, prefer baking it into that workspace's image/template over global dotfiles.
 
 ## Decision guide (where to record)
+
 - One package, used on **all** machines (e.g. rtk) → common section of the Brewfile.
 - Machine- or OS-specific → gate with a chezmoi template (`{{ if eq .chezmoi.hostname ... }}` or `{{ if eq .chezmoi.os "darwin" }}`).
 - A whole new manager appears on a machine → add a manifest file + a `run_onchange_` installer for it, following the brew pattern.

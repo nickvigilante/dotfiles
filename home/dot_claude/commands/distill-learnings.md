@@ -34,6 +34,7 @@ Be incremental and cheap, and DO NOT write anything until I approve.
    - Update `~/.claude/.distill-watermark` to the newest processed session's mtime.
 
 ## Notes
+
 - This is per-machine (transcripts differ by machine); run it on each box and consolidate proposals.
 - First run on a fresh machine clears the backlog in `MAX`-sized batches; once caught up, a light `/schedule` cadence keeps it current.
 - Never auto-write skills — skill proliferation is a real cost. Human gate is mandatory.

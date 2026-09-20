@@ -3,8 +3,8 @@
 # machine, with fixed values so nothing depends on prompts or a secret manager.
 [data]
 profile = "work"
-name    = "CI User"
-email   = "ci@example.invalid"
+name = "CI User"
+email = "ci@example.invalid"
 machine = "laptop"
 display = false
 secrets = "none"

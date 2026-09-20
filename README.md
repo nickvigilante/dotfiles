@@ -243,16 +243,16 @@ If the upload fails, the key files are kept at `~/.ssh/bw-<hostname>{,.pub}` so 
 2. Edit the template: `chezmoi edit ~/.env`
 3. Add the appropriate expression:
 
-```sh
-# Bitwarden — password field
-export GITHUB_TOKEN="{{ (bitwarden "item" "GitHub PAT").login.password }}"
+   ```sh
+   # Bitwarden — password field
+   export GITHUB_TOKEN="{{ (bitwarden "item" "GitHub PAT").login.password }}"
 
-# Bitwarden — custom field
-export SOME_KEY="{{ (bitwardenFields "item" "Item Name").field_name.value }}"
+   # Bitwarden — custom field
+   export SOME_KEY="{{ (bitwardenFields "item" "Item Name").field_name.value }}"
 
-# 1Password (wrap in {{ if eq .profile "work" }} block)
-export AWS_KEY="{{ onepasswordRead "op://Work Vault/AWS/access_key_id" }}"
-```
+   # 1Password (wrap in {{ if eq .profile "work" }} block)
+   export AWS_KEY="{{ onepasswordRead "op://Work Vault/AWS/access_key_id" }}"
+   ```
 
 4. Run `bw-apply` to re-render `~/.env`
 
@@ -272,7 +272,7 @@ Service-account / interactive auth happens in the same step, so the first apply 
 
 ## Repository structure
 
-```
+```text
 dotfiles/
 ├── .chezmoiroot                  # tells chezmoi: source root is home/
 │

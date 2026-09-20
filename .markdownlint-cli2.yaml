@@ -1,0 +1,12 @@
+# No `globs` key: markdownlint-cli2 merges config globs with the file names
+# pre-commit passes, so a `**/*.md` glob would also lint gitignored trees such
+# as .worktrees/ and .superpowers/. pre-commit passes the tracked files itself.
+config:
+  default: true
+  MD013: false  # line-length: incompatible with semantic line breaks
+  MD033: false  # inline HTML: allowed in READMEs
+  MD041: false  # first-line-heading: files may start with frontmatter
+gitignore: true  # also skip anything .gitignore covers, if run outside pre-commit
+ignores:
+  - "docs/superpowers/specs/_archive/**"  # archived work-in-progress notes
+  - "docs/superpowers/plans/**"  # agent-generated plans; linting would rewrite them

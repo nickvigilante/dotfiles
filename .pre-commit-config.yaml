@@ -95,3 +95,23 @@ repos:
         language: script
         pass_filenames: false
         files: '^scripts/ci/'
+  # Structural markdown lint only. Line length (MD013) is off in the config so
+  # semantic line breaks (one sentence or clause per line) stay legal. No
+  # --fix: an autofix must never join or reflow lines.
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.14.0
+    hooks:
+      - id: markdownlint-cli2
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: [-c, .yamllint.yaml]
+  # taplo rewrites files, so it stays off chezmoi templates (whitespace in a
+  # template is rendered output): *.tmpl, and the files chezmoi templates
+  # without a .tmpl suffix (.chezmoiignore, .chezmoiremove, .chezmoiexternal.*).
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: taplo-format
+        exclude: '\.tmpl$|^home/\.chezmoi(ignore|remove|external\.[a-z]+)$'

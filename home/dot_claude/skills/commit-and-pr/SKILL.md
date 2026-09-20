@@ -20,13 +20,13 @@ Use these instead:
 
 - **Commit** — add this git trailer as the last line of the message:
 
-  ```
+  ```text
   Assisted-by: AI
   ```
 
 - **PR body** — end with this footer:
 
-  ```
+  ```text
   ---
   🤖 Built with AI assistance.
   ```
@@ -49,7 +49,7 @@ The signal is "AI was used," nothing more.
 
 Conventional Commits, matching this repo's history:
 
-```
+```text
 type(scope): imperative subject, lowercase, no trailing period
 
 Body explains WHY the change was made and any non-obvious context,
