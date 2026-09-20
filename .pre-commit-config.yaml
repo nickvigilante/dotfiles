@@ -72,3 +72,26 @@ repos:
         language: script
         pass_filenames: false
         files: '^(home/|scripts/ci/|\.shellcheckrc$)'
+  # Convention guard: AI assistance is disclosed only as "Assisted-by: AI" and
+  # never by naming a vendor or model. The files hook scans tracked files, the
+  # commit-msg hook scans the message (pre-commit passes the message file), and
+  # the test hook re-runs the guard's own cases when scripts/ci/ changes.
+  - repo: local
+    hooks:
+      - id: no-vendor-attribution-files
+        name: no vendor-specific AI attribution (files)
+        entry: scripts/ci/no-vendor-attribution.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: no-vendor-attribution-msg
+        name: no vendor-specific AI attribution (commit msg)
+        entry: scripts/ci/no-vendor-attribution.sh
+        language: script
+        stages: [commit-msg]
+      - id: no-vendor-attribution-test
+        name: no-vendor-attribution guard self-test
+        entry: scripts/ci/test-no-vendor-attribution.sh
+        language: script
+        pass_filenames: false
+        files: '^scripts/ci/'
