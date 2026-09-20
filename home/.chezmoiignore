@@ -13,6 +13,7 @@
 # the profile/machine half of this gate. See homelab #132.
 {{ if or (ne .profile "personal") (eq .machine "server") (env "DOTFILES_IMAGE_BUILD") -}}
 .kube/homelab.yaml
+.local/bin/mcp-breakglass
 {{ end -}}
 
 # ─── Home-directory audit (dotfiles #28) ──────────────────────────────────

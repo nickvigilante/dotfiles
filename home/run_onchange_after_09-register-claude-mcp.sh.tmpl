@@ -1,0 +1,38 @@
+{{- /*
+Registers the homelab's read-only MCP servers with Claude Code.
+
+  - In a Coder workspace (the agent sets CODER), use the in-cluster service
+    names, which the NetworkPolicy admits.
+  - On a personal laptop, use localhost, which only answers while
+    `mcp-breakglass up` is running.
+  - During an image build, or on any other machine, render nothing so chezmoi
+    skips the script.
+
+~/.claude.json is machine-local state and is never tracked, so this script is
+how the entries reproduce. Editing it re-runs the registration.
+*/ -}}
+{{- $inWorkspace := ne (env "CODER") "" -}}
+{{- $laptop := and (eq .profile "personal") (ne .machine "server") (eq (env "DOTFILES_IMAGE_BUILD") "") -}}
+{{- if and (eq (env "DOTFILES_IMAGE_BUILD") "") (or $inWorkspace $laptop) -}}
+#!/bin/sh
+# run_onchange_after_09-register-claude-mcp: register the homelab MCP servers.
+set -eu
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "==> claude CLI not found; skipping MCP registration" >&2
+  exit 0
+fi
+
+add() {
+  claude mcp remove --scope user "$1" >/dev/null 2>&1 || true
+  claude mcp add --transport http --scope user "$1" "$2"
+}
+
+{{ if $inWorkspace -}}
+add homelab-kubernetes http://kubernetes-mcp.claude-mcp.svc.cluster.local:8080/mcp
+add homelab-grafana http://grafana-mcp.claude-mcp.svc.cluster.local:8000/mcp
+{{- else -}}
+add homelab-kubernetes http://localhost:8080/mcp
+add homelab-grafana http://localhost:8000/mcp
+{{- end }}
+{{ end -}}
