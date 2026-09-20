@@ -34,3 +34,18 @@ repos:
     rev: v1.3.1
     hooks:
       - id: betterleaks
+  # Pure-shell scripts only. Templates (.tmpl) and zsh files are excluded:
+  # a raw template is not valid shell, and shellcheck has no zsh dialect.
+  # shellcheck-py bundles the shellcheck binary in a wheel, so the hook is
+  # self-installing. The koalaman/shellcheck-precommit hook needs docker.
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        # The hook's default `types: [shell]` skips the extensionless
+        # executable_dotfiles and executable_update-packages: they are mode 644
+        # in git (chezmoi derives the exec bit from the filename), so identify
+        # never reads their shebang. Select them by `files` instead.
+        types: [text]
+        files: '\.(sh|bash)$|(^|/)(executable_)?(dotfiles|update-packages)$'
+        exclude: '\.tmpl$|\.zsh$'

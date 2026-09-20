@@ -26,6 +26,7 @@ gum_install_temp() {
     local url="https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/${tarball}"
     local tmp_dir
     tmp_dir="$(mktemp -d)"
+    # shellcheck disable=SC2064 # expand now on purpose: tmp_dir is local and gone when the RETURN trap fires
     trap "rm -rf '$tmp_dir'" RETURN
 
     echo "Downloading gum ${GUM_VERSION} (${os}_${arch})..."

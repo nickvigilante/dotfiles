@@ -20,7 +20,7 @@ if [[ -f "$STAMP_FILE" ]] && [[ "${1:-}" != "--force" ]]; then
     fi
 fi
 
-echo "$(date +%s)" > "$STAMP_FILE"
+date +%s > "$STAMP_FILE"
 
 echo ""
 echo "┌─────────────────────────────────────────────┐"

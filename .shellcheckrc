@@ -1,0 +1,5 @@
+# Default shell for files without a shebang-detectable dialect.
+shell=bash
+# Allow sourcing files shellcheck can't follow (rendered/templated libs).
+external-sources=true
+disable=SC1091

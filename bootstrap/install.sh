@@ -10,6 +10,7 @@
 #     --no-display --non-interactive
 
 if [ -z "${BASH_VERSION:-}" ]; then
+    # shellcheck disable=SC2016 # the "$(curl ...)" is literal text shown to the user, not to expand
     printf 'Error: this installer requires bash. Re-run with:\n  bash -c "$(curl -fsSL %s)"\n' \
         "https://raw.githubusercontent.com/nickvigilante/dotfiles/main/bootstrap/install.sh" >&2
     exit 1
@@ -18,6 +19,7 @@ fi
 set -euo pipefail
 
 DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/nickvigilante/dotfiles.git}"
+# shellcheck disable=SC2034 # informational version marker, intentionally not read
 SCRIPT_VERSION="2.0.0"
 
 # ── Parse flags + env vars ───────────────────────────────────────────────────
