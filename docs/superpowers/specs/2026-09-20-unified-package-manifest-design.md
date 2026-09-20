@@ -162,13 +162,30 @@ Cluster access is also narrowed from "every personal machine" to "machines that 
 Workstations keep the kubeconfig as before, and a Coder workspace receives it only when its template explicitly opts in by setting `WORKSPACE_CLUSTER_ADMIN` in the agent environment.
 
 ```gotemplate
-{{- $vault   := or (eq .secrets "bitwarden") (eq .secrets "both") -}}
-{{- $trusted := or (and (eq .profile "personal") (ne .machine "server") (ne .machine "ephemeral"))
-                   (env "WORKSPACE_CLUSTER_ADMIN") -}}
+{{ $vault := or (eq .secrets "bitwarden") (eq .secrets "both") -}}
+{{ $trusted := or (and (eq .profile "personal") (ne .machine "server") (ne .machine "ephemeral")) (env "WORKSPACE_CLUSTER_ADMIN") -}}
 {{ if not (and $vault $trusted) -}}
 .kube/homelab.yaml
+.local/bin/mcp-breakglass
 {{ end -}}
 ```
+
+The assignments carry no leading `{{-`, and that is load-bearing rather than stylistic.
+
+An earlier revision of this section wrote them as `{{- $vault ... -}}`.
+The leading trim marker consumes the newline after the comment block that precedes the gate in `home/.chezmoiignore`, so the first path is emitted onto the end of a comment line:
+
+```text
+# ... See homelab #132..kube/homelab.yaml
+.local/bin/mcp-breakglass
+```
+
+`.kube/homelab.yaml` is then commented out and never ignored on any machine, which inverts the rule silently and in the dangerous direction.
+The form above mirrors the original gate's `{{ ... -}}` pattern and renders correctly.
+A template fragment of this kind has to be validated in place; checking it in isolation proves only that the fragment parses, not that it composes with what sits above it.
+
+`.local/bin/mcp-breakglass` is gated alongside the kubeconfig.
+It port-forwards to the cluster and is useless without it, so the two travel together, and separating them would ship the break-glass helper to work machines and into published images.
 
 An image build satisfies neither term, since it sets `machine = ephemeral` and no such env var, so the existing `DOTFILES_IMAGE_BUILD` term becomes redundant for this file.
 It is kept anyway as defense in depth, because a published image leaking a cluster-admin credential is the worst outcome in this design.
