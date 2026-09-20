@@ -1,0 +1,29 @@
+# Single source of truth for repo checks. CI runs `pre-commit run --all-files`.
+# chezmoi note: never point a syntax parser at a raw .tmpl — see the
+# chezmoi-render hook (added in a later task) for template validation.
+default_install_hook_types: [pre-commit, commit-msg]
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-json
+        exclude: '\.tmpl$'
+      - id: check-toml
+        # .chezmoiexternal.toml is templated by chezmoi despite its plain name.
+        exclude: '(\.tmpl$|^home/\.chezmoiexternal\.toml$)'
+      - id: check-yaml
+        exclude: '\.tmpl$'
+      - id: detect-private-key
+  # The repo is public, so scan for committed secrets.
+  - repo: https://github.com/betterleaks/betterleaks
+    rev: v1.3.1
+    hooks:
+      - id: betterleaks
