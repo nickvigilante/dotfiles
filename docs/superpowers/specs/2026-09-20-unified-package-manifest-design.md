@@ -92,13 +92,33 @@ A package with only `brew` is unavailable on the Pi, and the renderer reports th
 ### 2. Tiers
 
 A tier is a named package set.
-Proposed initial tiers: `bootstrap`, `core`, `dev`, `gui`, `ml`, `work`.
-
 Tiers are what make `.machine` meaningful and what deliver per-template subsets from one file.
 A machine or template declares the tiers it wants, and every consumer renders accordingly.
-`.chezmoi.toml.tmpl` gains a `tiers` field, defaulted from `.machine` and `.profile` so existing machines need no manual answer.
 
-The Coder template exposes a `toolset` parameter that maps to a tier list, so a workload template selects its own subset without a new image.
+The governing principle is cost versus generality.
+A package earns a place in `core` — and therefore in the base image every workspace pulls — by being small and useful across most work.
+A language toolchain is neither: it is large, and it is only useful when the project in front of you is written in that language.
+Rust is the clearest case at roughly 1.5 GB, doubled across a multi-arch build, for something most workspaces never invoke.
+
+| Tier | Contents | Delivered by |
+| ---- | -------- | ------------ |
+| `bootstrap` | apt prerequisites needed before anything else installs | Dockerfile apt layer |
+| `core` | small, generally useful CLI — `jq`, `ncdu`, `duf`, `age`, `rg`, `fd`, `bat`, `delta`, `rtk`, `gh`, `fzf`, `gum`, `tree`, `htop`, `wget`, `sd`, `dust`, `bottom`, `hyperfine`, `glow`, `mprocs`, `tldr` | base image |
+| `quality` | repo gates — `actionlint`, `shellcheck`, `shfmt`, `taplo`, `yamllint`, `markdownlint-cli2`, `pre-commit` | base image |
+| `rust` | `rust`, `cargo-edit` | project template only |
+| `go` | `go`, `gopls`, `golangci-lint` | project template only |
+| `node` | `node`, `prettier` | project template only |
+| `infra` | `opentofu`, `coder` | infra template only |
+| `secrets` | `bws`, `bitwarden-cli`, `1password-cli` | gated on `.secrets` |
+| `gui`, `work`, `personal` | profile-scoped, largely macOS | workstations only |
+
+`.chezmoi.toml.tmpl` gains a `tiers` field, defaulted from `.machine` and `.profile` so existing machines need no manual answer.
+A workstation selects every tier and keeps today's behavior.
+
+The Coder template exposes a `toolset` parameter mapping to a tier list, so a Rust workspace gets the `rust` tier without a separate base image and without every other workspace paying for it.
+
+Claude Code is deliberately absent from this table.
+It arrives today through the `claude-code` Coder registry module in `modules.tf`, which also wires up `claude_code_oauth_token`; baking the binary would drop that wiring, so the module stays the delivery mechanism unless that changes.
 
 ### 3. Generated consumers
 
@@ -187,6 +207,8 @@ Nothing today renders the templates across data combinations, which is how the f
 
 - Ephemeral machines are not excluded from the kubeconfig wholesale.
   One designated template grants cluster access via `WORKSPACE_CLUSTER_ADMIN`; every other workspace is excluded.
+- Language toolchains stay out of the base image.
+  `rust`, `go` and `node` are project tiers, selected by the template that needs them, so a workspace that never compiles Rust never pays 1.5 GB for it.
 - The Pi folds into the same manifest rather than keeping a disjoint apt list.
   Its channel selection falls out of the per-package `apt` and `brew` fields, so `git` is declared once and rendered to whichever channel the machine uses.
 
