@@ -71,3 +71,16 @@ source "$SHELL_CONFIG/completions.zsh"
 export PATH="{{ .chezmoi.homeDir }}/.requesty/bin:$PATH"
 # <<< requesty cli installer <<<
 {{- end }}
+
+# ── Warp subshell detection ───────────────────────────────────────────────────
+# Tells Warp this is a shell it can treat as first-class (blocks, completions,
+# command history) when reached as a subshell -- `ssh main.kubernetes.nickv.coder`,
+# `docker exec`, and so on. Without it Warp prompts once per session to Warpify.
+#
+# `coder ssh kubernetes` is deliberately NOT covered: Warp hooks the `ssh`
+# command itself, and the coder CLI opens the connection internally, so there is
+# nothing for Warp to recognise. Use the `coder config-ssh` host alias instead.
+#
+# Interactive sessions only. Emitting the escape sequence into a non-interactive
+# session corrupts scp and rsync streams, which read stdout as data.
+[[ $- == *i* ]] && printf '\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh" }}\x9c' || true
