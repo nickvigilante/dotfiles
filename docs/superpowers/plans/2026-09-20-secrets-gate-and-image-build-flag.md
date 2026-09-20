@@ -118,6 +118,39 @@ echo "== never on work machines or cluster nodes =="
 check "work/laptop/bitwarden"            work     laptop    bitwarden ""  IGNORED
 check "personal/server/bitwarden"        personal server    bitwarden ""  IGNORED
 
+# PR #76 added .local/bin/mcp-breakglass to the same block. It port-forwards
+# to the cluster and is useless without the kubeconfig, so the two must stay
+# gated together -- a refactor that drops it would ship the break-glass helper
+# to work machines and into published images, silently.
+echo
+echo "== the break-glass helper stays co-gated with the kubeconfig =="
+cogate() { # label profile machine secrets cluster_admin
+  local label="$1" out k m
+  cat > "$TMP/cfg.toml" <<EOF
+[data]
+profile = "$2"
+name    = "x"
+email   = ""
+machine = "$3"
+display = false
+secrets = "$4"
+EOF
+  out=$(WORKSPACE_CLUSTER_ADMIN="${5:-}" "$CHEZMOI" execute-template \
+    --config "$TMP/cfg.toml" < "$TMPL" 2>/dev/null)
+  k=$(printf '%s\n' "$out" | grep -c '^\.kube/homelab\.yaml$')
+  m=$(printf '%s\n' "$out" | grep -c '^\.local/bin/mcp-breakglass$')
+  if [ "$k" -eq "$m" ]; then
+    printf '  PASS  %-46s both %s\n' "$label" "$([ "$k" -ge 1 ] && echo IGNORED || echo DEPLOYED)"
+  else
+    printf '  FAIL  %-46s kubeconfig=%s breakglass=%s\n' "$label" "$k" "$m"
+    fail=1
+  fi
+}
+
+cogate "personal/laptop/bitwarden"       personal laptop    bitwarden ""
+cogate "personal/ephemeral/none"         personal ephemeral none      ""
+cogate "work/laptop/bitwarden"           work     laptop    bitwarden ""
+
 echo
 [ "$fail" -eq 0 ] && echo "ALL PASS" || echo "FAILURES"
 exit "$fail"
@@ -142,23 +175,41 @@ If a different set fails, stop — the template or the data schema has changed s
 
 - [ ] **Step 3: Fix the gate**
 
-In `home/.chezmoiignore`, replace exactly these three lines:
+In `home/.chezmoiignore`, replace exactly these four lines:
 
 ```gotemplate
 {{ if or (ne .profile "personal") (eq .machine "server") (env "DOTFILES_IMAGE_BUILD") -}}
 .kube/homelab.yaml
+.local/bin/mcp-breakglass
 {{ end -}}
 ```
+
+`.local/bin/mcp-breakglass` was added to this block by PR #76 after this plan was first written.
+Keep it inside the gate.
+It port-forwards to the cluster and is useless without the kubeconfig, so the two travel together — and dropping it here would deploy the break-glass script to work machines and into published images.
 
 with:
 
 ```gotemplate
-{{- $vault   := or (eq .secrets "bitwarden") (eq .secrets "both") -}}
-{{- $trusted := or (and (eq .profile "personal") (ne .machine "server") (ne .machine "ephemeral")) (env "WORKSPACE_CLUSTER_ADMIN") -}}
+{{ $vault := or (eq .secrets "bitwarden") (eq .secrets "both") -}}
+{{ $trusted := or (and (eq .profile "personal") (ne .machine "server") (ne .machine "ephemeral")) (env "WORKSPACE_CLUSTER_ADMIN") -}}
 {{ if not (and $vault $trusted) -}}
 .kube/homelab.yaml
+.local/bin/mcp-breakglass
 {{ end -}}
 ```
+
+**Do not add a leading `{{-` to those assignment lines.**
+The spec's section 5 shows them as `{{- $vault ... -}}`, and that version is broken: the leading trim marker consumes the newline after the comment block above, so the rendered output becomes
+
+```text
+# ... See homelab #132..kube/homelab.yaml
+.local/bin/mcp-breakglass
+```
+
+`.kube/homelab.yaml` ends up appended to a comment line, which means it is never ignored on any machine — the exact opposite of the intent, and silent.
+The form above mirrors the original gate's `{{ ... -}}` pattern and renders correctly.
+The matrix in Step 1 catches this, but only when run against the real `home/.chezmoiignore` rather than the snippet in isolation.
 
 Leave the existing comment block above it in place, and append to it:
 
