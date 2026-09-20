@@ -13,12 +13,13 @@ trap 'rm -rf -- "$scratch"' EXIT
 failures=0
 total=0
 
-# check <expected-exit> <label> <message>
-check() {
+# check_with <expected-exit> <label> <message> [guard option...]
+check_with() {
 	local want="$1" label="$2" msg="$3" got=0
+	shift 3
 	local file="$scratch/msg"
 	printf '%s\n' "$msg" > "$file"
-	"$guard" "$file" > /dev/null 2>&1 || got=$?
+	"$guard" "$@" "$file" > /dev/null 2>&1 || got=$?
 	total=$((total + 1))
 	if [[ "$got" -eq "$want" ]]; then
 		echo "PASS: $label (exit $got)"
@@ -26,6 +27,17 @@ check() {
 		echo "FAIL: $label (want exit $want, got $got)"
 		failures=$((failures + 1))
 	fi
+}
+
+# check <expected-exit> <label> <message>: the default (editor) mode.
+check() {
+	check_with "$1" "$2" "$3"
+}
+
+# check_stored <expected-exit> <label> <message>: --no-strip-comments, the mode
+# CI uses on stored commit messages and PR text.
+check_stored() {
+	check_with "$1" "$2" "$3" --no-strip-comments
 }
 
 # Must be blocked (exit 1).
@@ -119,6 +131,49 @@ diff --git a/x b/x
 +Co-Authored-By: Claude <noreply@example.com>
 +Generated with Claude Code"
 check 0 "empty message" ""
+
+# --no-strip-comments: a "#" line is content, not a git comment.
+check_stored 1 "stored: vendor footer on a # line" "fix: thing
+
+# Co-Authored-By: Claude <noreply@example.com>"
+check_stored 1 "stored: markdown heading footer" "fix: thing
+
+## Generated with Claude Code"
+check_stored 1 "stored: vendor footer after a scissors-shaped line" "fix: thing
+
+# ------------------------ >8 ------------------------
+Generated with Claude Code"
+check_stored 1 "stored: plain trailer still blocked" "fix: thing
+
+Co-Authored-By: Claude <noreply@example.com>"
+check_stored 1 "stored: CRLF line endings" "$(printf 'fix: thing\r\n\r\nBuilt with Claude Code\r')"
+check_stored 0 "stored: # heading without a vendor" "# Summary
+
+Assisted-by: AI"
+check_stored 0 "stored: normal message" "fix: handle empty config"
+check_stored 0 "stored: empty message" ""
+# Without the option the same "#" line is still ignored (editor mode).
+check 0 "default mode still ignores the # footer line" "fix: thing
+
+# Co-Authored-By: Claude <noreply@example.com>"
+
+# Option handling: usage errors exit 2.
+usage_case() {
+	local label="$1" got=0
+	shift
+	"$guard" "$@" > /dev/null 2>&1 || got=$?
+	total=$((total + 1))
+	if [[ "$got" -eq 2 ]]; then
+		echo "PASS: $label (exit $got)"
+	else
+		echo "FAIL: $label (want exit 2, got $got)"
+		failures=$((failures + 1))
+	fi
+}
+usage_case "option without a file is a usage error" --no-strip-comments
+usage_case "unknown option is a usage error" --bogus "$scratch/msg"
+usage_case "two files are a usage error" "$scratch/msg" "$scratch/msg"
+usage_case "missing file is an error" --no-strip-comments "$scratch/absent"
 
 echo
 if [[ "$failures" -ne 0 ]]; then

@@ -4,8 +4,14 @@
 # Naming an AI vendor, product or model as the author or assistant is not.
 #
 # Usage:
-#   no-vendor-attribution.sh <commit-msg-file>   scan one commit message
-#   no-vendor-attribution.sh                     scan tracked files
+#   no-vendor-attribution.sh [--no-strip-comments] <msg-file>   scan one message
+#   no-vendor-attribution.sh                                    scan tracked files
+#
+# Message mode treats the file as a message that git is about to record, so it
+# ignores the comment lines git adds (lines starting with "#") and everything
+# after the scissors line. --no-strip-comments treats the file as a STORED
+# message (git log output, a PR title or body), where a "#" line is real
+# content such as a markdown heading, and scans every line.
 #
 # The guard matches the SHAPE of an attribution, never a bare word, because
 # ordinary prose contains some of these words (an opus, a haiku, a function
@@ -32,23 +38,47 @@ footer="${lead}(generated|built|made|created|written|authored)[[:space:]]+(with|
 
 fail_msg="vendor-specific AI attribution found. Use 'Assisted-by: AI' in commits and 'Built with AI assistance' in PR bodies; never name a model, vendor or product."
 
-if [[ $# -gt 1 ]]; then
-	echo "usage: ${0##*/} [commit-msg-file]" >&2
+usage="usage: ${0##*/} [--no-strip-comments] [msg-file]"
+strip_comments=1
+target=""
+for arg in "$@"; do
+	case "$arg" in
+		--no-strip-comments) strip_comments=0 ;;
+		-*)
+			echo "$usage" >&2
+			exit 2
+			;;
+		*)
+			if [[ -n "$target" ]]; then
+				echo "$usage" >&2
+				exit 2
+			fi
+			target="$arg"
+			;;
+	esac
+done
+if [[ -z "$target" && "$strip_comments" -eq 0 ]]; then
+	echo "${0##*/}: --no-strip-comments needs a message file" >&2
 	exit 2
 fi
 
-if [[ $# -eq 1 ]]; then
-	# commit-msg mode.
-	target="$1"
+if [[ -n "$target" ]]; then
+	# message mode.
 	if [[ ! -f "$target" ]]; then
 		echo "${0##*/}: not a file: $target" >&2
 		exit 2
 	fi
-	# Blank out git's comment lines and everything after the scissors line
-	# (the diff that `git commit -v` appends), keeping line numbers intact.
-	scratch="$(mktemp)"
-	trap 'rm -f -- "$scratch"' EXIT
-	awk '/^# -+ >8 -+$/ { cut = 1 } cut || /^#/ { print ""; next } { print }' "$target" > "$scratch"
+	if [[ "$strip_comments" -eq 1 ]]; then
+		# Blank out git's comment lines and everything after the scissors line
+		# (the diff that `git commit -v` appends), keeping line numbers intact.
+		scratch="$(mktemp)"
+		trap 'rm -f -- "$scratch"' EXIT
+		awk '/^# -+ >8 -+$/ { cut = 1 } cut || /^#/ { print ""; next } { print }' "$target" > "$scratch"
+	else
+		# A stored message has no git-added comments and no scissors section.
+		# Honouring either would let a "#" line or a scissors line hide a footer.
+		scratch="$target"
+	fi
 	rc=0
 	hits="$(grep -nEi -e "$trailer" -e "$footer" -- "$scratch")" || rc=$?
 	if [[ $rc -gt 1 ]]; then
