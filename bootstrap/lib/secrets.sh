@@ -117,6 +117,16 @@ install_bw() {
 				echo "  install.sh Step 3/9 should have installed it; check that step's output." >&2
 				return 1
 			fi
+			# The snap binary ships in Ubuntu container images even though snapd
+			# itself never runs there (no systemd), so the check above passes and
+			# the install then dies on "cannot communicate with server". Probe the
+			# daemon's socket, not just the client, before committing to an install.
+			snapd_socket="${SNAPD_SOCKET:-/run/snapd.socket}"
+			if [[ ! -S "$snapd_socket" ]]; then
+				echo "ERROR: snap is on PATH but snapd is not running ($snapd_socket absent)." >&2
+				echo "  Containers cannot run snapd; this is expected there. Use --secrets none." >&2
+				return 1
+			fi
 			echo "Installing Bitwarden CLI via snap..."
 			sudo snap install bw
 			;;
