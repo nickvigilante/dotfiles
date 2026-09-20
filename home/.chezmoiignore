@@ -11,7 +11,17 @@
 # `chezmoi apply`; see homelab-dev-templates images/base/DOTFILES-AUDIT.md.
 # The matching KUBECONFIG export in dot_config/shell/exports.zsh.tmpl uses
 # the profile/machine half of this gate. See homelab #132.
-{{ if or (ne .profile "personal") (eq .machine "server") (env "DOTFILES_IMAGE_BUILD") -}}
+# The gate is positive: these deploy only where a Bitwarden vault is
+# actually configured, because the kubeconfig template calls `bitwarden`
+# specifically -- secrets = "1password" fails exactly as "none" does.
+# Ephemeral machines are excluded unless their template opts in by setting
+# WORKSPACE_CLUSTER_ADMIN, which confines cluster-admin to one designated
+# template rather than every workspace. The assignments deliberately carry
+# no left-trim marker: one there swallows the newline ending this comment
+# and emits the first path onto the comment line, silently un-ignoring it.
+{{ $vault := or (eq .secrets "bitwarden") (eq .secrets "both") -}}
+{{ $trusted := or (and (eq .profile "personal") (ne .machine "server") (ne .machine "ephemeral")) (env "WORKSPACE_CLUSTER_ADMIN") -}}
+{{ if not (and $vault $trusted) -}}
 .kube/homelab.yaml
 .local/bin/mcp-breakglass
 {{ end -}}
