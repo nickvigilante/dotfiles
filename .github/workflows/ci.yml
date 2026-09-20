@@ -29,8 +29,11 @@ jobs:
       BETTERLEAKS_VERSION: 1.3.1
       BETTERLEAKS_SHA256: 7b241c80204538cbb210c94514dc7cdff86430938bd7d5b6e289207959530849
     steps:
+      # Full history: the PR secret scan below needs origin/<base> and the PR's
+      # commits, not only the merged tree.
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: actions/setup-python@v5
@@ -77,7 +80,18 @@ jobs:
 
       - name: Install chezmoi ${{ env.CHEZMOI_VERSION }}
         if: steps.chezmoi-cache.outputs.cache-hit != 'true'
-        run: sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.ci-tools/chezmoi" -t "$CHEZMOI_VERSION"
+        # Fetch the installer over HTTPS only (a scheme-less URL makes curl try
+        # plain HTTP first) into a file, so a failed download stops the step
+        # with a clear message instead of running an empty command.
+        run: |
+          set -euo pipefail
+          installer="$(mktemp)"
+          if ! curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$installer" https://get.chezmoi.io \
+            || [ ! -s "$installer" ]; then
+            echo "error: could not download the chezmoi installer from https://get.chezmoi.io" >&2
+            exit 1
+          fi
+          sh "$installer" -b "$HOME/.ci-tools/chezmoi" -t "$CHEZMOI_VERSION"
 
       - name: Put chezmoi on PATH
         run: |
@@ -121,6 +135,17 @@ jobs:
       # out of this public log. Exits 1 when a leak is found.
       - name: Secret scan (betterleaks)
         run: betterleaks dir --no-banner --redact -v .
+
+      # The tree scan above cannot see a secret that one commit of a PR adds and
+      # a later commit removes. Scan the PR's commits too. The checkout is the
+      # PR merged into the base branch, so origin/<base>..HEAD is exactly the
+      # PR's commits (plus the synthetic merge commit). The base ref reaches the
+      # script through env, never through ${{ }} in run.
+      - name: Secret scan of PR history (betterleaks)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: betterleaks git --no-banner --redact -v --log-opts="origin/${BASE_REF}..HEAD" .
 
       - name: pre-commit
         uses: pre-commit/action@v3.0.1
