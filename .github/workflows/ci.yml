@@ -215,3 +215,45 @@ jobs:
           done <<< "$commits"
 
           exit "$failed"
+
+  chezmoi-matrix:
+    name: chezmoi-matrix
+    runs-on: ubuntu-latest
+    env:
+      # Pinned to match the lint job above, so the two cannot drift.
+      CHEZMOI_VERSION: v2.72.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Cache chezmoi
+        id: chezmoi-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ci-tools/chezmoi/chezmoi
+          key: chezmoi-${{ runner.os }}-${{ runner.arch }}-${{ env.CHEZMOI_VERSION }}
+
+      - name: Install chezmoi ${{ env.CHEZMOI_VERSION }}
+        if: steps.chezmoi-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          installer="$(mktemp)"
+          if ! curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$installer" https://get.chezmoi.io \
+            || [ ! -s "$installer" ]; then
+            echo "error: could not download the chezmoi installer from https://get.chezmoi.io" >&2
+            exit 1
+          fi
+          sh "$installer" -b "$HOME/.ci-tools/chezmoi" -t "$CHEZMOI_VERSION"
+
+      - name: Put chezmoi on PATH
+        run: |
+          set -euo pipefail
+          echo "$HOME/.ci-tools/chezmoi" >> "$GITHUB_PATH"
+          "$HOME/.ci-tools/chezmoi/chezmoi" --version
+
+      # Renders the real home/.chezmoiignore, not the gate in isolation: the
+      # bug this guards against was a trim marker that only misbehaves when
+      # composed with the comment block above it.
+      - name: Render .chezmoiignore across the data matrix
+        run: ./tests/chezmoiignore-matrix.sh home/.chezmoiignore
