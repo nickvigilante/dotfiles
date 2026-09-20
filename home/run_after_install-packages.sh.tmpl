@@ -67,8 +67,23 @@ if [[ ! -f "$BREWFILE" ]]; then
 fi
 
 if ! command -v brew &>/dev/null; then
+{{- if eq .machine "ephemeral" }}
+    # An ephemeral machine without Homebrew is a container started from an
+    # image that already carries its tools. DOTFILES_IMAGE_BUILD covers the
+    # build of such an image but is deliberately build-scoped, so it is unset
+    # here at runtime and cannot cover the container the image produced.
+    #
+    # Hard-failing there is wrong twice over: nothing is missing, and the
+    # non-zero exit makes every `chezmoi apply` fail after the rest of the
+    # state applied cleanly. Homebrew also could not persist anyway --- it
+    # installs under /home/linuxbrew, outside the home volume, so a restart
+    # removes it along with every formula.
+    echo "Ephemeral machine with no Homebrew: packages come from the image. Skipping."
+    exit 0
+{{- else }}
     echo "ERROR: brew not on PATH. Re-run bootstrap/install.sh — Step 6/9 installs Homebrew."
     exit 1
+{{- end }}
 fi
 
 bundle_flags=(--file="$BREWFILE")
