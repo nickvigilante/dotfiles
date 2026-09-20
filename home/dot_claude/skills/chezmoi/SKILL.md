@@ -108,7 +108,7 @@ cd ~/git/nickvigilante/dotfiles && git pull --ff-only && chezmoi apply
 Skill _descriptions_ load into every session on every machine.
 To keep a machine-specific skill (e.g. a 3D-printing skill) off the work machine, either keep it in a project's `.claude/skills/` instead of global `dot_claude/skills/`, or gate it with a templated `.chezmoiignore`:
 
-```
+```text
 {{ if ne .chezmoi.hostname "personal-box" }}
 .claude/skills/3d-printing
 {{ end }}

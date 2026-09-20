@@ -117,7 +117,7 @@ If you ever want Linuxbrew on a beefier Pi, override by setting `.machine` to `l
 
 ### CLI flags
 
-```
+```text
 install.sh \
   --profile work|personal \
   --machine laptop|desktop|server|pi|ephemeral \
@@ -155,7 +155,7 @@ profile = "work"
 
 `chezmoi update` already handles "fetch latest + apply." Add a thin wrapper `~/.local/bin/dotfiles`:
 
-```
+```text
 dotfiles update    # chezmoi update + update-packages --force
 dotfiles doctor    # health check (see Smoke test below)
 ```
@@ -166,7 +166,7 @@ The existing 24h-throttled background `update-packages` keeps working unchanged.
 
 ### File structure (after migration)
 
-```
+```text
 home/
   .chezmoidata/
     palette.toml                                  # NEW — single source-of-truth color palette

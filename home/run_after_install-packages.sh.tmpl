@@ -13,6 +13,7 @@ set -euo pipefail
 # `brew bundle check` exits 0, no caveats are shown.
 export HOMEBREW_NO_ENV_HINTS=1
 
+# shellcheck disable=SC2034  # only read in the machine=pi branch below
 REPO_DIR="{{ .chezmoi.sourceDir }}/.."
 GUM="${HOME}/.local/bin/gum"
 [[ -x "$GUM" ]] || GUM="$(command -v gum || echo "")"

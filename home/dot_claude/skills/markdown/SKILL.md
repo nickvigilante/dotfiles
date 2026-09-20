@@ -28,6 +28,7 @@ session this barely helps, because cost is dominated by cached context.
 ```
 
 Rules of thumb:
+
 - Break after each sentence terminator (period/question/exclamation) and nowhere else.
 - Compound sentences stay on one line, conjunctions and relative clauses included.
 - List items and table rows are already their own lines — leave them.
@@ -44,6 +45,7 @@ Rules of thumb:
 - **Line length:** no max (the one-sentence-per-line rule governs), but never put multiple sentences on one line.
 
 ## Gotchas
+
 - A list/table/code block needs a blank line before it or it won't render.
 - Hard tabs break nested lists — use spaces.
 - In `SKILL.md`/frontmatter files, keep the YAML frontmatter intact; these conventions apply to the body.

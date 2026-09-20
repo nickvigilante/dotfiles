@@ -13,7 +13,7 @@ brew "coreutils" # GNU File, Shell, and Text utilities
 brew "docker"
 brew "duti" if OS.mac? # Tool to select default apps for documetns and URL schemes on macOS
 brew "fd" # Rust-based alternative to `find`
-brew "findutils" 
+brew "findutils"
 brew "fish" # User-friendly command-line shell for UNIX-like operating systems
 brew "gawk" # GNU awk utility
 brew "gh" # GitHub CLI
@@ -68,7 +68,7 @@ cask "1password" # UI for 1Password password manager
 cask "1password-cli" # CLI for 1Password password manager
 cask "arc" # Chrome-based browser
 cask "bitwarden" # UI for Bitwarden password manager
-cask "claude" if OS.mac? # Anthropic's official Claude AI desktop app 
+cask "claude" if OS.mac? # Anthropic's official Claude AI desktop app
 cask "claude-code" # Terminal-based AI coding assistant
 cask "displaylink" # Drivers for DisplayLink docks, adapters, and monitors
 cask "docker-desktop"
@@ -87,14 +87,14 @@ cask "maccy" # Clipboard manager
 cask "orion"
 cask "notion" # App to write, plan, collaborate, and get organised, TileDB-specific
 cask "notunes" # No longer needed
-cask "ollama-app" # App UI for Ollama 
+cask "ollama-app" # App UI for Ollama
 cask "protonvpn"
 cask "rectangle" if OS.mac? # Window manager for macOS to move and resize windows
 cask "screaming-frog-seo-spider" # SEO site audit tool
 cask "screen-studio" # Screen recorder and editor
 cask "signal"
 cask "slack"
-cask "spotify" 
+cask "spotify"
 cask "tabby" # Terminal
 cask "thunderbird" # Mozilla's mail client
 cask "unnaturalscrollwheels"
@@ -110,9 +110,9 @@ vscode "charliermarsh.ruff" # Ruff
 vscode "chrischinchilla.vale-vscode" # VS Code support for Vale
 vscode "denoland.vscode-deno" # Language server for Deno, a JavaScript runtime environment
 vscode "docker.docker"
-vscode "elagil.pre-commit-helper" 
+vscode "elagil.pre-commit-helper"
 vscode "esbenp.prettier-vscode" # Prettier
-vscode "foxundermoon.shell-format" 
+vscode "foxundermoon.shell-format"
 vscode "github.copilot-chat"
 vscode "github.vscode-github-actions"
 vscode "github.vscode-pull-request-github"
@@ -146,7 +146,7 @@ vscode "ms-vscode.cpptools-extension-pack"
 vscode "ms-vscode.cpptools-themes" # UI/themes for C/C++ extension.
 vscode "ms-vscode.makefile-tools"
 vscode "njpwerner.autodocstring" # Generate Python docstrings automatically
-# vscode "nvarner.typst-lsp" 
+# vscode "nvarner.typst-lsp"
 vscode "quarto.quarto" # TileDB-specific
 vscode "redhat.java" # Java language support
 vscode "redhat.vscode-xml" # XML language support
@@ -164,4 +164,3 @@ vscode "yzhang.markdown-all-in-one" # Markdown All-In-One
 go "sigs.k8s.io/cloud-provider-kind" # KIND provider for Kubernetes
 go "golang.org/x/tools/gopls" # Golang language server
 go "honnef.co/go/tools/cmd/staticcheck" # Tool to find bugs and performance issues in Go
-

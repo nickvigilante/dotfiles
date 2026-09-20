@@ -1,0 +1,217 @@
+name: CI
+
+# No `paths` filters: a filtered workflow behind a required check leaves
+# non-matching PRs waiting forever for a status that never reports.
+# `edited` re-runs the PR-text check after a title or body fix.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    env:
+      # Pinned to the version used locally. The chezmoi-templates hook needs
+      # chezmoi on PATH; it is hermetic and never runs `chezmoi init`.
+      CHEZMOI_VERSION: v2.72.2
+      # Release asset betterleaks_<version>_linux_x64.tar.gz, checked against
+      # this sha256 (from the release's published digest and checksums.txt).
+      BETTERLEAKS_VERSION: 1.3.1
+      BETTERLEAKS_SHA256: 7b241c80204538cbb210c94514dc7cdff86430938bd7d5b6e289207959530849
+    steps:
+      # Full history: the PR secret scan below needs origin/<base> and the PR's
+      # commits, not only the merged tree.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The chezmoi-templates hook shellchecks rendered scripts with a system
+      # `shellcheck`. Install the same release the shellcheck hook pins,
+      # reading the version from the hook's `rev` so the two cannot drift.
+      - name: Install shellcheck (version from .pre-commit-config.yaml)
+        run: |
+          set -euo pipefail
+          rev="$(awk '
+            /^[[:space:]]*-[[:space:]]*repo:/ {
+              in_block = ($0 ~ /github\.com\/shellcheck-py\/shellcheck-py[[:space:]]*(#.*)?$/)
+              next
+            }
+            in_block && /^[[:space:]]*rev:/ {
+              sub(/^[[:space:]]*rev:[[:space:]]*/, "")
+              sub(/[[:space:]]*#.*$/, "")
+              print
+              exit
+            }
+          ' .pre-commit-config.yaml | tr -d "\"' ")"
+          version="${rev#v}"
+          if ! [[ "$version" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+            echo "error: could not derive the shellcheck-py version from .pre-commit-config.yaml (got '${rev}')" >&2
+            exit 1
+          fi
+          echo "shellcheck-py version: ${version}"
+          python -m pip install "shellcheck-py==${version}"
+          shellcheck --version
+
+      # zsh is preinstalled on some images; install it only when missing.
+      - name: Install zsh
+        run: command -v zsh >/dev/null || { sudo apt-get update && sudo apt-get install -y zsh; }
+
+      - name: Cache chezmoi
+        id: chezmoi-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ci-tools/chezmoi/chezmoi
+          key: chezmoi-${{ runner.os }}-${{ runner.arch }}-${{ env.CHEZMOI_VERSION }}
+
+      - name: Install chezmoi ${{ env.CHEZMOI_VERSION }}
+        if: steps.chezmoi-cache.outputs.cache-hit != 'true'
+        # Fetch the installer over HTTPS only (a scheme-less URL makes curl try
+        # plain HTTP first) into a file, so a failed download stops the step
+        # with a clear message instead of running an empty command.
+        run: |
+          set -euo pipefail
+          installer="$(mktemp)"
+          if ! curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$installer" https://get.chezmoi.io \
+            || [ ! -s "$installer" ]; then
+            echo "error: could not download the chezmoi installer from https://get.chezmoi.io" >&2
+            exit 1
+          fi
+          sh "$installer" -b "$HOME/.ci-tools/chezmoi" -t "$CHEZMOI_VERSION"
+
+      - name: Put chezmoi on PATH
+        run: |
+          set -euo pipefail
+          echo "$HOME/.ci-tools/chezmoi" >> "$GITHUB_PATH"
+          "$HOME/.ci-tools/chezmoi/chezmoi" --version
+
+      # The betterleaks hook scans staged changes only, so under `pre-commit
+      # run --all-files` on a clean checkout it scans nothing. This step is
+      # the real secret scan. The release tarball is cached and its sha256 is
+      # verified on every run, so a stale or tampered cache entry fails loudly
+      # (a mismatching cached file is dropped and downloaded once more).
+      - name: Cache betterleaks release
+        uses: actions/cache@v4
+        with:
+          path: ~/.ci-tools/downloads
+          key: betterleaks-${{ runner.os }}-${{ runner.arch }}-${{ env.BETTERLEAKS_VERSION }}
+
+      - name: Install betterleaks ${{ env.BETTERLEAKS_VERSION }}
+        run: |
+          set -euo pipefail
+          asset="betterleaks_${BETTERLEAKS_VERSION}_linux_x64.tar.gz"
+          downloads="$HOME/.ci-tools/downloads"
+          bin="$HOME/.ci-tools/betterleaks"
+          mkdir -p "$downloads" "$bin"
+          if [ -f "$downloads/$asset" ] && ! echo "${BETTERLEAKS_SHA256}  ${downloads}/${asset}" | sha256sum -c --quiet -; then
+            echo "cached ${asset} failed its checksum; downloading again"
+            rm -f -- "${downloads:?}/${asset}"
+          fi
+          if [ ! -f "$downloads/$asset" ]; then
+            curl -fsSL --retry 3 -o "$downloads/$asset" \
+              "https://github.com/betterleaks/betterleaks/releases/download/v${BETTERLEAKS_VERSION}/${asset}"
+          fi
+          echo "${BETTERLEAKS_SHA256}  ${downloads}/${asset}" | sha256sum -c -
+          tar -xzf "$downloads/$asset" -C "$bin" betterleaks
+          echo "$bin" >> "$GITHUB_PATH"
+          "$bin/betterleaks" --version
+
+      # Scans every file of the checkout (not just staged changes). -v prints
+      # each finding's file, line and rule; --redact keeps the secret itself
+      # out of this public log. Exits 1 when a leak is found.
+      - name: Secret scan (betterleaks)
+        run: betterleaks dir --no-banner --redact -v .
+
+      # The tree scan above cannot see a secret that one commit of a PR adds and
+      # a later commit removes. Scan the PR's commits too. The checkout is the
+      # PR merged into the base branch, so origin/<base>..HEAD is exactly the
+      # PR's commits (plus the synthetic merge commit). The base ref reaches the
+      # script through env, never through ${{ }} in run.
+      - name: Secret scan of PR history (betterleaks)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: betterleaks git --no-banner --redact -v --log-opts="origin/${BASE_REF}..HEAD" .
+
+      - name: pre-commit
+        uses: pre-commit/action@v3.0.1
+        env:
+          # betterleaks is skipped here only: its hook scans staged changes,
+          # so on a clean checkout it scans nothing while still costing a Go
+          # build. The "Secret scan (betterleaks)" step above is the real scan.
+          SKIP: betterleaks
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+
+  commit-messages:
+    name: commit-messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The checkout is the PR merged into the base branch, so HEAD is a
+      # synthetic merge commit; its "Merge <sha> into <sha>" message is
+      # checked too and is harmless. Untrusted text (title, body, base ref)
+      # reaches the script only through env, never through ${{ }} in the
+      # script, and is written to files with printf.
+      - name: Check commit messages and PR text
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          guard=scripts/ci/no-vendor-attribution.sh
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          failed=0
+
+          # Stored text: a "#" line is content, so do not strip comments.
+          check() {
+            local label="$1" file="$2"
+            echo "Checking ${label}"
+            "$guard" --no-strip-comments "$file" || failed=1
+          }
+
+          printf '%s\n' "$PR_TITLE" > "$work/pr-title"
+          check "PR title" "$work/pr-title"
+          printf '%s\n' "$PR_BODY" > "$work/pr-body"
+          check "PR body" "$work/pr-body"
+
+          # Capture the list first: a failure inside `< <(...)` would not
+          # trip `set -e`, and a missing base ref would pass silently.
+          commits="$(git rev-list "origin/${BASE_REF}..HEAD")"
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            git log -1 --format=%B "$sha" > "$work/message"
+            check "commit ${sha}" "$work/message"
+          done <<< "$commits"
+
+          exit "$failed"

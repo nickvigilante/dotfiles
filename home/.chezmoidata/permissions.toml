@@ -137,27 +137,13 @@ args = [
 ]
 
 [permissions.commands.pnpm]
-args = [
-  "exec astro check *",
-  "list *",
-  "why *",
-  "outdated *",
-  "audit *",
-]
+args = ["exec astro check *", "list *", "why *", "outdated *", "audit *"]
 
 [permissions.commands.npm]
-args = [
-  "list *",
-  "outdated *",
-  "info *",
-]
+args = ["list *", "outdated *", "info *"]
 
 [permissions.commands.cargo]
-args = [
-  "tree *",
-  "metadata *",
-  "search *",
-]
+args = ["tree *", "metadata *", "search *"]
 
 [permissions.commands.kubectl]
 args = [

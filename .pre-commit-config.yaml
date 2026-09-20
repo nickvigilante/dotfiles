@@ -1,0 +1,118 @@
+# Single source of truth for repo checks. CI runs `pre-commit run --all-files`.
+# chezmoi note: never point a syntax parser at a raw .tmpl — see the
+# chezmoi-templates hook for template validation.
+default_install_hook_types: [pre-commit, commit-msg]
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Whitespace fixers stay off chezmoi templates: the template file is
+      # rendered into the deployed file, so its whitespace is output.
+      # Covers home/**/*.tmpl and the files chezmoi templates without a
+      # .tmpl suffix (.chezmoiignore, .chezmoiremove, .chezmoiexternal.*, and
+      # everything under .chezmoitemplates/, whose files carry no suffix).
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+        exclude: &chezmoi_templates '^home/(.*\.tmpl|\.chezmoi(ignore|remove|external\.[a-z]+)|\.chezmoitemplates/.*)$'
+      - id: end-of-file-fixer
+        exclude: *chezmoi_templates
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        exclude: *chezmoi_templates
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-json
+        exclude: '\.tmpl$'
+      - id: check-toml
+        # .chezmoiexternal.toml is templated by chezmoi despite its plain name.
+        exclude: '(\.tmpl$|^home/\.chezmoiexternal\.toml$)'
+      - id: check-yaml
+        exclude: '\.tmpl$'
+      - id: detect-private-key
+  # The repo is public, so scan for committed secrets.
+  - repo: https://github.com/betterleaks/betterleaks
+    rev: v1.3.1
+    hooks:
+      - id: betterleaks
+  # Pure-shell scripts only. Templates (.tmpl) and zsh files are excluded:
+  # a raw template is not valid shell, and shellcheck has no zsh dialect.
+  # shellcheck-py bundles the shellcheck binary in a wheel, so the hook is
+  # self-installing. The koalaman/shellcheck-precommit hook needs docker.
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        # The hook's default `types: [shell]` skips the extensionless
+        # executable_dotfiles and executable_update-packages: they are mode 644
+        # in git (chezmoi derives the exec bit from the filename), so identify
+        # never reads their shebang. Select them by `files` instead.
+        types: [text]
+        files: '\.(sh|bash)$|(^|/)(executable_)?(dotfiles|update-packages)$'
+        exclude: '\.tmpl$|\.zsh$'
+  # Same file set as shellcheck above, so both shell hooks cover the same
+  # scripts. Tabs match .editorconfig. `-w` rewrites files in place.
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.10.0-2
+    hooks:
+      - id: shfmt
+        args: [-i, '0', -ci, -sr, -w]
+        # Default `types: [shell]` would skip the extensionless scripts (see the
+        # shellcheck hook), so select them by `files` instead.
+        types: [text]
+        files: '\.(sh|bash)$|(^|/)(executable_)?(dotfiles|update-packages)$'
+        exclude: '\.tmpl$|\.zsh$'
+  # Hermetic: renders every managed target with a fixed CI config (no user
+  # config, source, or secret manager), then syntax-checks and shellchecks the
+  # rendered scripts. Also runs when its own inputs change.
+  - repo: local
+    hooks:
+      - id: chezmoi-templates
+        name: chezmoi templates render + shell syntax
+        entry: scripts/ci/lint-chezmoi-templates.sh
+        language: script
+        pass_filenames: false
+        files: '^(home/|scripts/ci/|\.shellcheckrc$)'
+  # Convention guard: AI assistance is disclosed only as "Assisted-by: AI" and
+  # never by naming a vendor or model. The files hook scans tracked files, the
+  # commit-msg hook scans the message (pre-commit passes the message file), and
+  # the test hook re-runs the guard's own cases when scripts/ci/ changes.
+  - repo: local
+    hooks:
+      - id: no-vendor-attribution-files
+        name: no vendor-specific AI attribution (files)
+        entry: scripts/ci/no-vendor-attribution.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: no-vendor-attribution-msg
+        name: no vendor-specific AI attribution (commit msg)
+        entry: scripts/ci/no-vendor-attribution.sh
+        language: script
+        stages: [commit-msg]
+      - id: no-vendor-attribution-test
+        name: no-vendor-attribution guard self-test
+        entry: scripts/ci/test-no-vendor-attribution.sh
+        language: script
+        pass_filenames: false
+        files: '^scripts/ci/'
+  # Structural markdown lint only. Line length (MD013) is off in the config so
+  # semantic line breaks (one sentence or clause per line) stay legal. No
+  # --fix: an autofix must never join or reflow lines.
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.14.0
+    hooks:
+      - id: markdownlint-cli2
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: [-c, .yamllint.yaml]
+  # taplo rewrites files, so it stays off chezmoi templates (whitespace in a
+  # template is rendered output). It reuses the same exclude as the whitespace
+  # fixers above (the chezmoi_templates anchor).
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: taplo-format
+        exclude: *chezmoi_templates
