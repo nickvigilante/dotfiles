@@ -346,3 +346,25 @@ bw-apply                    # unlock Bitwarden + chezmoi apply (no-op for non-Bi
 5. `dotfiles doctor` to verify everything is healthy.
 
 To reproduce a machine's exact setup elsewhere, copy the rerun-comment header from `~/.config/chezmoi/chezmoi.toml` — it contains the equivalent non-interactive bootstrap command for the current machine.
+
+---
+
+## Development and CI
+
+The repo's checks are defined in `.pre-commit-config.yaml` and run both locally and in CI.
+
+1. Install the tooling.
+   The Brewfile declares `pre-commit`, `actionlint`, `shellcheck`, `shfmt`, `taplo` and `yamllint`, so `chezmoi apply` (or `dotfiles update`) installs them like any other package.
+2. Run `pre-commit install` once per clone.
+   It installs both the `pre-commit` and the `commit-msg` hooks into that clone's `.git/hooks`.
+3. Run `pre-commit run --all-files` to check every tracked file, the same way CI does.
+   It lints markdown, YAML, TOML and shell, formats shell, scans for private keys and secrets, and guards against vendor-specific AI attribution.
+
+The `chezmoi-templates` hook renders every managed target with a fixed CI config and syntax-checks and shellchecks the rendered scripts.
+It needs `chezmoi`, `zsh` and `shellcheck` on `PATH`, and exits 2 with a clear message when one is missing.
+
+CI (`.github/workflows/ci.yml`) has three jobs:
+
+- `lint` runs the hooks and the secret scans, including one over the pull request's commits.
+- `actionlint` lints the workflow files.
+- `commit-messages` checks every commit message, and the pull request title and body, for vendor-specific AI attribution.
