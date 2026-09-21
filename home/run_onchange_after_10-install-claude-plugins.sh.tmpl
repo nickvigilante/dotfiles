@@ -1,0 +1,62 @@
+{{- /*
+Installs the Claude Code plugins that ~/.claude/settings.json enables.
+
+Claude Code installs a declared-but-missing plugin itself, but only in the
+background after its first launch, so that first session runs without the
+plugin's hooks. The Warp plugin announces itself from a SessionStart hook; when
+the hook does not fire, Warp shows its "Notification setup instructions" button.
+Installing here, before anything launches Claude Code, closes that gap.
+
+The plugin list is read from the rendered settings.json rather than duplicated
+here. The hash in the script body re-runs it whenever that template changes.
+
+Skipped during an image build: a workspace mounts its home volume over the
+image's, so plugins installed at build time never reach it.
+*/ -}}
+{{- if eq (env "DOTFILES_IMAGE_BUILD") "" -}}
+#!/bin/sh
+# run_onchange_after_10-install-claude-plugins: install enabled Claude Code plugins.
+set -u
+# settings.json.tmpl hash: {{ include "dot_claude/settings.json.tmpl" | sha256sum }}
+
+SETTINGS="${HOME}/.claude/settings.json"
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "==> claude CLI not found; skipping plugin install" >&2
+  exit 0
+fi
+if ! command -v jq >/dev/null 2>&1; then
+  echo "==> jq not found; skipping plugin install" >&2
+  exit 0
+fi
+if [ ! -f "$SETTINGS" ]; then
+  echo "==> ${SETTINGS} not found; skipping plugin install" >&2
+  exit 0
+fi
+
+failed=0
+
+# A marketplace must be known before a plugin can be installed from it.
+# Re-adding one that is already known is a no-op.
+for repo in $(jq -r '.extraKnownMarketplaces // {} | .[].source
+    | select(.source == "github") | .repo' "$SETTINGS"); do
+  claude plugin marketplace add "$repo" >/dev/null 2>&1 || {
+    echo "==> failed to add plugin marketplace ${repo}" >&2
+    failed=1
+  }
+done
+
+# No -y: it would also accept marketplace-declared install commands unseen.
+# A plugin that needs one fails here and is left to the interactive /plugin flow.
+for plugin in $(jq -r '.enabledPlugins // {} | to_entries[]
+    | select(.value == true) | .key' "$SETTINGS"); do
+  claude plugin install --scope user "$plugin" >/dev/null 2>&1 || {
+    echo "==> failed to install Claude Code plugin ${plugin}" >&2
+    failed=1
+  }
+done
+
+# Never fail the apply over a plugin: Claude Code retries missing ones itself.
+[ "$failed" -eq 0 ] || echo "==> some plugins were not installed; see above" >&2
+exit 0
+{{ end -}}
