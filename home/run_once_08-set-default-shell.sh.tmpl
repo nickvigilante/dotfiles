@@ -20,10 +20,17 @@ fi
 
 current_shell="$(getent passwd "$USER" | cut -d: -f7)"
 if [[ "$current_shell" != "$zsh_path" ]]; then
-    if chsh -s "$zsh_path" "$USER" 2>/dev/null; then
+    # Plain chsh prompts for the user's password, and a container account
+    # usually has none set -- `passwd -S` reports L (locked). It then blocks
+    # on a prompt whose output 2>/dev/null hides, so `chezmoi apply` hangs
+    # silently and forever rather than failing. Prefer sudo, which is how
+    # these machines are actually administered, and keep bare chsh as the
+    # fallback for a workstation where the account does have a password.
+    if sudo -n chsh -s "$zsh_path" "$USER" 2>/dev/null \
+        || chsh -s "$zsh_path" "$USER" </dev/null 2>/dev/null; then
         echo "Default shell changed to $zsh_path. Open a new terminal for it to take effect."
     else
-        echo "WARN: chsh failed. Run manually:  chsh -s $zsh_path"
+        echo "WARN: chsh failed. Run manually:  sudo chsh -s $zsh_path $USER"
     fi
 fi
 
