@@ -209,3 +209,6 @@ go "github.com/golangci/golangci-lint/cmd/golangci-lint"
 {{ if eq .profile "work" -}}
 uv "weasyprint"
 {{- end }}
+{{ if eq .profile "personal" -}}
+uv "chordgen"        # Chord generator + spaced-repetition trainer (chorded-typing research)
+{{- end }}
