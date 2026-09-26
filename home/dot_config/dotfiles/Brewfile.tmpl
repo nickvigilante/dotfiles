@@ -37,7 +37,7 @@ brew "gum"           # Charm shell UI
 brew "just"          # Command runner / project Makefile alternative
 brew "mprocs"        # Run multiple commands in parallel
 brew "go"            # Go language
-brew "rust"          # Rust language
+brew "rustup"        # Rust toolchain manager (replaces brew rust; needed for wasm32 target)
 brew "node"          # Node.js
 brew "prettier"      # Code formatter
 brew "starship"      # Cross-shell prompt (initialized in completions.zsh)
@@ -107,6 +107,7 @@ brew "ollama"        # Local LLM runtime
 brew "coder/coder/coder" # Coder.com CLI — manages the homelab Coder deployment/templates
 brew "opentofu"      # OpenTofu — the infrastructure repo's contexts (homelab, cloudflare, coder)
 brew "kubernetes-cli" # kubectl — reach the homelab cluster and run the MCP break-glass port-forwards
+brew "wasm-pack"     # Rust->WASM packager (acchordion demo site build)
 {{- end }}
 
 # ── GUI casks (macOS + display only — Linux Homebrew has no casks) ──────────
