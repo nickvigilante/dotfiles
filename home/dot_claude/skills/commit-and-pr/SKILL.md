@@ -66,7 +66,7 @@ Assisted-by: AI
 
 ## PR bodies
 
-Format with the `markdown` skill conventions (semantic line breaks). Structure:
+Use the `markdown` skill's syntax conventions, but write prose as normal paragraphs — **not** one sentence per line (that rule is for Markdown files only). Structure:
 
 ```markdown
 ## Summary

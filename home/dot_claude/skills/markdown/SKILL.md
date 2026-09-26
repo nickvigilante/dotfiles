@@ -1,11 +1,23 @@
 ---
 name: markdown
-description: "Use whenever writing or editing ANY Markdown — READMEs, docs/, PR descriptions, notes, SKILL.md files, GitHub issues/comments. Enforces this user's conventions: one sentence per line (never column-wrapped, never clause-split) and clean CommonMark/GFM syntax."
+description: "Use whenever writing or editing Markdown files (.md, .mdx, SKILL.md, and similar) — READMEs, docs/, notes. Enforces this user's conventions: one sentence per line in files (never column-wrapped, never clause-split) and clean CommonMark/GFM syntax. Also covers syntax for GitHub issue/PR bodies and comments, which are written as normal paragraphs, not one sentence per line."
 ---
 
 # Writing Markdown (this user's conventions)
 
-## One sentence per line (the important one)
+## Where one sentence per line applies
+
+Only in Markdown **files** on disk: `.md`, `.mdx`, `SKILL.md`, and similar Markdown-like files.
+
+Everything that is posted rather than committed as a file is written as **normal paragraphs** (several sentences per line, one blank line between paragraphs):
+
+- GitHub issue and PR bodies, and review comments and replies.
+- Linear issues and comments, Slack messages.
+- Commit messages (see the `commit-and-pr` skill).
+
+The syntax conventions below (headings, lists, fenced code, tables) still apply everywhere.
+
+## One sentence per line (Markdown files)
 
 Exactly one full sentence per line — NOT SemBr: never split a sentence at clause boundaries, however long it runs.
 Let the renderer soft-wrap; never hard-wrap prose at 80/100 columns.
