@@ -198,6 +198,7 @@ vscode "golang.go"
 {{ if eq .profile "personal" -}}
 cargo "cargo-edit"          # `cargo upgrade` to bump dep versions
 cargo "bws"                 # Bitwarden Secrets Manager CLI (no Homebrew formula); used by the infrastructure repo's coder/tofu.sh
+cargo "cargo-audit"         # Checks Cargo.lock against the RustSec advisory database
 {{- end }}
 
 # ── Go tools (work: primary Go dev) ──────────────────────────────────────────
