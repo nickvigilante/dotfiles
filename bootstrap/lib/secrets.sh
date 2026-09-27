@@ -85,10 +85,10 @@ install_bw() {
 		# Earlier versions of this bootstrap did a direct-zip install of
 		# Bitwarden CLI to ~/.local/bin/bw. The pinned version is now too
 		# stale for Bitwarden's server, which rejects logins with
-		# "Please update your app". Remove the legacy binary so the snap
+		# "Please update your app". Remove the legacy binary so the brew
 		# install path below takes over.
 		if [[ "$DETECTED_OS" == "linux" ]] && [[ "$existing_bw" == "$HOME/.local/bin/bw" ]]; then
-			echo "Removing legacy Bitwarden CLI at $existing_bw (snap will replace it)..."
+			echo "Removing legacy Bitwarden CLI at $existing_bw (brew will replace it)..."
 			rm -f "$existing_bw"
 		else
 			echo "✓ Bitwarden CLI already installed: $(bw --version)"
@@ -107,28 +107,21 @@ install_bw() {
 			case "$DETECTED_ARCH" in
 				amd64 | arm64) ;;
 				*)
-					echo "ERROR: Bitwarden CLI unsupported on 32-bit ARM (no snap or Linuxbrew)." >&2
+					echo "ERROR: Bitwarden CLI unsupported on 32-bit ARM (no Linuxbrew)." >&2
 					echo "  Use --secrets none." >&2
 					return 1
 					;;
 			esac
-			if ! command -v snap &> /dev/null; then
-				echo "ERROR: snapd required for Bitwarden CLI on Linux but snap is not on PATH." >&2
-				echo "  install.sh Step 3/9 should have installed it; check that step's output." >&2
+			# bitwarden-cli now comes from Homebrew (brew "bitwarden-cli" in the
+			# Brewfile), replacing the old snap — one cross-platform binary and no
+			# second `bw` on PATH fighting the brew one. Homebrew is installed
+			# earlier in bootstrap (Step 6/9), so it's available here.
+			if ! command -v brew &> /dev/null; then
+				echo "ERROR: Homebrew required for Bitwarden CLI on Linux but brew is not on PATH." >&2
+				echo "  install.sh Step 6/9 installs Homebrew; check that step's output." >&2
 				return 1
 			fi
-			# The snap binary ships in Ubuntu container images even though snapd
-			# itself never runs there (no systemd), so the check above passes and
-			# the install then dies on "cannot communicate with server". Probe the
-			# daemon's socket, not just the client, before committing to an install.
-			snapd_socket="${SNAPD_SOCKET:-/run/snapd.socket}"
-			if [[ ! -S "$snapd_socket" ]]; then
-				echo "ERROR: snap is on PATH but snapd is not running ($snapd_socket absent)." >&2
-				echo "  Containers cannot run snapd; this is expected there. Use --secrets none." >&2
-				return 1
-			fi
-			echo "Installing Bitwarden CLI via snap..."
-			sudo snap install bw
+			brew install bitwarden-cli
 			;;
 		*)
 			echo "WARN: Bitwarden CLI auto-install not supported on $DETECTED_OS." >&2
