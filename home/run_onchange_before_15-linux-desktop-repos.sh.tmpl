@@ -21,13 +21,20 @@ set -uo pipefail
 command -v apt-get >/dev/null || exit 0
 command -v curl >/dev/null || { echo "curl missing; skipping repo setup" >&2; exit 0; }
 
+# Prefer the SYSTEM curl (/usr/bin/curl → /etc/ssl/certs). Homebrew's curl is
+# usually first on PATH but ships its own CA bundle, which can't verify some
+# hosts (e.g. pkgs.tailscale.com fails with "unable to get local issuer
+# certificate"). Fall back to whatever curl is on PATH if the system one is gone.
+CURL=/usr/bin/curl
+[ -x "$CURL" ] || CURL="$(command -v curl)"
+
 KEYRINGS=/etc/apt/keyrings
 sudo install -d -m 0755 "$KEYRINGS"
 warn() { echo "WARN: $*" >&2; }
 
 # Fetch an ASCII-armored key and dearmor it into the keyrings dir.
 armored_key() { # armored_key <dest.gpg> <url>
-    curl -fsSL "$2" | sudo gpg --dearmor -o "$1" && sudo chmod 0644 "$1"
+    "$CURL" -fsSL "$2" | sudo gpg --dearmor -o "$1" && sudo chmod 0644 "$1"
 }
 
 # ── Google Chrome ──────────────────────────────────────────────────────────
@@ -81,7 +88,7 @@ else warn "warp key fetch failed"; fi
 # ── Tailscale (key is distributed already-dearmored) ───────────────────────
 # Suites pinned to noble (24.04 LTS): Tailscale publishes per-codename and the
 # noble packages are compatible; matches the pre-upgrade config.
-if curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | sudo tee "$KEYRINGS/tailscale-archive-keyring.gpg" >/dev/null; then
+if "$CURL" -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | sudo tee "$KEYRINGS/tailscale-archive-keyring.gpg" >/dev/null; then
     sudo chmod 0644 "$KEYRINGS/tailscale-archive-keyring.gpg"
     sudo tee /etc/apt/sources.list.d/tailscale.sources >/dev/null <<EOF
 Types: deb
