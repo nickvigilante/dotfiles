@@ -3,14 +3,14 @@
     "defaultMode": "auto",
     "allow": [
 {{- range $base, $spec := .permissions.commands }}
-    {{-   $heads := list $base }}
-    {{-   if has $base $.permissions.rtk_wraps }}{{ $heads = append $heads (printf "rtk %s" $base) }}{{ end }}
-    {{-   if hasKey $spec "extra_heads" }}{{ range $eh := $spec.extra_heads }}{{ $heads = append $heads $eh }}{{ end }}{{ end }}
-    {{-   range $head := $heads }}
-        {{-     range $arg := $spec.args }}
+    {{- $heads := list $base }}
+    {{- if has $base $.permissions.rtk_wraps }}{{ $heads = append $heads (printf "rtk %s" $base) }}{{ end }}
+    {{- if hasKey $spec "extra_heads" }}{{ range $eh := $spec.extra_heads }}{{ $heads = append $heads $eh }}{{ end }}{{ end }}
+    {{- range $head := $heads }}
+        {{- range $arg := $spec.args }}
       "Bash({{ $head }} {{ $arg }})",
-        {{-     end }}
-    {{-   end }}
+        {{- end }}
+    {{- end }}
 {{- end }}
 {{- range $tool := .permissions.rtk_only_tools }}
       "Bash(rtk {{ $tool }} *)",
