@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# run_once_after_configure-firefox-sync: point Firefox's tokenserver at the
+# self-hosted syncstorage-rs instance (homelab#225). Mozilla's Firefox
+# Accounts still handles login/auth -- this only redirects where the
+# actual sync data (history, tabs, addon settings, prefs) is stored.
+#
+# Both personal and work machines get the SAME tokenserver URL. Data stays
+# isolated per Firefox Account (whichever Mozilla account each machine logs
+# into), not per chezmoi profile -- see homelab's
+# k8s/syncstorage-rs/README.md "What actually syncs" section. Passwords and
+# autofill are excluded client-side in Firefox's own Sync settings, not by
+# anything here.
+#
+# Finds the default-release profile via installs.ini -- Firefox's own
+# authoritative install->profile mapping. Falls back to profiles.ini's
+# Default=1 profile if installs.ini is absent (older Firefox versions).
+# Using profiles.ini's own [InstallXXXX] section instead of installs.ini
+# is deliberately avoided: the two can drift out of sync with each other
+# (this is exactly what caused a blank-profile Firefox launch on this
+# machine once -- see the Firefox profile restore work), and installs.ini
+# is the one Firefox itself treats as authoritative when they disagree.
+#
+# Linux only for now. macOS/Windows are a manual about:config edit until
+# someone wants this extended -- see the README this script's own comment
+# points at.
+#
+# Exits non-zero (chezmoi retries on the next apply) if Firefox has never
+# been launched yet, so no profile directory exists.
+set -uo pipefail
+
+{{ if and (eq .chezmoi.os "linux") .display -}}
+FIREFOX_DIR="$HOME/.mozilla/firefox"
+TOKENSERVER_URI="https://firefox-sync.vigihome.net/1.0/sync/1.5"
+
+if [ ! -d "$FIREFOX_DIR" ]; then
+    echo "Firefox profile dir not found yet ($FIREFOX_DIR) -- launch Firefox once, then re-run chezmoi apply" >&2
+    exit 1
+fi
+
+PROFILE_PATH="$(python3 - "$FIREFOX_DIR" <<'PYEOF'
+import configparser
+import os
+import sys
+
+firefox_dir = sys.argv[1]
+installs_ini = os.path.join(firefox_dir, "installs.ini")
+profiles_ini = os.path.join(firefox_dir, "profiles.ini")
+
+
+def read_ini(path):
+    cfg = configparser.ConfigParser()
+    cfg.read(path)
+    return cfg
+
+
+if os.path.isfile(installs_ini):
+    cfg = read_ini(installs_ini)
+    for section in cfg.sections():
+        if cfg.has_option(section, "Default"):
+            print(cfg.get(section, "Default"))
+            sys.exit(0)
+
+if os.path.isfile(profiles_ini):
+    cfg = read_ini(profiles_ini)
+    for section in cfg.sections():
+        if (
+            section.startswith("Profile")
+            and cfg.has_option(section, "Default")
+            and cfg.get(section, "Default") == "1"
+        ):
+            print(cfg.get(section, "Path"))
+            sys.exit(0)
+
+sys.exit(1)
+PYEOF
+)"
+
+if [ -z "$PROFILE_PATH" ]; then
+    echo "Could not determine the default Firefox profile from installs.ini or profiles.ini -- launch Firefox once, then re-run chezmoi apply" >&2
+    exit 1
+fi
+
+PROFILE_DIR="$FIREFOX_DIR/$PROFILE_PATH"
+if [ ! -d "$PROFILE_DIR" ]; then
+    echo "Profile dir '$PROFILE_DIR' named in installs.ini/profiles.ini does not exist -- re-run chezmoi apply after Firefox has launched" >&2
+    exit 1
+fi
+
+USER_JS="$PROFILE_DIR/user.js"
+PREF_LINE="user_pref(\"identity.sync.tokenserver.uri\", \"$TOKENSERVER_URI\");"
+
+# Idempotent: drop any existing line for this pref, then append the current
+# one. Avoids sed delimiter/escaping concerns entirely -- simpler to reason
+# about than an in-place substitution for a file that's otherwise untouched.
+if [ -f "$USER_JS" ]; then
+    grep -v '^user_pref("identity.sync.tokenserver.uri"' "$USER_JS" >"$USER_JS.tmp" || true
+    mv "$USER_JS.tmp" "$USER_JS"
+fi
+printf '%s\n' "$PREF_LINE" >>"$USER_JS"
+
+echo "Firefox tokenserver set to $TOKENSERVER_URI in $USER_JS"
+{{- end }}
