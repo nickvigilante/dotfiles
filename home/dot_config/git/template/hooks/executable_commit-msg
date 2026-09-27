@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# See hooks/pre-commit (seeded alongside this file) for why this exists and
+# what overwrites it. Covers repos whose .pre-commit-config.yaml declares a
+# commit-msg hook (e.g. this dotfiles repo's own AI-attribution guard).
+set -euo pipefail
+
+if [ -f .pre-commit-config.yaml ] && command -v pre-commit > /dev/null 2>&1; then
+	exec pre-commit run --hook-stage commit-msg --commit-msg-filename "$1"
+fi
+
+exit 0
