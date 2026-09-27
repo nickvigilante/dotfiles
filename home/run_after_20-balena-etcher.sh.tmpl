@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# run_after_20-balena-etcher: keep balenaEtcher current from its GitHub releases.
+# balena retired their apt repo, so the .deb is fetched from GitHub. Runs each
+# apply, compares the latest published release to the installed version, and
+# installs only when they differ. Best-effort: any failure warns and never
+# aborts `chezmoi apply`.
+set -uo pipefail
+
+{{ if and (eq .chezmoi.os "linux") (ne .machine "pi") .display -}}
+command -v curl >/dev/null && command -v dpkg-query >/dev/null || exit 0
+
+api="https://api.github.com/repos/balena-io/etcher/releases/latest"
+
+installed="$(dpkg-query -W -f='${Version}' balena-etcher 2>/dev/null || true)"
+json="$(curl -fsSL "$api" 2>/dev/null || true)"
+[ -n "$json" ] || { echo "WARN: balenaEtcher: could not query GitHub releases" >&2; exit 0; }
+
+# Latest release version (tag_name, leading v stripped).
+latest="$(printf '%s' "$json" | grep -oP '"tag_name":\s*"v?\K[^"]+' | head -1)"
+[ -n "$latest" ] || { echo "WARN: balenaEtcher: could not parse latest tag" >&2; exit 0; }
+
+# Already current? Compare on the leading x.y.z (dpkg version may carry -/~ suffix).
+[ "${installed%%[-~]*}" = "$latest" ] && exit 0
+
+deb_url="$(printf '%s' "$json" | grep -oP '"browser_download_url":\s*"\K[^"]*amd64\.deb' | head -1)"
+[ -n "$deb_url" ] || { echo "WARN: balenaEtcher: no amd64 .deb asset in $latest" >&2; exit 0; }
+
+echo "==> balenaEtcher ${installed:-none} -> ${latest}: installing..."
+tmp="$(mktemp --suffix=.deb)"
+if curl -fsSL "$deb_url" -o "$tmp"; then
+    # apt-get installs a local .deb by path and resolves its dependencies.
+    sudo apt-get install -y "$tmp" || echo "WARN: balenaEtcher install failed" >&2
+fi
+rm -f "$tmp"
+{{- end }}
