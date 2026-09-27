@@ -9,3 +9,8 @@ ca-certificates
 file
 procps-ng
 gnupg2
+
+# Desktop apps on Fedora (when a graphical Fedora machine is set up — there is
+# no Fedora desktop package path yet, this is a breadcrumb):
+#   ghostty  -> `dnf copr enable scottames/ghostty && dnf install ghostty`
+#              (Ubuntu 26.04+ gets ghostty from the official archive instead)

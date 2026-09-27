@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# run_onchange_before_15-linux-desktop-repos: provision third-party apt repos and
+# Flatpak/Flathub for graphical Linux machines. Runs in the *before* group so the
+# package installer (run_after_install-packages.sh, which installs packages.apt)
+# and `brew bundle` (which installs the Brewfile's flatpak GUI apps) can resolve.
+#
+# Ubuntu 26.04's release-upgrade disabled the previously-configured third-party
+# repos (renamed to *.save). This reconstructs them declaratively in deb822 form
+# with keys fetched fresh, so a clean machine reproduces them.
+#
+# Ghostty is deliberately NOT here: it ships in Ubuntu's official archive on
+# 26.04+ (plain `apt install ghostty`); on Fedora it's COPR scottames/ghostty
+# (see os/linux/bootstrap.dnf).
+#
+# Best-effort: a single repo failing warns and continues rather than aborting
+# `chezmoi apply` (an aborted apply also skips the run_after package install).
+
+set -uo pipefail
+
+{{ if and (eq .chezmoi.os "linux") (ne .machine "pi") .display -}}
+command -v apt-get >/dev/null || exit 0
+command -v curl >/dev/null || { echo "curl missing; skipping repo setup" >&2; exit 0; }
+
+KEYRINGS=/etc/apt/keyrings
+sudo install -d -m 0755 "$KEYRINGS"
+warn() { echo "WARN: $*" >&2; }
+
+# Fetch an ASCII-armored key and dearmor it into the keyrings dir.
+armored_key() { # armored_key <dest.gpg> <url>
+    curl -fsSL "$2" | sudo gpg --dearmor -o "$1" && sudo chmod 0644 "$1"
+}
+
+# ── Google Chrome ──────────────────────────────────────────────────────────
+if armored_key "$KEYRINGS/google-chrome.gpg" https://dl.google.com/linux/linux_signing_key.pub; then
+    sudo tee /etc/apt/sources.list.d/google-chrome.sources >/dev/null <<EOF
+Types: deb
+URIs: https://dl.google.com/linux/chrome/deb/
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: $KEYRINGS/google-chrome.gpg
+EOF
+else warn "google-chrome key fetch failed"; fi
+
+# ── Microsoft VS Code ──────────────────────────────────────────────────────
+if armored_key "$KEYRINGS/packages.microsoft.gpg" https://packages.microsoft.com/keys/microsoft.asc; then
+    sudo tee /etc/apt/sources.list.d/vscode.sources >/dev/null <<EOF
+Types: deb
+URIs: https://packages.microsoft.com/repos/code
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: $KEYRINGS/packages.microsoft.gpg
+EOF
+else warn "vscode key fetch failed"; fi
+
+# ── Signal Desktop ─────────────────────────────────────────────────────────
+if armored_key "$KEYRINGS/signal-desktop.gpg" https://updates.signal.org/desktop/apt/keys.asc; then
+    sudo tee /etc/apt/sources.list.d/signal.sources >/dev/null <<EOF
+Types: deb
+URIs: https://updates.signal.org/desktop/apt
+Suites: xenial
+Components: main
+Architectures: amd64
+Signed-By: $KEYRINGS/signal-desktop.gpg
+EOF
+else warn "signal key fetch failed"; fi
+
+# ── Warp ───────────────────────────────────────────────────────────────────
+if armored_key "$KEYRINGS/warpdotdev.gpg" https://releases.warp.dev/linux/keys/warp.asc; then
+    sudo tee /etc/apt/sources.list.d/warpdotdev.sources >/dev/null <<EOF
+Types: deb
+URIs: https://releases.warp.dev/linux/deb
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: $KEYRINGS/warpdotdev.gpg
+EOF
+else warn "warp key fetch failed"; fi
+
+# ── Tailscale (key is distributed already-dearmored) ───────────────────────
+# Suites pinned to noble (24.04 LTS): Tailscale publishes per-codename and the
+# noble packages are compatible; matches the pre-upgrade config.
+if curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | sudo tee "$KEYRINGS/tailscale-archive-keyring.gpg" >/dev/null; then
+    sudo chmod 0644 "$KEYRINGS/tailscale-archive-keyring.gpg"
+    sudo tee /etc/apt/sources.list.d/tailscale.sources >/dev/null <<EOF
+Types: deb
+URIs: https://pkgs.tailscale.com/stable/ubuntu
+Suites: noble
+Components: main
+Signed-By: $KEYRINGS/tailscale-archive-keyring.gpg
+EOF
+else warn "tailscale key fetch failed"; fi
+
+# ── Flatpak + Flathub (for the Brewfile's `flatpak` GUI entries) ───────────
+if ! command -v flatpak >/dev/null; then
+    sudo apt-get update -qq && sudo apt-get install -y flatpak || warn "flatpak install failed"
+fi
+if command -v flatpak >/dev/null; then
+    sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo || warn "flathub remote-add failed"
+fi
+
+sudo apt-get update -qq || warn "apt-get update failed"
+{{- end }}
