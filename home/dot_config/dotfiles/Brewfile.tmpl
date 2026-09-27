@@ -36,7 +36,6 @@ brew "chezmoi"       # Dotfiles manager
 brew "gum"           # Charm shell UI
 brew "just"          # Command runner / project Makefile alternative
 brew "mprocs"        # Run multiple commands in parallel
-brew "go"            # Go language
 brew "rustup"        # Rust toolchain manager (replaces brew rust; needed for wasm32 target)
 brew "node"          # Node.js
 brew "prettier"      # Code formatter
@@ -49,6 +48,10 @@ brew "glow"          # Markdown renderer for the terminal
 brew "sd"            # sed replacement: PCRE syntax, no GNU/BSD -i divergence
 brew "make"          # GNU make (macOS ships 3.81; use as `make` via libexec/gnubin)
 brew "gnu-getopt"    # GNU getopt with long-option support (keg-only)
+brew "yq"            # YAML/JSON/XML processor (the "jq for YAML")
+brew "nmap"          # Network/port scanner
+brew "f3"            # Flash-media fake-capacity tester (f3probe/f3write/f3read)
+brew "cmake"         # C/C++ build-system generator
 
 # Repo quality gate (CI + pre-commit) — see docs/superpowers/plans/2026-06-22-repo-housekeeping-ci.md
 brew "actionlint"        # GitHub Actions workflow linter
@@ -69,11 +72,7 @@ brew "gnupg"         # (already above; macOS sometimes needs explicit)
 
 # ── Secrets CLIs ─────────────────────────────────────────────────────────────
 {{ if or (eq .secrets "bitwarden") (eq .secrets "both") -}}
-{{- /* Linux gets bw from snap (see bootstrap/install.sh Step 3/9); installing
-       it here too would put a second binary on PATH, fighting with the snap. */ -}}
-{{- if eq .chezmoi.os "darwin" }}
-brew "bitwarden-cli"
-{{- end }}
+brew "bitwarden-cli"    # bw CLI — one cross-platform binary (replaces the Linux snap)
 {{- end }}
 {{ if or (eq .secrets "1password") (eq .secrets "both") -}}
 {{- if eq .chezmoi.os "darwin" }}
@@ -85,8 +84,8 @@ brew "1password-cli"
 
 # ── Work-only formulae ───────────────────────────────────────────────────────
 {{ if eq .profile "work" -}}
+brew "go"               # Go language (work-only; personal pushes Go dev to Coder workspaces)
 brew "vale"             # Prose linter
-brew "cmake"            # Build tool (TileDB C++)
 brew "coder/coder/coder" # Coder.com remote dev
 brew "openapi-generator"
 brew "halibut"          # Document preparation
@@ -103,12 +102,13 @@ brew "tailscale"        # Mesh VPN (CLI)
 # ── Personal-only formulae ───────────────────────────────────────────────────
 {{ if eq .profile "personal" -}}
 brew "fish"          # Friendly shell (alternative)
-brew "ollama"        # Local LLM runtime
+brew "podman"        # Container runtime (replaces Docker; rootless/daemonless)
 brew "coder/coder/coder" # Coder.com CLI — manages the homelab Coder deployment/templates
 brew "opentofu"      # OpenTofu — the infrastructure repo's contexts (homelab, cloudflare, coder)
 brew "kubernetes-cli" # kubectl — reach the homelab cluster and run the MCP break-glass port-forwards
 brew "wasm-pack"     # Rust->WASM packager (typhony demo site build)
 {{- end }}
+# Windows (separate setup): add `winget "RedHat.Podman"` gated to `.chezmoi.os "windows"`.
 
 # ── GUI casks (macOS + display only — Linux Homebrew has no casks) ──────────
 {{ if and .display (eq .chezmoi.os "darwin") -}}
@@ -144,7 +144,6 @@ cask "dolphin"            # GameCube/Wii emulator
 cask "freetube"           # YouTube client
 cask "joplin"             # Note-taking
 cask "libreoffice"
-cask "ollama-app"
 cask "proton-drive"
 cask "proton-mail"
 cask "protonvpn"
@@ -192,6 +191,22 @@ vscode "golang.go"
 # for the curated list of MAS apps used on this setup.
 {{- end }}
 
+# ── Linux GUI apps (Flatpak; display + Linux) ───────────────────────────────
+# Homebrew has no casks on Linux, so GUI apps come from Flathub via brew bundle's
+# native `flatpak` type. Mirrors the personal macOS casks above. Requires the
+# `flathub` remote (added by the Linux desktop bootstrap).
+{{ if and .display (eq .chezmoi.os "linux") (eq .profile "personal") -}}
+flatpak "com.bitwarden.desktop"    # Bitwarden password manager (GUI)
+flatpak "com.discordapp.Discord"   # Discord
+flatpak "org.mozilla.firefox"      # Firefox
+flatpak "net.cozic.joplin_desktop" # Joplin notes
+flatpak "org.videolan.VLC"         # VLC media player
+flatpak "org.keepassxc.KeePassXC"  # KeePassXC
+flatpak "org.kde.okular"           # Okular document viewer
+flatpak "org.chromium.Chromium"    # Chromium
+flatpak "com.valvesoftware.Steam"  # Steam
+{{- end }}
+
 # ── Cargo crates (personal: primary Rust dev) ────────────────────────────────
 # These compile from source via cargo, so we only install on machines that
 # actually do Rust development. Add ad-hoc with `brew install cargo-edit`
@@ -208,6 +223,10 @@ go "github.com/golangci/golangci-lint/cmd/golangci-lint"
 {{- end }}
 
 # ── uv-installed Python tools ────────────────────────────────────────────────
+uv "headroom-ai"        # Claude Code context-compression tool (provides `headroom`)
 {{ if eq .profile "work" -}}
 uv "weasyprint"
 {{- end }}
+
+# ── npm global tools ─────────────────────────────────────────────────────────
+npm "@earendil-works/pi-coding-agent"   # pi coding agent CLI
