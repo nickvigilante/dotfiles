@@ -259,7 +259,7 @@ jobs:
         run: ./tests/chezmoiignore-matrix.sh home/.chezmoiignore
 
   chezmoi-apply-dry-run:
-    name: "chezmoi dry-run (${{ matrix.profile }}/${{ matrix.machine }})"
+    name: "chezmoi dry-run (${{ matrix.profile }}/${{ matrix.machine }}/${{ matrix.label }})"
     runs-on: ${{ matrix.os }}
     env:
       # Pinned to match the other chezmoi jobs above, so the three cannot drift.
@@ -270,13 +270,37 @@ jobs:
         include:
           # Ubuntu — covers linux-gated blocks (snap, flatpak, apt repos) and
           # all machine roles that have distinct template branches.
-          - { os: ubuntu-latest, profile: personal, machine: laptop,    display: true  }
-          - { os: ubuntu-latest, profile: personal, machine: server,    display: false }
-          - { os: ubuntu-latest, profile: personal, machine: ephemeral, display: false }
-          - { os: ubuntu-latest, profile: work,     machine: laptop,    display: true  }
+          - os: ubuntu-latest
+            profile: personal
+            machine: laptop
+            display: true
+            label: ubuntu
+          - os: ubuntu-latest
+            profile: personal
+            machine: server
+            display: false
+            label: ubuntu
+          - os: ubuntu-latest
+            profile: personal
+            machine: ephemeral
+            display: false
+            label: ubuntu
+          - os: ubuntu-latest
+            profile: work
+            machine: laptop
+            display: true
+            label: ubuntu
           # macOS — covers darwin-gated cask / mas / GNU-utils blocks.
-          - { os: macos-latest,  profile: personal, machine: laptop,    display: true  }
-          - { os: macos-latest,  profile: work,     machine: laptop,    display: true  }
+          - os: macos-latest
+            profile: personal
+            machine: laptop
+            display: true
+            label: macos
+          - os: macos-latest
+            profile: work
+            machine: laptop
+            display: true
+            label: macos
     steps:
       - uses: actions/checkout@v4
         with:
@@ -340,3 +364,26 @@ jobs:
           EOF
           chezmoi apply --dry-run --no-pager --exclude=externals \
             --config "$tmp/chezmoi.toml"
+
+  # ── Required gate ───────────────────────────────────────────────────────────
+  # A single job branch-protection can require, instead of listing every matrix
+  # cell individually. Runs with `if: always()` so it never gets skipped by a
+  # failing upstream job. Treats "skipped" as OK — commit-messages is skipped
+  # on push to main because it is PR-only.
+  ci:
+    name: ci
+    if: always()
+    needs: [lint, actionlint, commit-messages, chezmoi-matrix, chezmoi-apply-dry-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required jobs passed
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          set -euo pipefail
+          echo "Results: $RESULTS"
+          if printf '%s' "$RESULTS" | grep -qE '"(failure|cancelled)"'; then
+            echo "error: one or more required jobs failed or were cancelled" >&2
+            exit 1
+          fi
+          echo "All required jobs passed or were skipped."
