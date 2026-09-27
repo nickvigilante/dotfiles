@@ -163,7 +163,7 @@ chezmoi() {
 
     if [[ "$_skip" == true ]]; then
         echo "Applying without Bitwarden — vault-dependent files will not be updated."
-        command chezmoi apply --data secrets=none "${_passthrough[@]}"
+        command chezmoi apply --override-data '{"secrets":"none"}' "${_passthrough[@]}"
     else
         command chezmoi apply "${_passthrough[@]}"
     fi
