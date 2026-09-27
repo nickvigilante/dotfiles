@@ -196,15 +196,20 @@ vscode "golang.go"
 # native `flatpak` type. Mirrors the personal macOS casks above. Requires the
 # `flathub` remote (added by the Linux desktop bootstrap).
 {{ if and .display (eq .chezmoi.os "linux") (eq .profile "personal") -}}
-flatpak "com.bitwarden.desktop"    # Bitwarden password manager (GUI)
-flatpak "com.discordapp.Discord"   # Discord
-flatpak "org.mozilla.firefox"      # Firefox
-flatpak "net.cozic.joplin_desktop" # Joplin notes
-flatpak "org.videolan.VLC"         # VLC media player
-flatpak "org.keepassxc.KeePassXC"  # KeePassXC
-flatpak "org.kde.okular"           # Okular document viewer
-flatpak "org.chromium.Chromium"    # Chromium
-flatpak "com.valvesoftware.Steam"  # Steam
+flatpak "com.bitwarden.desktop"             # Bitwarden password manager (GUI)
+flatpak "com.discordapp.Discord"            # Discord
+flatpak "net.cozic.joplin_desktop"          # Joplin notes
+flatpak "org.videolan.VLC"                  # VLC media player
+flatpak "org.keepassxc.KeePassXC"           # KeePassXC
+flatpak "org.kde.okular"                    # Okular document viewer
+flatpak "org.chromium.Chromium"             # Chromium
+flatpak "com.valvesoftware.Steam"           # Steam
+flatpak "com.orcaslicer.OrcaSlicer"        # OrcaSlicer 3D printing slicer
+flatpak "com.rustdesk.RustDesk"            # RustDesk remote desktop (mirrors macOS cask)
+flatpak "org.gnome.Extensions"             # GNOME Extensions manager
+flatpak "org.gnome.gitlab.somas.Apostrophe" # Apostrophe Markdown editor
+flatpak "org.libreoffice.LibreOffice"      # LibreOffice office suite (mirrors macOS cask)
+flatpak "com.github.flxzt.rnote"           # Rnote handwriting / stylus notes app
 {{- end }}
 
 # ── Cargo crates (personal: primary Rust dev) ────────────────────────────────

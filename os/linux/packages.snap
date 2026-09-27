@@ -4,9 +4,15 @@
 # ONLY apps whose official/best Linux channel is the Snap Store belong here —
 # everything else is a Brewfile `flatpak` (Flathub), a vendor apt repo
 # (packages.apt), or a GitHub .deb installer. Keep this list minimal.
-#   raindrop -> Raindrop.io (official snap; no maintained Flathub app)
-#   todoist  -> Todoist (official snap by Doist; no official Flathub app)
+#   raindrop        -> Raindrop.io (official snap; no maintained Flathub app)
+#   signal-desktop  -> Signal (official snap; apt repo only covers Debian/Ubuntu)
+#   todoist         -> Todoist (official snap by Doist; no official Flathub app)
+#
+# The installer skips any package already installed via dpkg on apt-based
+# distros (e.g. signal-desktop from the Signal apt repo on Ubuntu/Debian),
+# so apt-based and RPM-based machines converge on the same packages.snap file.
 #
 # Names only, one per line — the installer extracts via `grep -Ev '^#|^$'`.
 raindrop
+signal-desktop
 todoist
