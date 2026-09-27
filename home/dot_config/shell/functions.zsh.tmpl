@@ -73,36 +73,63 @@ venv-here() {
 
 {{ if or (eq .secrets "bitwarden") (eq .secrets "both") -}}
 # _bw_ensure_session: bring the vault to an unlocked state, prompting via gum.
-# Writes BW_SESSION to the caller's environment on success; returns 1 on failure
-# or when the user explicitly declines.  Never calls `chezmoi apply`.
+# Writes BW_SESSION to the caller's environment on success; returns 1 when the
+# user declines or gives up.  Retries on bad password until the user says no.
+# Never calls `chezmoi apply`.
 _bw_ensure_session() {
     if ! command -v bw &>/dev/null; then
         echo "bw not found — install: brew install bitwarden-cli" >&2
         return 1
     fi
-    local _state
+    local _state _session
     _state="$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
+    [[ "$_state" == "unlocked" ]] && return 0
+
+    # Ask once before the first attempt.
     case "$_state" in
-        unlocked)
-            return 0
-            ;;
         locked)
             if command -v gum &>/dev/null; then
                 gum confirm "Bitwarden vault is locked. Unlock now?" || return 1
             fi
-            export BW_SESSION
-            BW_SESSION="$(bw unlock --raw)" || return 1
             ;;
         *)
             # unauthenticated — bw unlock would just fail; must log in first
             if command -v gum &>/dev/null; then
                 gum confirm --default=false "Bitwarden: not logged in. Log in now?" || return 1
             fi
-            bw login || return 1
-            export BW_SESSION
-            BW_SESSION="$(bw unlock --raw)" || return 1
             ;;
     esac
+
+    # Attempt loop: retry on failure until the user declines.
+    while true; do
+        _state="$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
+        case "$_state" in
+            unlocked)
+                return 0
+                ;;
+            locked)
+                if _session="$(bw unlock --raw)"; then
+                    BW_SESSION="$_session"
+                    export BW_SESSION
+                    return 0
+                fi
+                ;;
+            *)
+                if _session="$(bw login --raw)"; then
+                    BW_SESSION="$_session"
+                    export BW_SESSION
+                    return 0
+                fi
+                ;;
+        esac
+
+        # Attempt failed — offer retry; no means skip secrets.
+        if command -v gum &>/dev/null; then
+            gum confirm "Authentication failed. Try again?" --default=false || return 1
+        else
+            return 1
+        fi
+    done
 }
 
 # Wrap `chezmoi apply` to prompt for Bitwarden state before applying.
