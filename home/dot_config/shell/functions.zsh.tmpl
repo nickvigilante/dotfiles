@@ -106,6 +106,7 @@ _bw_ensure_session() {
 }
 
 # Wrap `chezmoi apply` to prompt for Bitwarden state before applying.
+# Supports --skip-secrets to bypass prompts and apply without vault access.
 # If the user declines to unlock/log-in, applies with secrets=none so
 # vault-gated files (e.g. ~/.kube/homelab.yaml) are skipped rather than
 # causing a hard failure.  All other chezmoi subcommands pass through unchanged.
@@ -115,18 +116,29 @@ chezmoi() {
         return
     fi
 
-    local _state _skip=false
-    _state="$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
+    # Strip --skip-secrets (our extension) from the args before forwarding.
+    local _skip=false _passthrough=()
+    for _arg in "${@:2}"; do
+        if [[ "$_arg" == "--skip-secrets" ]]; then
+            _skip=true
+        else
+            _passthrough+=("$_arg")
+        fi
+    done
 
-    if [[ "$_state" != "unlocked" ]]; then
-        _bw_ensure_session || _skip=true
+    if [[ "$_skip" == false ]]; then
+        local _state
+        _state="$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
+        if [[ "$_state" != "unlocked" ]]; then
+            _bw_ensure_session || _skip=true
+        fi
     fi
 
     if [[ "$_skip" == true ]]; then
         echo "Applying without Bitwarden — vault-dependent files will not be updated."
-        command chezmoi apply --data secrets=none "${@:2}"
+        command chezmoi apply --data secrets=none "${_passthrough[@]}"
     else
-        command chezmoi "$@"
+        command chezmoi apply "${_passthrough[@]}"
     fi
 }
 
