@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# run_onchange_before_16-linux-desktop-repos-dnf: provision third-party DNF repos
+# for graphical Fedora/RHEL machines. Runs in the *before* group so the package
+# installer (run_after_19-linux-desktop-dnf.sh) can resolve the packages.
+#
+# Mirrors the pattern of run_onchange_before_15-linux-desktop-repos.sh (apt),
+# but guards on `dnf` instead of `apt-get` so the two scripts are independent.
+#
+# Best-effort: a single repo failing warns and continues rather than aborting
+# `chezmoi apply` (an aborted apply also skips the run_after package install).
+
+set -uo pipefail
+
+{{ if and (eq .chezmoi.os "linux") (ne .machine "pi") .display -}}
+command -v dnf >/dev/null || exit 0
+command -v curl >/dev/null || { echo "curl missing; skipping DNF repo setup" >&2; exit 0; }
+
+CURL=/usr/bin/curl
+[ -x "$CURL" ] || CURL="$(command -v curl)"
+
+warn() { echo "WARN: $*" >&2; }
+
+# ── Microsoft VS Code ──────────────────────────────────────────────────────────
+if sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null; then
+    sudo tee /etc/yum.repos.d/vscode.repo >/dev/null <<'EOF'
+[code]
+name=Visual Studio Code
+baseurl=https://packages.microsoft.com/yumrepos/vscode
+enabled=1
+autorefresh=1
+type=rpm-md
+gpgcheck=1
+gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+EOF
+else warn "vscode Microsoft key import failed"; fi
+
+{{- end }}

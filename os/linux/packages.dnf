@@ -1,0 +1,16 @@
+# Desktop/dev DNF packages for graphical Fedora/RHEL machines (display = true).
+# Installed by run_after_19-linux-desktop-dnf.sh (stamp-and-compare).
+# Distinct from bootstrap.dnf: those are minimal pre-Homebrew prereqs on EVERY
+# Fedora machine; these are packages only a machine with a display needs.
+#
+# The vendor-repo apps below need their DNF repos, which are provisioned
+# first by run_onchange_before_16-linux-desktop-repos-dnf.sh (runs in the
+# *before* group). GUI apps available on Flathub come from the Brewfile's
+# `flatpak` entries instead; only apps whose best Fedora channel is a vendor
+# DNF repo live here.
+#
+# Names only, one per line — the installer extracts via `grep -Ev '^#|^$'`.
+
+# Vendor-repo desktop apps (repos set up by the before-hook above):
+#   code (VS Code) -> packages.microsoft.com/yumrepos/vscode
+code

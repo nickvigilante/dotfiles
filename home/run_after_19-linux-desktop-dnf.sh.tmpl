@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# run_after_19-linux-desktop-dnf: install the DNF packages for graphical
+# Fedora/RHEL machines (os/linux/packages.dnf). Stamp-and-compare on
+# packages.dnf, like the snap and Pi apt blocks.
+# Gated linux + display + non-pi + dnf available. Best-effort: a failed
+# install warns and leaves the stamp unwritten so it retries next apply.
+set -uo pipefail
+
+{{ if and (eq .chezmoi.os "linux") (ne .machine "pi") .display -}}
+command -v dnf >/dev/null || exit 0
+
+REPO_DIR="{{ .chezmoi.sourceDir }}/.."
+PKG_FILE="$REPO_DIR/os/linux/packages.dnf"
+STAMP_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
+STAMP_FILE="$STAMP_DIR/linux-dnf-packages.stamp"
+
+[ -f "$PKG_FILE" ] || exit 0
+mkdir -p "$STAMP_DIR"
+
+current_hash="$(sha256sum "$PKG_FILE" | awk '{print $1}')"
+last_hash="$(cat "$STAMP_FILE" 2>/dev/null || echo "")"
+[ "$current_hash" = "$last_hash" ] && exit 0
+
+echo "==> DNF packages changed — syncing..."
+ok=1
+while read -r pkg; do
+    rpm -q "$pkg" &>/dev/null && continue
+    sudo dnf install -y "$pkg" || { echo "WARN: dnf install $pkg failed" >&2; ok=0; }
+done < <(grep -Ev '^#|^$' "$PKG_FILE")
+
+[ "$ok" = 1 ] && echo "$current_hash" > "$STAMP_FILE"
+{{- end }}
