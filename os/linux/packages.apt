@@ -1,0 +1,17 @@
+# Desktop/dev apt packages for graphical Linux machines (display = true).
+# Installed by run_after_install-packages.sh (stamp-and-compare, like the Pi).
+# Distinct from bootstrap.apt: those are minimal pre-Homebrew prereqs on EVERY
+# Linux machine; these are system libraries only a machine with a display needs
+# — headless servers and Coder workspaces never get them.
+#
+# System libraries belong in apt, not the Brewfile: a Homebrew libX11 under
+# /home/linuxbrew would shadow the system one the running X server uses.
+
+# X11 development headers — needed to build native crates that link libX11 via
+# pkg-config (rdev: Xlib/XRecord/XInput; enigo: xkbcommon). Without these,
+# cargo build fails on `x11.pc'/`xkbcommon.pc' not found.
+libx11-dev
+libxtst-dev
+libxi-dev
+libxkbcommon-dev
+libxkbcommon-x11-dev

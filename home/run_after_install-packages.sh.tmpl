@@ -59,6 +59,31 @@ echo "DOTFILES_IMAGE_BUILD set; package installation is handled by the image's o
 exit 0
 {{- end }}
 
+{{ if and (eq .chezmoi.os "linux") (ne .machine "pi") .display -}}
+# Desktop/dev apt system libraries (X11 dev headers, etc.) for graphical Linux
+# machines. Stamp-and-compare like the Pi branch so an edit to packages.apt
+# re-triggers the install; no early exit — Homebrew packages still install below.
+DESKTOP_PKG_FILE="$REPO_DIR/os/linux/packages.apt"
+DESKTOP_STAMP_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
+DESKTOP_STAMP_FILE="$DESKTOP_STAMP_DIR/linux-desktop-packages.stamp"
+
+if [[ -f "$DESKTOP_PKG_FILE" ]] && command -v apt-get &>/dev/null; then
+    mkdir -p "$DESKTOP_STAMP_DIR"
+    current_hash=$(sha256sum "$DESKTOP_PKG_FILE" | awk '{print $1}')
+    last_hash=$(cat "$DESKTOP_STAMP_FILE" 2>/dev/null || echo "")
+    if [[ "$current_hash" != "$last_hash" ]]; then
+        echo "==> Desktop apt packages changed — syncing..."
+        sudo apt-get update -qq
+        # shellcheck disable=SC2046
+        if sudo apt-get install -y $(grep -Ev '^#|^$' "$DESKTOP_PKG_FILE"); then
+            echo "$current_hash" > "$DESKTOP_STAMP_FILE"
+        else
+            style_fail "Some desktop apt packages failed to install; will retry next apply."
+        fi
+    fi
+fi
+{{- end }}
+
 BREWFILE="$HOME/.config/dotfiles/Brewfile"
 
 if [[ ! -f "$BREWFILE" ]]; then

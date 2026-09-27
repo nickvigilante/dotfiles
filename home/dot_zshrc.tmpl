@@ -54,6 +54,18 @@ source "$SHELL_CONFIG/aliases_linux.zsh"
 export DOCKER_HOST="unix://${HOME}/.config/colima/default/docker.sock"
 {{- end }}
 
+# Linux-specific environment
+{{- if eq .chezmoi.os "linux" }}
+# Homebrew's pkg-config searches only brew's own prefix, so crates that link
+# system libraries (X11, etc.) can't find their .pc files. Prepend the system
+# pkg-config dirs that actually exist so `cargo build` resolves them.
+for _pcdir in "/usr/lib/$(uname -m)-linux-gnu/pkgconfig" /usr/lib/pkgconfig /usr/share/pkgconfig; do
+    [[ -d $_pcdir ]] && PKG_CONFIG_PATH="${PKG_CONFIG_PATH:+$PKG_CONFIG_PATH:}$_pcdir"
+done
+export PKG_CONFIG_PATH
+unset _pcdir
+{{- end }}
+
 # Profile-specific configuration
 {{- if eq .profile "work" }}
 source "$SHELL_CONFIG/work.zsh"
