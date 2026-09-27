@@ -25,6 +25,13 @@ echo "==> Snap apps changed — syncing..."
 ok=1
 while read -r pkg; do
     snap list "$pkg" &>/dev/null && continue
+    # On apt-based distros, skip packages already installed via dpkg
+    # (e.g. signal-desktop from the Signal apt repo on Ubuntu/Debian).
+    if command -v dpkg-query >/dev/null 2>&1 \
+        && dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'install ok installed'; then
+        echo "==> $pkg already installed via dpkg, skipping snap"
+        continue
+    fi
     sudo snap install "$pkg" || { echo "WARN: snap install $pkg failed" >&2; ok=0; }
 done < <(grep -Ev '^#|^$' "$PKG_FILE")
 
