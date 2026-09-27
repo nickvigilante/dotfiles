@@ -102,7 +102,7 @@ git worktree add .worktrees/<branch-name> -b <branch-name>
 - **subject**: imperative, lowercase, no trailing period, ≤ 72 chars
 - When AI assisted the work, end the message with `Assisted-by: AI` — never name a specific product
 
-```
+```text
 feat(packages): add VS Code DNF repo for Fedora
 
 Assisted-by: AI
