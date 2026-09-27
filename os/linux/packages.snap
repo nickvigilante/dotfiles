@@ -1,0 +1,12 @@
+# Snap apps for graphical Linux machines (display = true).
+# Installed by run_after_18-linux-desktop-snaps.sh (stamp-and-compare).
+#
+# ONLY apps whose official/best Linux channel is the Snap Store belong here —
+# everything else is a Brewfile `flatpak` (Flathub), a vendor apt repo
+# (packages.apt), or a GitHub .deb installer. Keep this list minimal.
+#   raindrop -> Raindrop.io (official snap; no maintained Flathub app)
+#   todoist  -> Todoist (official snap by Doist; no official Flathub app)
+#
+# Names only, one per line — the installer extracts via `grep -Ev '^#|^$'`.
+raindrop
+todoist
