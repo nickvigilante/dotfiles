@@ -115,11 +115,10 @@ if ! command -v brew &>/dev/null; then
 {{- end }}
 fi
 
-# Homebrew refuses to write its trust store if ~/.config/homebrew is group- or
-# world-writable (a umask of 002 leaves new dirs 775). That surfaces as "Refusing
-# to write insecure trust store" and drops brew into the noisy per-package mode.
-# Tighten it up front so a normal apply stays on the fast `brew bundle` path.
-[[ -d "$HOME/.config/homebrew" ]] && chmod go-w "$HOME/.config/homebrew" 2>/dev/null || true
+# Note: ~/.config/homebrew must not be group/world-writable or Homebrew refuses
+# to write its trust store ("Refusing to write insecure trust store"). That's
+# now handled at the source — the dir is tracked as `private_homebrew` (0700) —
+# rather than chmod'd here, which fought chezmoi's own perms and caused drift.
 
 bundle_flags=(--file="$BREWFILE")
 # No `mas` entries in the Brewfile — App Store apps are installed manually
