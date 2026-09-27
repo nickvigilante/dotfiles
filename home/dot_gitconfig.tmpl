@@ -11,6 +11,14 @@
 
 [init]
     defaultBranch = main
+    # Seeds every `git init`/`git clone` with the hooks in
+    # ~/.config/git/template/hooks (source: home/dot_config/git/template/hooks
+    # in this repo). Those hooks auto-run `pre-commit` when a repo has a
+    # .pre-commit-config.yaml, so local enforcement works without a per-repo
+    # `pre-commit install` step. Only applies to NEW git init/clone -- an
+    # existing local checkout needs `git init` re-run once (safe, idempotent,
+    # git only adds hooks that aren't already there) to pick it up.
+    templateDir = ~/.config/git/template
 
 [pull]
     rebase = false

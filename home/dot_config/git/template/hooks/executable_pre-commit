@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Auto-enforces a repo's .pre-commit-config.yaml, if any, without needing a
+# per-repo `pre-commit install` step first. Seeded into every new/cloned
+# repo's .git/hooks/ via git's `init.templateDir` (see ~/.gitconfig [init]).
+#
+# Running `pre-commit install` in a repo later overwrites this file with
+# pre-commit's own managed hook for this stage -- expected and harmless,
+# since that hook does the same thing here (plus any other stages the repo's
+# config declares).
+set -euo pipefail
+
+if [ -f .pre-commit-config.yaml ] && command -v pre-commit > /dev/null 2>&1; then
+	exec pre-commit run --hook-stage pre-commit
+fi
+
+exit 0
