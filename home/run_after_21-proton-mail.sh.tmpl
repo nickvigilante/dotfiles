@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# run_after_21-proton-mail: keep the Proton Mail desktop app (Linux beta) current.
+# Proton publishes the .deb on GitHub (ProtonMail/inbox-desktop; also proton.me).
+# Runs each apply, compares the latest release to the installed version, and
+# installs the .deb only when they differ. Best-effort: failures warn, never
+# abort `chezmoi apply`. Replaces Thunderbird for Proton mail.
+set -uo pipefail
+
+{{ if and (eq .chezmoi.os "linux") (ne .machine "pi") .display -}}
+command -v curl >/dev/null && command -v dpkg-query >/dev/null || exit 0
+
+api="https://api.github.com/repos/ProtonMail/inbox-desktop/releases/latest"
+
+installed="$(dpkg-query -W -f='${Version}' proton-mail 2>/dev/null || true)"
+json="$(curl -fsSL "$api" 2>/dev/null || true)"
+[ -n "$json" ] || { echo "WARN: Proton Mail: could not query GitHub releases" >&2; exit 0; }
+
+latest="$(printf '%s' "$json" | grep -oP '"tag_name":\s*"v?\K[^"]+' | head -1)"
+[ -n "$latest" ] || { echo "WARN: Proton Mail: could not parse latest tag" >&2; exit 0; }
+
+# Already current? Compare on leading x.y.z (dpkg version may carry -/~ suffix).
+[ "${installed%%[-~]*}" = "$latest" ] && exit 0
+
+deb_url="$(printf '%s' "$json" | grep -oP '"browser_download_url":\s*"\K[^"]*proton-mail_[^"]*amd64\.deb' | head -1)"
+[ -n "$deb_url" ] || { echo "WARN: Proton Mail: no amd64 .deb asset in $latest" >&2; exit 0; }
+
+echo "==> Proton Mail ${installed:-none} -> ${latest}: installing..."
+tmp="$(mktemp --suffix=.deb)"
+if curl -fsSL "$deb_url" -o "$tmp"; then
+    # apt-get installs a local .deb by path and resolves its dependencies.
+    sudo apt-get install -y "$tmp" || echo "WARN: Proton Mail install failed" >&2
+fi
+rm -f "$tmp"
+{{- end }}
