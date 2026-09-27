@@ -257,3 +257,133 @@ jobs:
       # composed with the comment block above it.
       - name: Render .chezmoiignore across the data matrix
         run: ./tests/chezmoiignore-matrix.sh home/.chezmoiignore
+
+  chezmoi-apply-dry-run:
+    name: "chezmoi dry-run (${{ matrix.profile }}/${{ matrix.machine }}/${{ matrix.label }})"
+    runs-on: ${{ matrix.os }}
+    env:
+      # Pinned to match the other chezmoi jobs above, so the three cannot drift.
+      CHEZMOI_VERSION: v2.72.2
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu — covers linux-gated blocks (snap, flatpak, apt repos) and
+          # all machine roles that have distinct template branches.
+          - os: ubuntu-latest
+            profile: personal
+            machine: laptop
+            display: true
+            label: ubuntu
+          - os: ubuntu-latest
+            profile: personal
+            machine: server
+            display: false
+            label: ubuntu
+          - os: ubuntu-latest
+            profile: personal
+            machine: ephemeral
+            display: false
+            label: ubuntu
+          - os: ubuntu-latest
+            profile: work
+            machine: laptop
+            display: true
+            label: ubuntu
+          # macOS — covers darwin-gated cask / mas / GNU-utils blocks.
+          - os: macos-latest
+            profile: personal
+            machine: laptop
+            display: true
+            label: macos
+          - os: macos-latest
+            profile: work
+            machine: laptop
+            display: true
+            label: macos
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Cache chezmoi
+        id: chezmoi-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ci-tools/chezmoi/chezmoi
+          key: chezmoi-${{ runner.os }}-${{ runner.arch }}-${{ env.CHEZMOI_VERSION }}
+
+      - name: Install chezmoi ${{ env.CHEZMOI_VERSION }}
+        if: steps.chezmoi-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          installer="$(mktemp)"
+          if ! curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$installer" https://get.chezmoi.io \
+            || [ ! -s "$installer" ]; then
+            echo "error: could not download the chezmoi installer from https://get.chezmoi.io" >&2
+            exit 1
+          fi
+          sh "$installer" -b "$HOME/.ci-tools/chezmoi" -t "$CHEZMOI_VERSION"
+
+      - name: Put chezmoi on PATH
+        run: |
+          set -euo pipefail
+          echo "$HOME/.ci-tools/chezmoi" >> "$GITHUB_PATH"
+          "$HOME/.ci-tools/chezmoi/chezmoi" --version
+
+      # Validates that every .tmpl file renders without error across the key
+      # profile/machine/OS combinations. Uses `secrets = "none"` so the
+      # bitwarden-gated files stay in .chezmoiignore and no bw call is made.
+      # `--exclude=externals` skips the oh-my-zsh / plugin git-repo fetches
+      # so the step runs offline. The diff pager is cleared in the config to
+      # prevent chezmoi from trying to invoke `delta` (installed locally but
+      # absent on runners).
+      - name: chezmoi apply --dry-run
+        env:
+          MATRIX_PROFILE: ${{ matrix.profile }}
+          MATRIX_MACHINE: ${{ matrix.machine }}
+          MATRIX_DISPLAY: ${{ matrix.display }}
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf -- "$tmp"' EXIT
+          cat > "$tmp/chezmoi.toml" << EOF
+          sourceDir = "$GITHUB_WORKSPACE/home"
+          destDir   = "$tmp/home"
+
+          [diff]
+          pager = ""
+
+          [data]
+          profile = "$MATRIX_PROFILE"
+          name    = "CI"
+          email   = "ci@example.com"
+          machine = "$MATRIX_MACHINE"
+          display = $MATRIX_DISPLAY
+          secrets = "none"
+          EOF
+          chezmoi apply --dry-run --no-pager --exclude=externals \
+            --config "$tmp/chezmoi.toml"
+
+  # ── Required gate ───────────────────────────────────────────────────────────
+  # A single job branch-protection can require, instead of listing every matrix
+  # cell individually. Runs with `if: always()` so it never gets skipped by a
+  # failing upstream job. Treats "skipped" as OK — commit-messages is skipped
+  # on push to main because it is PR-only.
+  ci:
+    name: ci
+    if: always()
+    needs: [lint, actionlint, commit-messages, chezmoi-matrix, chezmoi-apply-dry-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required jobs passed
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          set -euo pipefail
+          echo "Results: $RESULTS"
+          if printf '%s' "$RESULTS" | grep -qE '"(failure|cancelled)"'; then
+            echo "error: one or more required jobs failed or were cancelled" >&2
+            exit 1
+          fi
+          echo "All required jobs passed or were skipped."
