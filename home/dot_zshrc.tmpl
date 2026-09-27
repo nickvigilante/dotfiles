@@ -95,4 +95,11 @@ export PATH="{{ .chezmoi.homeDir }}/.requesty/bin:$PATH"
 #
 # Interactive sessions only. Emitting the escape sequence into a non-interactive
 # session corrupts scp and rsync streams, which read stdout as data.
-[[ $- == *i* ]] && printf '\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh" }}\x9c' || true
+#
+# Also gated on $TERM_PROGRAM: this fires on every interactive shell regardless
+# of which client is attached. Warp sets TERM_PROGRAM=WarpTerminal itself (even
+# over its own SSH wrapper), so other terminals reaching this host over SSH --
+# e.g. Ghostty -- don't have it set. Without the gate, those terminals receive a
+# DCS sequence only Warp knows how to consume, which corrupted terminal state
+# and caused duplicated/garbled keystroke echo for the rest of the session.
+[[ $- == *i* && "$TERM_PROGRAM" == "WarpTerminal" ]] && printf '\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh" }}\x9c' || true
