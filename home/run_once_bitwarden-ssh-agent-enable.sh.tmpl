@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# run_once_bitwarden-ssh-agent-enable: ensure the SSH agent toggle is on in
+# the Bitwarden Flatpak. Runs once per machine (re-runs if the script changes).
+#
+# Limitation: data.json only exists after the first Bitwarden login, so this
+# is a silent no-op on a freshly provisioned machine. Run `chezmoi apply`
+# again after logging into Bitwarden and the toggle will be set.
+set -euo pipefail
+
+{{ if and (eq .chezmoi.os "linux") .display -}}
+DATA_JSON="$HOME/.var/app/com.bitwarden.desktop/config/Bitwarden/data.json"
+
+# Bitwarden Flatpak not installed
+flatpak info com.bitwarden.desktop &>/dev/null || exit 0
+
+# Not logged in yet — data.json absent; will be handled on next chezmoi apply
+[[ -f "$DATA_JSON" ]] || { echo "bw-ssh-toggle: data.json absent (not logged in yet); skipping"; exit 0; }
+
+# Already enabled — nothing to do
+if python3 -c "
+import json, sys
+with open('$DATA_JSON') as f:
+    d = json.load(f)
+sys.exit(0 if d.get('global_desktopSettings_sshAgentEnabled') else 1)
+" 2>/dev/null; then
+    exit 0
+fi
+
+# Bitwarden holds data.json in memory and overwrites on quit; require it to be
+# closed before we patch, otherwise the change will be lost.
+if pgrep -f '/app/Bitwarden/bitwarden-app' >/dev/null 2>&1; then
+    echo "bw-ssh-toggle: Bitwarden is running — close it, then re-run 'chezmoi apply'" >&2
+    exit 0
+fi
+
+echo "==> Enabling Bitwarden SSH agent toggle in data.json ..."
+python3 - "$DATA_JSON" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path) as f:
+    d = json.load(f)
+d['global_desktopSettings_sshAgentEnabled'] = True
+with open(path, 'w') as f:
+    json.dump(d, f, separators=(',', ':'))
+print("Done — restart Bitwarden to pick up the change.")
+PYEOF
+{{- end }}
