@@ -34,7 +34,7 @@ fi
 # when "SSH agent" is enabled in its settings. Gate on socket presence so
 # ssh still works (via the system agent or no agent) when the desktop app
 # isn't running or the toggle is off.
-{{- if eq .chezmoi.os "linux" }}
+    {{- if eq .chezmoi.os "linux" }}
 # The socket path depends on how the desktop app is installed. We moved from
 # the snap to the Flatpak (com.bitwarden.desktop), so probe the Flatpak data
 # dir first, then the snap, then a native/.deb install, and use whichever exists.
@@ -49,13 +49,13 @@ for _bw_sock in \
     fi
 done
 unset _bw_sock
-{{- else }}
+    {{- else }}
 _bw_sock="$HOME/.bitwarden-ssh-agent.sock"
 if [[ -S "$_bw_sock" ]]; then
     export SSH_AUTH_SOCK="$_bw_sock"
 fi
 unset _bw_sock
-{{- end }}
+    {{- end }}
 {{- end }}
 
 # ── Secrets ────────────────────────────────────────────────────────────────────

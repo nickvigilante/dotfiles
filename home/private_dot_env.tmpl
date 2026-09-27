@@ -13,9 +13,9 @@
 {{- if or (eq .secrets "1password") (eq .secrets "both") }}
 
 # ── 1Password ────────────────────────────────────────────────────────────────
-{{- if env "OP_SERVICE_ACCOUNT_TOKEN" }}
+    {{- if env "OP_SERVICE_ACCOUNT_TOKEN" }}
 # Service account token detected (ephemeral / headless mode).
-{{- end }}
+    {{- end }}
 # Add lines like:
 # export AWS_ACCESS_KEY_ID="{{ "{{" }} onepasswordRead "op://Work Vault/AWS/access_key_id" {{ "}}" }}"
 # export GITHUB_TOKEN="{{ "{{" }} onepasswordRead "op://Work Vault/GitHub PAT/credential" {{ "}}" }}"

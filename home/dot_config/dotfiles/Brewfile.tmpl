@@ -75,11 +75,11 @@ brew "gnupg"         # (already above; macOS sometimes needs explicit)
 brew "bitwarden-cli"    # bw CLI — one cross-platform binary (replaces the Linux snap)
 {{- end }}
 {{ if or (eq .secrets "1password") (eq .secrets "both") -}}
-{{- if eq .chezmoi.os "darwin" }}
+    {{- if eq .chezmoi.os "darwin" }}
 cask "1password-cli"
-{{- else }}
+    {{- else }}
 brew "1password-cli"
-{{- end }}
+    {{- end }}
 {{- end }}
 
 # ── Work-only formulae ───────────────────────────────────────────────────────
