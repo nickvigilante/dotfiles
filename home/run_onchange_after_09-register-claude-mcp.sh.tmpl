@@ -31,8 +31,8 @@ add() {
 {{ if $inWorkspace -}}
 add homelab-kubernetes http://kubernetes-mcp.claude-mcp.svc.cluster.local:8080/mcp
 add homelab-grafana http://grafana-mcp.claude-mcp.svc.cluster.local:8000/mcp
-{{- else -}}
+    {{- else -}}
 add homelab-kubernetes http://localhost:8080/mcp
 add homelab-grafana http://localhost:8000/mcp
-{{- end }}
+    {{- end }}
 {{ end -}}
