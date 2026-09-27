@@ -1,17 +1,39 @@
 # Desktop/dev apt packages for graphical Linux machines (display = true).
 # Installed by run_after_install-packages.sh (stamp-and-compare, like the Pi).
 # Distinct from bootstrap.apt: those are minimal pre-Homebrew prereqs on EVERY
-# Linux machine; these are system libraries only a machine with a display needs
-# — headless servers and Coder workspaces never get them.
+# Linux machine; these are packages only a machine with a display needs —
+# headless servers and Coder workspaces never get them.
 #
-# System libraries belong in apt, not the Brewfile: a Homebrew libX11 under
-# /home/linuxbrew would shadow the system one the running X server uses.
+# The vendor-repo apps below need their apt repos + keys, which are provisioned
+# first by run_onchange_before_15-linux-desktop-repos.sh (runs in the *before*
+# group). GUI apps available on Flathub come from the Brewfile's `flatpak`
+# entries instead; only apps whose best Linux channel is a vendor apt repo (or
+# Ubuntu's own archive, like ghostty) live here.
 
-# X11 development headers — needed to build native crates that link libX11 via
-# pkg-config (rdev: Xlib/XRecord/XInput; enigo: xkbcommon). Without these,
-# cargo build fails on `x11.pc'/`xkbcommon.pc' not found.
+# System libraries — belong in apt, not the Brewfile: a Homebrew libX11 under
+# /home/linuxbrew would shadow the system one the running X server uses.
+# X11 development headers for native crates that link libX11 via pkg-config
+# (rdev: Xlib/XRecord/XInput; enigo: xkbcommon).
 libx11-dev
 libxtst-dev
 libxi-dev
 libxkbcommon-dev
 libxkbcommon-x11-dev
+
+# Vendor-repo desktop apps (repos set up by the before-hook above):
+#   google-chrome-stable  -> dl.google.com
+#   signal-desktop        -> updates.signal.org
+#   code (VS Code)        -> packages.microsoft.com
+#   warp-terminal         -> releases.warp.dev
+#   tailscale             -> pkgs.tailscale.com
+#   ghostty               -> Ubuntu 26.04+ official archive (no vendor repo)
+#   flatpak               -> runtime only; Flathub GUI apps come via the Brewfile
+# NOTE: names only, one per line — the installer extracts via `grep -Ev '^#|^$'`,
+# which does not strip inline comments.
+google-chrome-stable
+signal-desktop
+code
+warp-terminal
+tailscale
+ghostty
+flatpak
