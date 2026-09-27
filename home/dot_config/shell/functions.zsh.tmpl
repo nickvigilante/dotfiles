@@ -71,34 +71,115 @@ venv-here() {
 
 # ── Secrets ───────────────────────────────────────────────────────────────────
 
-bw-apply() {
-{{- if or (eq .secrets "bitwarden") (eq .secrets "both") }}
+{{ if or (eq .secrets "bitwarden") (eq .secrets "both") -}}
+# _bw_ensure_session: bring the vault to an unlocked state, prompting via gum.
+# Writes BW_SESSION to the caller's environment on success; returns 1 when the
+# user declines or gives up.  Retries on bad password until the user says no.
+# Never calls `chezmoi apply`.
+_bw_ensure_session() {
     if ! command -v bw &>/dev/null; then
-        echo "bw not found. Install: brew install bitwarden-cli"
+        echo "bw not found — install: brew install bitwarden-cli" >&2
         return 1
     fi
-    # Branch on the actual vault state so a logged-out vault doesn't get a
-    # confusing `bw unlock` failure: unlock only helps when logged-in-but-locked.
-    case "$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')" in
-        unlocked)
-            echo "Bitwarden already unlocked."
-            ;;
+    local _state _session
+    _state="$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
+    [[ "$_state" == "unlocked" ]] && return 0
+
+    # Ask once before the first attempt.
+    case "$_state" in
         locked)
-            echo "Unlocking Bitwarden..."
-            export BW_SESSION
-            BW_SESSION=$(bw unlock --raw) || { echo "Bitwarden unlock failed."; return 1; }
+            if command -v gum &>/dev/null; then
+                gum confirm "Bitwarden vault is locked. Unlock now?" || return 1
+            fi
             ;;
         *)
-            # unauthenticated / logged out (the state you were hitting) — unlock
-            # can't help; log in, which authenticates and returns a session.
-            echo "Bitwarden is logged out; logging in..."
-            export BW_SESSION
-            BW_SESSION=$(bw login --raw) || { echo "Bitwarden login failed."; return 1; }
+            # unauthenticated — bw unlock would just fail; must log in first
+            if command -v gum &>/dev/null; then
+                gum confirm --default=false "Bitwarden: not logged in. Log in now?" || return 1
+            fi
             ;;
     esac
-{{- end }}
+
+    # Attempt loop: retry on failure until the user declines.
+    while true; do
+        _state="$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
+        case "$_state" in
+            unlocked)
+                return 0
+                ;;
+            locked)
+                if _session="$(bw unlock --raw)"; then
+                    BW_SESSION="$_session"
+                    export BW_SESSION
+                    return 0
+                fi
+                ;;
+            *)
+                if _session="$(bw login --raw)"; then
+                    BW_SESSION="$_session"
+                    export BW_SESSION
+                    return 0
+                fi
+                ;;
+        esac
+
+        # Attempt failed — offer retry; no means skip secrets.
+        if command -v gum &>/dev/null; then
+            gum confirm "Authentication failed. Try again?" --default=false || return 1
+        else
+            return 1
+        fi
+    done
+}
+
+# Wrap `chezmoi apply` to prompt for Bitwarden state before applying.
+# Supports --skip-secrets to bypass prompts and apply without vault access.
+# If the user declines to unlock/log-in, applies with secrets=none so
+# vault-gated files (e.g. ~/.kube/homelab.yaml) are skipped rather than
+# causing a hard failure.  All other chezmoi subcommands pass through unchanged.
+chezmoi() {
+    if [[ "${1}" != "apply" ]]; then
+        command chezmoi "$@"
+        return
+    fi
+
+    # Strip --skip-secrets (our extension) from the args before forwarding.
+    local _skip=false _passthrough=()
+    for _arg in "${@:2}"; do
+        if [[ "$_arg" == "--skip-secrets" ]]; then
+            _skip=true
+        else
+            _passthrough+=("$_arg")
+        fi
+    done
+
+    if [[ "$_skip" == false ]]; then
+        local _state
+        _state="$(bw status 2>/dev/null | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
+        if [[ "$_state" != "unlocked" ]]; then
+            _bw_ensure_session || _skip=true
+        fi
+    fi
+
+    if [[ "$_skip" == true ]]; then
+        echo "Applying without Bitwarden — vault-dependent files will not be updated."
+        command chezmoi apply --data secrets=none "${_passthrough[@]}"
+    else
+        command chezmoi apply "${_passthrough[@]}"
+    fi
+}
+
+# Explicitly unlock/log-in, then apply.  Useful when you know you want secrets.
+bw-apply() {
+    _bw_ensure_session || return 1
+    command chezmoi apply
+}
+{{- else }}
+bw-apply() {
+    echo "Bitwarden not configured for this machine (.secrets = {{ .secrets }})."
     chezmoi apply
 }
+{{- end }}
 
 bw-lock() {
 {{- if or (eq .secrets "bitwarden") (eq .secrets "both") }}
