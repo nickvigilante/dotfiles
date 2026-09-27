@@ -34,7 +34,9 @@ warn() { echo "WARN: $*" >&2; }
 
 # Fetch an ASCII-armored key and dearmor it into the keyrings dir.
 armored_key() { # armored_key <dest.gpg> <url>
-    "$CURL" -fsSL "$2" | sudo gpg --dearmor -o "$1" && sudo chmod 0644 "$1"
+    # --batch --yes: overwrite an existing keyring silently instead of prompting
+    # "File '…' exists. Overwrite? (y/N)" every time this (re-)runs.
+    "$CURL" -fsSL "$2" | sudo gpg --batch --yes --dearmor -o "$1" && sudo chmod 0644 "$1"
 }
 
 # ── Google Chrome ──────────────────────────────────────────────────────────
