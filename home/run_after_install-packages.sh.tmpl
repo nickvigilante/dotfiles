@@ -12,6 +12,10 @@ set -euo pipefail
 # formulae themselves and only appear during actual installs — on re-runs where
 # `brew bundle check` exits 0, no caveats are shown.
 export HOMEBREW_NO_ENV_HINTS=1
+# Don't let `brew install`/`bundle` kick off a full "Auto-updating Homebrew..."
+# on every apply — it's slow, noisy, and was where `coder` hit the trust-store
+# error. Updates come from the separate update-packages flow instead.
+export HOMEBREW_NO_AUTO_UPDATE=1
 
 # shellcheck disable=SC2034  # only read in the machine=pi branch below
 REPO_DIR="{{ .chezmoi.sourceDir }}/.."
@@ -111,6 +115,12 @@ if ! command -v brew &>/dev/null; then
 {{- end }}
 fi
 
+# Homebrew refuses to write its trust store if ~/.config/homebrew is group- or
+# world-writable (a umask of 002 leaves new dirs 775). That surfaces as "Refusing
+# to write insecure trust store" and drops brew into the noisy per-package mode.
+# Tighten it up front so a normal apply stays on the fast `brew bundle` path.
+[[ -d "$HOME/.config/homebrew" ]] && chmod go-w "$HOME/.config/homebrew" 2>/dev/null || true
+
 bundle_flags=(--file="$BREWFILE")
 # No `mas` entries in the Brewfile — App Store apps are installed manually
 # (see README.md). Homebrew has removed bundle's --no-mas and --no-vscode
@@ -154,11 +164,23 @@ while IFS= read -r line; do
             # the piped Brewfile lines, so the loop silently processed only
             # its first entry and every other formula was never installed,
             # with no non-zero exit to signal it.
-            brew install "$pkg" </dev/null || failed+=("$pkg")
+            # Skip already-installed formulae with a one-line note instead of
+            # letting `brew install` print its 3-line "already installed / To
+            # reinstall ..." warning per package. The leaf-name fallback catches
+            # tap-qualified entries (e.g. coder/coder/coder -> coder).
+            if brew list "$pkg" &>/dev/null || brew list "${pkg##*/}" &>/dev/null; then
+                echo "✓ $pkg up to date"
+            else
+                brew install "$pkg" </dev/null || failed+=("$pkg")
+            fi
             ;;
         cask\ *)
             pkg=$(echo "$line" | sed -E 's/^cask "([^"]+)".*/\1/')
-            brew install --cask "$pkg" </dev/null || failed+=("cask:$pkg")
+            if brew list --cask "$pkg" &>/dev/null; then
+                echo "✓ $pkg (cask) up to date"
+            else
+                brew install --cask "$pkg" </dev/null || failed+=("cask:$pkg")
+            fi
             ;;
         vscode\ *)
             if command -v code &>/dev/null; then
