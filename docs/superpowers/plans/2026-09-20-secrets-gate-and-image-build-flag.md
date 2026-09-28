@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status (2026-09-27, retroactively verified):** Tasks 1-3 were implemented and committed without ever checking off this file's boxes.
+> Task 1: `home/.chezmoiignore` carries the exact gate below, `tests/chezmoiignore-matrix.sh` exists and passes all 9 cases (commit `affd7d0`).
+> Task 2: `.github/workflows/ci.yml` runs a `chezmoi-matrix` job that calls the script on every PR, wired into the required-checks list.
+> Task 3: `images/base/Dockerfile` (homelab-dev-templates) already declares `ARG DOTFILES_IMAGE_BUILD=1`, not `ENV` (commits `f4d90a8`, `d1733a7`).
+> Task 4 is superseded by reality rather than done as written: `templates/Base/README.md` already describes `template-push.yml` correctly, because that workflow was since built for real (see `2026-09-20-template-delivery-automation.md`). Applying this task's prescribed text swap today would make the README wrong again — do not apply it.
+
 **Goal:** Stop `chezmoi apply` aborting on machines without a Bitwarden vault, and make the image-build flag build-scoped so a future runtime apply is possible.
 
 **Architecture:** Two independent repos, four tasks, no shared code. The dotfiles change is a template-gate fix guarded by a render matrix that runs in CI. The templates changes are a Dockerfile scope fix and a documentation correction.
@@ -52,7 +58,7 @@ Out of scope, each getting its own plan:
 - Consumes: nothing.
 - Produces: `tests/chezmoiignore-matrix.sh <path-to-template>`, exit 0 when every cell matches, 1 otherwise. Task 2 runs this exact command.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/chezmoiignore-matrix.sh`:
 
@@ -158,7 +164,7 @@ exit "$fail"
 
 Then `chmod +x tests/chezmoiignore-matrix.sh`.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `CHEZMOI=/home/coder/.local/bin/chezmoi ./tests/chezmoiignore-matrix.sh home/.chezmoiignore`
 
@@ -173,7 +179,7 @@ Expected: exit 1, with exactly these four failures:
 
 If a different set fails, stop — the template or the data schema has changed since this plan was written.
 
-- [ ] **Step 3: Fix the gate**
+- [x] **Step 3: Fix the gate**
 
 In `home/.chezmoiignore`, replace exactly these four lines:
 
@@ -222,19 +228,19 @@ Leave the existing comment block above it in place, and append to it:
 # template rather than every workspace.
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `CHEZMOI=/home/coder/.local/bin/chezmoi ./tests/chezmoiignore-matrix.sh home/.chezmoiignore`
 
 Expected: exit 0, `ALL PASS`, nine PASS lines.
 
-- [ ] **Step 5: Verify no other target regressed**
+- [x] **Step 5: Verify no other target regressed**
 
 Run: `chezmoi status`
 
 Expected: no line mentioning `.kube/homelab.yaml`, and no template error. A `bitwarden` executable-not-found error means the gate is still selecting the file.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/chezmoiignore-matrix.sh home/.chezmoiignore
@@ -268,7 +274,7 @@ Assisted-by: AI"
 - Consumes: `tests/chezmoiignore-matrix.sh` from Task 1.
 - Produces: a `chezmoi-matrix` job, required on every PR.
 
-- [ ] **Step 1: Add the job**
+- [x] **Step 1: Add the job**
 
 In `.github/workflows/ci.yml`, add a sibling to the existing `lint` job. Keep `CHEZMOI_VERSION` identical to the value the `lint` job already pins, so the two cannot drift:
 
@@ -293,13 +299,13 @@ In `.github/workflows/ci.yml`, add a sibling to the existing `lint` job. Keep `C
         run: ./tests/chezmoiignore-matrix.sh home/.chezmoiignore
 ```
 
-- [ ] **Step 2: Verify the workflow parses**
+- [x] **Step 2: Verify the workflow parses**
 
 Run: `actionlint .github/workflows/ci.yml`
 
 Expected: no output, exit 0. If `actionlint` is not installed, this is covered by the repo's own `actionlint` CI job on the PR.
 
-- [ ] **Step 3: Verify the job would fail on a regression**
+- [x] **Step 3: Verify the job would fail on a regression**
 
 Temporarily revert the gate to its pre-Task-1 form, run the script, confirm exit 1, then restore the fix:
 
@@ -312,7 +318,7 @@ git stash pop
 
 The stash stack is shared across worktrees, so use the named push above and `git stash list` to confirm you pop your own entry.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .github/workflows/ci.yml
@@ -336,7 +342,7 @@ Assisted-by: AI"
 - Consumes: nothing.
 - Produces: `DOTFILES_IMAGE_BUILD` absent from the running container's environment.
 
-- [ ] **Step 1: Confirm the flag currently leaks to runtime**
+- [x] **Step 1: Confirm the flag currently leaks to runtime**
 
 Run:
 
@@ -347,7 +353,7 @@ docker run --rm dotfiles-flag-check sh -c 'echo "DOTFILES_IMAGE_BUILD=${DOTFILES
 
 Expected: `DOTFILES_IMAGE_BUILD=1` — the leak this task removes.
 
-- [ ] **Step 2: Change ENV to ARG**
+- [x] **Step 2: Change ENV to ARG**
 
 In `images/base/Dockerfile`, replace:
 
@@ -365,7 +371,7 @@ with:
 ARG DOTFILES_IMAGE_BUILD=1
 ```
 
-- [ ] **Step 3: Verify the flag still reaches the build**
+- [x] **Step 3: Verify the flag still reaches the build**
 
 Run:
 
@@ -375,7 +381,7 @@ docker build --progress=plain -t dotfiles-flag-check images/base 2>&1 | grep -i 
 
 Expected: the line `DOTFILES_IMAGE_BUILD set; package installation is handled by the image's own Dockerfile. Skipping.` from `run_after_install-packages.sh`. Its absence means the flag stopped reaching `chezmoi` and the build would try to run Homebrew.
 
-- [ ] **Step 4: Verify the flag no longer reaches runtime**
+- [x] **Step 4: Verify the flag no longer reaches runtime**
 
 Run:
 
@@ -385,7 +391,7 @@ docker run --rm dotfiles-flag-check sh -c 'echo "DOTFILES_IMAGE_BUILD=${DOTFILES
 
 Expected: `DOTFILES_IMAGE_BUILD=<unset>`.
 
-- [ ] **Step 5: Verify no kubeconfig was baked**
+- [x] **Step 5: Verify no kubeconfig was baked**
 
 Run:
 
@@ -395,7 +401,7 @@ docker run --rm dotfiles-flag-check sh -c 'ls -la /home/coder/.kube/ 2>&1 || ech
 
 Expected: no `homelab.yaml`. This is the security-critical assertion — a published image must never carry a cluster-admin credential.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add images/base/Dockerfile
@@ -415,6 +421,12 @@ Assisted-by: AI"
 ---
 
 ### Task 4: Stop the README claiming automation that does not exist
+
+**Superseded — do not execute as written (verified 2026-09-27).**
+This task's premise was that `template-push.yml` did not exist and the README's claim about it was false.
+`template-delivery-automation.md` has since built that workflow for real, and `templates/Base/README.md` already describes it correctly.
+Applying Step 2's text swap below would reintroduce the false claim this task was written to remove.
+Left unchecked deliberately; steps kept for the historical record only.
 
 **Files:**
 - Modify: `templates/Base/README.md:19-23` (repo: `nickvigilante/homelab-dev-templates`)
