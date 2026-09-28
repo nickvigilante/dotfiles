@@ -52,6 +52,11 @@ brew "f3"            # Flash-media fake-capacity tester (f3probe/f3write/f3read)
 brew "cmake"         # C/C++ build-system generator
 brew "coder/coder/coder" # Coder.com CLI — remote dev, manages the homelab deployment/templates
 
+# ── Container runtime (skip inside Coder workspaces — they already run in one) ──
+{{ if ne .machine "ephemeral" -}}
+brew "podman"        # Container runtime (rootless/daemonless; replaces Docker/Colima everywhere)
+{{- end }}
+
 # Repo quality gate (CI + pre-commit) — see docs/superpowers/plans/2026-06-22-repo-housekeeping-ci.md
 brew "actionlint"        # GitHub Actions workflow linter
 brew "markdownlint-cli2" # Markdown linter
@@ -87,15 +92,12 @@ brew "go"               # Go language (work-only; personal pushes Go dev to Code
 brew "vale"             # Prose linter
 brew "halibut"          # Document preparation
 brew "gopls"            # Go language server
-brew "colima"           # Container runtime (macOS/Linux)
-brew "docker"           # Docker CLI
 brew "snap"             # snap CLI on macOS (.snap files)
 {{- end }}
 
 # ── Personal-only formulae ───────────────────────────────────────────────────
 {{ if eq .profile "personal" -}}
 brew "fish"          # Friendly shell (alternative)
-brew "podman"        # Container runtime (replaces Docker; rootless/daemonless)
 brew "opentofu"      # OpenTofu — the infrastructure repo's contexts (homelab, cloudflare, coder)
 brew "kubernetes-cli" # kubectl — reach the homelab cluster and run the MCP break-glass port-forwards
 brew "wasm-pack"     # Rust->WASM packager (typhony demo site build)
@@ -125,7 +127,6 @@ cask "font-0xproto-nerd-font"
   {{ if eq .profile "work" -}}
 # Work-only casks
 cask "claude"             # Anthropic Claude desktop
-cask "docker-desktop"
 cask "zoom"
   {{- end }}
 
