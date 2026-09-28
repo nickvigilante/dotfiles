@@ -4,3 +4,11 @@ Include ~/.config/colima/ssh_config
 Host *
     ServerAliveInterval 60
     ServerAliveCountMax 3
+    # Ghostty identifies itself as TERM=xterm-ghostty, which most remote hosts'
+    # terminfo databases don't have an entry for -- causes zsh line-editor
+    # redraw corruption (garbled/duplicated keystroke echo) on hosts with
+    # live-redrawing shells (autosuggestions, syntax highlighting, dynamic
+    # prompts). Force a universally-known TERM for every remote session.
+    # Ghostty's own ssh-terminfo shell integration (1.4.0+) installs the real
+    # terminfo entry per-host instead, but requires a tip build; revisit then.
+    SetEnv TERM=xterm-256color
