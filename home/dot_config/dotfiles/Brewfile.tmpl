@@ -3,9 +3,7 @@
 # Edit this template; run `chezmoi apply` to regenerate.
 
 # ── Taps ─────────────────────────────────────────────────────────────────────
-{{ if or (eq .profile "work") (eq .profile "personal") -}}
 tap "coder/coder"
-{{- end }}
 
 # ── Cross-platform CLI (every full-toolkit machine) ──────────────────────────
 brew "git"           # Distributed revision control
@@ -52,6 +50,12 @@ brew "yq"            # YAML/JSON/XML processor (the "jq for YAML")
 brew "nmap"          # Network/port scanner
 brew "f3"            # Flash-media fake-capacity tester (f3probe/f3write/f3read)
 brew "cmake"         # C/C++ build-system generator
+brew "coder/coder/coder" # Coder.com CLI — remote dev, manages the homelab deployment/templates
+
+# ── Container runtime (skip inside Coder workspaces — they already run in one) ──
+{{ if ne .machine "ephemeral" -}}
+brew "podman"        # Container runtime (rootless/daemonless; replaces Docker/Colima everywhere)
+{{- end }}
 
 # Repo quality gate (CI + pre-commit) — see docs/superpowers/plans/2026-06-22-repo-housekeeping-ci.md
 brew "actionlint"        # GitHub Actions workflow linter
@@ -86,27 +90,20 @@ brew "1password-cli"
 {{ if eq .profile "work" -}}
 brew "go"               # Go language (work-only; personal pushes Go dev to Coder workspaces)
 brew "vale"             # Prose linter
-brew "coder/coder/coder" # Coder.com remote dev
-brew "openapi-generator"
 brew "halibut"          # Document preparation
-brew "pandoc"           # Markup converter
-brew "weasyprint"       # HTML → PDF
-brew "zola"             # Static site generator
 brew "gopls"            # Go language server
-brew "colima"           # Container runtime (macOS/Linux)
-brew "docker"           # Docker CLI
 brew "snap"             # snap CLI on macOS (.snap files)
-brew "tailscale"        # Mesh VPN (CLI)
 {{- end }}
 
 # ── Personal-only formulae ───────────────────────────────────────────────────
 {{ if eq .profile "personal" -}}
 brew "fish"          # Friendly shell (alternative)
-brew "podman"        # Container runtime (replaces Docker; rootless/daemonless)
-brew "coder/coder/coder" # Coder.com CLI — manages the homelab Coder deployment/templates
 brew "opentofu"      # OpenTofu — the infrastructure repo's contexts (homelab, cloudflare, coder)
 brew "kubernetes-cli" # kubectl — reach the homelab cluster and run the MCP break-glass port-forwards
 brew "wasm-pack"     # Rust->WASM packager (typhony demo site build)
+brew "openapi-generator"
+brew "pandoc"        # Markup converter
+brew "weasyprint"    # HTML → PDF
 {{- end }}
 # Windows (separate setup): add `winget "RedHat.Podman"` gated to `.chezmoi.os "windows"`.
 
@@ -130,7 +127,6 @@ cask "font-0xproto-nerd-font"
   {{ if eq .profile "work" -}}
 # Work-only casks
 cask "claude"             # Anthropic Claude desktop
-cask "docker-desktop"
 cask "zoom"
   {{- end }}
 
@@ -229,7 +225,7 @@ go "github.com/golangci/golangci-lint/cmd/golangci-lint"
 
 # ── uv-installed Python tools ────────────────────────────────────────────────
 uv "headroom-ai"        # Claude Code context-compression tool (provides `headroom`)
-{{ if eq .profile "work" -}}
+{{ if eq .profile "personal" -}}
 uv "weasyprint"
 {{- end }}
 

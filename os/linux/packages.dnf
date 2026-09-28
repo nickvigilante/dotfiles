@@ -14,3 +14,7 @@
 # Vendor-repo desktop apps (repos set up by the before-hook above):
 #   code (VS Code) -> packages.microsoft.com/yumrepos/vscode
 code
+
+# Fedora's own repos (no vendor repo needed, unlike apt's packages.apt):
+#   tailscale -> ships in Fedora's `updates` repo
+tailscale
