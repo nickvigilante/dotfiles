@@ -25,7 +25,9 @@ echo "==> DNF packages changed — syncing..."
 ok=1
 while read -r pkg; do
     rpm -q "$pkg" &>/dev/null && continue
-    sudo dnf install -y "$pkg" || { echo "WARN: dnf install $pkg failed" >&2; ok=0; }
+    sudo dnf install -y "$pkg" || { echo "WARN: dnf install $pkg failed" >&2; ok=0; continue; }
+    # tailscale ships a systemd unit but doesn't enable it on install.
+    [ "$pkg" = "tailscale" ] && { sudo systemctl enable --now tailscaled || echo "WARN: failed to enable tailscaled" >&2; }
 done < <(grep -Ev '^#|^$' "$PKG_FILE")
 
 [ "$ok" = 1 ] && echo "$current_hash" > "$STAMP_FILE"
