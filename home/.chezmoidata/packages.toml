@@ -1,0 +1,375 @@
+# Single declaration of what software a machine gets.
+#
+# This is a generated target's data file, exactly like permissions.toml:
+# edit here, never the rendered Brewfile.
+#
+# Ordering is significant — Go templates iterate a map in sorted key order,
+# so packages are an ARRAY of tables to preserve the file's grouping.
+#
+# Channel fields (brew/cask/apt/cargo/go/uv) describe availability, not
+# preference. A package with only `brew` is unavailable on the Pi, and the
+# renderer says so rather than dropping it silently.
+
+[[packages]]
+key = "git"
+section = "cli"
+brew = "git"
+comment = "Distributed revision control"
+tiers = ["core"]
+
+[[packages]]
+key = "curl"
+section = "cli"
+brew = "curl"
+comment = "HTTP client"
+tiers = ["core"]
+
+[[packages]]
+key = "wget"
+section = "cli"
+brew = "wget"
+comment = "File retriever"
+tiers = ["core"]
+
+[[packages]]
+key = "jq"
+section = "cli"
+brew = "jq"
+comment = "JSON processor"
+tiers = ["core"]
+
+[[packages]]
+key = "ripgrep"
+section = "cli"
+brew = "ripgrep"
+comment = "Fast grep (rg)"
+tiers = ["core"]
+
+[[packages]]
+key = "fd"
+section = "cli"
+brew = "fd"
+comment = "Fast find"
+tiers = ["core"]
+
+[[packages]]
+key = "fzf"
+section = "cli"
+brew = "fzf"
+comment = "Fuzzy finder"
+tiers = ["core"]
+
+[[packages]]
+key = "eza"
+section = "cli"
+brew = "eza"
+comment = "Better ls"
+tiers = ["core"]
+
+[[packages]]
+key = "bat"
+section = "cli"
+brew = "bat"
+comment = "Better cat (syntax highlighting)"
+tiers = ["core"]
+
+[[packages]]
+key = "zoxide"
+section = "cli"
+brew = "zoxide"
+comment = "Better cd"
+tiers = ["core"]
+
+[[packages]]
+key = "tldr"
+section = "cli"
+brew = "tldr"
+comment = "Simplified man pages"
+tiers = ["core"]
+
+[[packages]]
+key = "htop"
+section = "cli"
+brew = "htop"
+comment = "Process viewer"
+tiers = ["core"]
+
+[[packages]]
+key = "tree"
+section = "cli"
+brew = "tree"
+comment = "Directory tree"
+tiers = ["core"]
+
+[[packages]]
+key = "tmux"
+section = "cli"
+brew = "tmux"
+comment = "Terminal multiplexer"
+tiers = ["core"]
+
+[[packages]]
+key = "neovim"
+section = "cli"
+brew = "neovim"
+comment = "Editor"
+tiers = ["core"]
+
+[[packages]]
+key = "gh"
+section = "cli"
+brew = "gh"
+comment = "GitHub CLI"
+tiers = ["core"]
+
+[[packages]]
+key = "rtk"
+section = "cli"
+brew = "rtk"
+comment = "LLM token-saving CLI proxy (Claude Code Bash hook)"
+tiers = ["core"]
+
+[[packages]]
+key = "git-delta"
+section = "cli"
+brew = "git-delta"
+comment = "Better git diff"
+tiers = ["core"]
+
+[[packages]]
+key = "lazygit"
+section = "cli"
+brew = "lazygit"
+comment = "TUI git client"
+tiers = ["core"]
+
+[[packages]]
+key = "ncdu"
+section = "cli"
+brew = "ncdu"
+comment = "NCurses Disk Usage"
+tiers = ["core"]
+
+[[packages]]
+key = "uv"
+section = "cli"
+brew = "uv"
+comment = "Python package manager (Astral)"
+tiers = ["core"]
+
+[[packages]]
+key = "ruff"
+section = "cli"
+brew = "ruff"
+comment = "Python linter (Astral)"
+tiers = ["core"]
+
+[[packages]]
+key = "gnupg"
+section = "cli"
+brew = "gnupg"
+comment = "OpenPGP"
+tiers = ["core"]
+
+[[packages]]
+key = "age"
+section = "cli"
+brew = "age"
+comment = "Modern encryption"
+tiers = ["core"]
+
+[[packages]]
+key = "chezmoi"
+section = "cli"
+brew = "chezmoi"
+comment = "Dotfiles manager"
+tiers = ["core"]
+
+[[packages]]
+key = "gum"
+section = "cli"
+brew = "gum"
+comment = "Charm shell UI"
+tiers = ["core"]
+
+[[packages]]
+key = "just"
+section = "cli"
+brew = "just"
+comment = "Command runner / project Makefile alternative"
+tiers = ["core"]
+
+[[packages]]
+key = "mprocs"
+section = "cli"
+brew = "mprocs"
+comment = "Run multiple commands in parallel"
+tiers = ["core"]
+
+[[packages]]
+key = "rustup"
+section = "cli"
+brew = "rustup"
+comment = "Rust toolchain manager (replaces brew rust; needed for wasm32 target)"
+tiers = ["core"]
+
+[[packages]]
+key = "node"
+section = "cli"
+brew = "node"
+comment = "Node.js"
+tiers = ["core"]
+
+[[packages]]
+key = "prettier"
+section = "cli"
+brew = "prettier"
+comment = "Code formatter"
+tiers = ["core"]
+
+[[packages]]
+key = "starship"
+section = "cli"
+brew = "starship"
+comment = "Cross-shell prompt (initialized in completions.zsh)"
+tiers = ["core"]
+
+[[packages]]
+key = "dust"
+section = "cli"
+brew = "dust"
+comment = "du replacement: visual disk usage tree"
+tiers = ["core"]
+
+[[packages]]
+key = "duf"
+section = "cli"
+brew = "duf"
+comment = "df replacement: color-coded disk free"
+tiers = ["core"]
+
+[[packages]]
+key = "bottom"
+section = "cli"
+brew = "bottom"
+comment = "htop alt: graphs over time, mouse, layouts (binary: btm)"
+tiers = ["core"]
+
+[[packages]]
+key = "hyperfine"
+section = "cli"
+brew = "hyperfine"
+comment = "CLI benchmarking tool"
+tiers = ["core"]
+
+[[packages]]
+key = "glow"
+section = "cli"
+brew = "glow"
+comment = "Markdown renderer for the terminal"
+tiers = ["core"]
+
+[[packages]]
+key = "sd"
+section = "cli"
+brew = "sd"
+comment = "sed replacement: PCRE syntax, no GNU/BSD -i divergence"
+tiers = ["core"]
+
+[[packages]]
+key = "make"
+section = "cli"
+brew = "make"
+comment = "GNU make (macOS ships 3.81; use as `make` via libexec/gnubin)"
+tiers = ["core"]
+
+[[packages]]
+key = "gnu-getopt"
+section = "cli"
+brew = "gnu-getopt"
+comment = "GNU getopt with long-option support (keg-only)"
+tiers = ["core"]
+
+[[packages]]
+key = "yq"
+section = "cli"
+brew = "yq"
+comment = "YAML/JSON/XML processor (the \"jq for YAML\")"
+tiers = ["core"]
+
+[[packages]]
+key = "nmap"
+section = "cli"
+brew = "nmap"
+comment = "Network/port scanner"
+tiers = ["core"]
+
+[[packages]]
+key = "f3"
+section = "cli"
+brew = "f3"
+comment = "Flash-media fake-capacity tester (f3probe/f3write/f3read)"
+tiers = ["core"]
+
+[[packages]]
+key = "cmake"
+section = "cli"
+brew = "cmake"
+comment = "C/C++ build-system generator"
+tiers = ["core"]
+
+[[packages]]
+key = "coder"
+section = "cli"
+brew = "coder/coder/coder"
+comment = "Coder.com CLI — remote dev, manages the homelab deployment/templates"
+tiers = ["core"]
+
+[[packages]]
+key = "actionlint"
+section = "quality"
+brew = "actionlint"
+comment = "GitHub Actions workflow linter"
+tiers = ["quality"]
+
+[[packages]]
+key = "markdownlint-cli2"
+section = "quality"
+brew = "markdownlint-cli2"
+comment = "Markdown linter"
+tiers = ["quality"]
+
+[[packages]]
+key = "pre-commit"
+section = "quality"
+brew = "pre-commit"
+comment = "Git hook framework"
+tiers = ["quality"]
+
+[[packages]]
+key = "shellcheck"
+section = "quality"
+brew = "shellcheck"
+comment = "Shell script static analysis"
+tiers = ["quality"]
+
+[[packages]]
+key = "shfmt"
+section = "quality"
+brew = "shfmt"
+comment = "Shell script formatter"
+tiers = ["quality"]
+
+[[packages]]
+key = "taplo"
+section = "quality"
+brew = "taplo"
+comment = "TOML toolkit (formatter + linter)"
+tiers = ["quality"]
+
+[[packages]]
+key = "yamllint"
+section = "quality"
+brew = "yamllint"
+comment = "YAML linter"
+tiers = ["quality"]
