@@ -379,10 +379,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install chezmoi
+      - name: Install chezmoi ${{ env.CHEZMOI_VERSION }}
         run: |
           set -euo pipefail
-          sh -c "$(curl -fsSL get.chezmoi.io)" -- -b "$HOME/.local/bin" "$CHEZMOI_VERSION"
+          installer="$(mktemp)"
+          if ! curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$installer" https://get.chezmoi.io \
+            || [ ! -s "$installer" ]; then
+            echo "error: could not download the chezmoi installer from https://get.chezmoi.io" >&2
+            exit 1
+          fi
+          sh "$installer" -b "$HOME/.local/bin" -t "$CHEZMOI_VERSION"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # macOS is not optional here: .chezmoi.os cannot be overridden from a
