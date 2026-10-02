@@ -6,9 +6,13 @@
 # Ordering is significant — Go templates iterate a map in sorted key order,
 # so packages are an ARRAY of tables to preserve the file's grouping.
 #
-# Channel fields (brew/cask/apt/cargo/go/uv) describe availability, not
-# preference. A package with only `brew` is unavailable on the Pi, and the
-# renderer says so rather than dropping it silently.
+# Channel fields (brew/cask/apt/cargo/go/uv/vscode/flatpak/npm) describe
+# availability, not preference. A package with only `brew` is unavailable on
+# the Pi, and the renderer says so rather than dropping it silently.
+#
+# Gating fields (profiles/os/secrets/machine) are each an optional array of
+# permitted values; absent means unrestricted. A package may carry any
+# combination of them — all that apply must pass for the entry to render.
 
 [[packages]]
 key = "git"
@@ -373,3 +377,675 @@ section = "quality"
 brew = "yamllint"
 comment = "YAML linter"
 tiers = ["quality"]
+
+[[packages]]
+key = "podman"
+section = "container-runtime"
+brew = "podman"
+comment = "Container runtime (rootless/daemonless; replaces Docker/Colima everywhere)"
+tiers = ["core"]
+machine = ["laptop", "desktop", "server", "pi"]
+
+[[packages]]
+key = "mas"
+section = "macos-only"
+brew = "mas"
+comment = "Mac App Store CLI"
+tiers = ["core"]
+os = ["darwin"]
+
+[[packages]]
+key = "duti"
+section = "macos-only"
+brew = "duti"
+comment = "Default-app picker"
+tiers = ["core"]
+os = ["darwin"]
+
+[[packages]]
+key = "grep-gnu"
+section = "macos-only"
+brew = "grep"
+comment = "GNU grep (better than BSD)"
+tiers = ["core"]
+os = ["darwin"]
+
+[[packages]]
+key = "gnupg-macos"
+section = "macos-only"
+brew = "gnupg"
+comment = "(already above; macOS sometimes needs explicit)"
+tiers = ["core"]
+os = ["darwin"]
+
+# NOTE: no `os` restriction here, deliberately deviating from this task's
+# plan text (which models this entry with `os = ["darwin"]`). The current
+# Brewfile.tmpl (verified via git history and the Task 1 Linux baselines,
+# which already show `brew "bitwarden-cli"` on Linux cells) has carried no
+# such restriction since an earlier, separate commit made bitwarden-cli
+# "one cross-platform binary (replaces the Linux snap)" — the plan's
+# worked example predates that change. Preserving actual current behavior
+# (and passing the Task 2 parity baselines) takes priority over the stale
+# example; see the Task 3 report for detail.
+[[packages]]
+key = "bitwarden-cli"
+section = "secrets"
+brew = "bitwarden-cli"
+comment = "bw CLI — one cross-platform binary (replaces the Linux snap)"
+tiers = ["secrets"]
+secrets = ["bitwarden", "both"]
+
+[[packages]]
+key = "1password-cli"
+section = "secrets"
+cask = "1password-cli"
+brew = "1password-cli"
+tiers = ["secrets"]
+secrets = ["1password", "both"]
+
+[[packages]]
+key = "go"
+section = "work"
+brew = "go"
+comment = "Go language (work-only; personal pushes Go dev to Coder workspaces)"
+tiers = ["go"]
+profiles = ["work"]
+
+[[packages]]
+key = "vale"
+section = "work"
+brew = "vale"
+comment = "Prose linter"
+tiers = ["quality"]
+profiles = ["work"]
+
+[[packages]]
+key = "halibut"
+section = "work"
+brew = "halibut"
+comment = "Document preparation"
+tiers = ["work"]
+profiles = ["work"]
+
+[[packages]]
+key = "gopls"
+section = "work"
+brew = "gopls"
+comment = "Go language server"
+tiers = ["go"]
+profiles = ["work"]
+
+[[packages]]
+key = "snap"
+section = "work"
+brew = "snap"
+comment = "snap CLI on macOS (.snap files)"
+tiers = ["work"]
+profiles = ["work"]
+
+[[packages]]
+key = "fish"
+section = "personal"
+brew = "fish"
+comment = "Friendly shell (alternative)"
+tiers = ["personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "opentofu"
+section = "personal"
+brew = "opentofu"
+comment = "OpenTofu — the infrastructure repo's contexts (homelab, cloudflare, coder)"
+tiers = ["infra"]
+profiles = ["personal"]
+
+[[packages]]
+key = "kubernetes-cli"
+section = "personal"
+brew = "kubernetes-cli"
+comment = "kubectl — reach the homelab cluster and run the MCP break-glass port-forwards"
+tiers = ["infra"]
+profiles = ["personal"]
+
+[[packages]]
+key = "wasm-pack"
+section = "personal"
+brew = "wasm-pack"
+comment = "Rust->WASM packager (typhony demo site build)"
+tiers = ["rust"]
+profiles = ["personal"]
+
+[[packages]]
+key = "openapi-generator"
+section = "personal"
+brew = "openapi-generator"
+tiers = ["personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "pandoc"
+section = "personal"
+brew = "pandoc"
+comment = "Markup converter"
+tiers = ["personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "weasyprint"
+section = "personal"
+brew = "weasyprint"
+comment = "HTML → PDF"
+tiers = ["personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "warp"
+section = "cask"
+cask = "warp"
+tiers = ["gui"]
+
+[[packages]]
+key = "ghostty"
+section = "cask"
+cask = "ghostty"
+tiers = ["gui"]
+
+[[packages]]
+key = "visual-studio-code"
+section = "cask"
+cask = "visual-studio-code"
+tiers = ["gui"]
+
+[[packages]]
+key = "logi-options+"
+section = "cask"
+cask = "logi-options+"
+tiers = ["gui"]
+
+[[packages]]
+key = "displaylink"
+section = "cask"
+cask = "displaylink"
+tiers = ["gui"]
+
+[[packages]]
+key = "keepingyouawake"
+section = "cask"
+cask = "keepingyouawake"
+tiers = ["gui"]
+
+[[packages]]
+key = "rustdesk"
+section = "cask"
+cask = "rustdesk"
+tiers = ["gui"]
+
+[[packages]]
+key = "font-jetbrains-mono-nerd-font"
+section = "cask"
+cask = "font-jetbrains-mono-nerd-font"
+tiers = ["gui"]
+
+[[packages]]
+key = "font-fira-code-nerd-font"
+section = "cask"
+cask = "font-fira-code-nerd-font"
+tiers = ["gui"]
+
+[[packages]]
+key = "font-0xproto-nerd-font"
+section = "cask"
+cask = "font-0xproto-nerd-font"
+tiers = ["gui"]
+
+[[packages]]
+key = "claude"
+section = "cask"
+cask = "claude"
+comment = "Anthropic Claude desktop"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "zoom"
+section = "cask"
+cask = "zoom"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "firefox"
+section = "cask"
+cask = "firefox"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "orion"
+section = "cask"
+cask = "orion"
+comment = "WebKit browser"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "bitwarden"
+section = "cask"
+cask = "bitwarden"
+comment = "Password manager GUI"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "discord"
+section = "cask"
+cask = "discord"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "dolphin"
+section = "cask"
+cask = "dolphin"
+comment = "GameCube/Wii emulator"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "freetube"
+section = "cask"
+cask = "freetube"
+comment = "YouTube client"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "joplin"
+section = "cask"
+cask = "joplin"
+comment = "Note-taking"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "libreoffice"
+section = "cask"
+cask = "libreoffice"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "proton-drive"
+section = "cask"
+cask = "proton-drive"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "proton-mail"
+section = "cask"
+cask = "proton-mail"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "protonvpn"
+section = "cask"
+cask = "protonvpn"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "raindropio"
+section = "cask"
+cask = "raindropio"
+comment = "Bookmark manager"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "signal"
+section = "cask"
+cask = "signal"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "steam"
+section = "cask"
+cask = "steam"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "texmaker"
+section = "cask"
+cask = "texmaker"
+comment = "LaTeX"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "todoist-app"
+section = "cask"
+cask = "todoist-app"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "vlc"
+section = "cask"
+cask = "vlc"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "esbenp.prettier-vscode"
+section = "vscode"
+vscode = "esbenp.prettier-vscode"
+tiers = ["gui"]
+
+[[packages]]
+key = "charliermarsh.ruff"
+section = "vscode"
+vscode = "charliermarsh.ruff"
+tiers = ["gui"]
+
+[[packages]]
+key = "ms-python.python"
+section = "vscode"
+vscode = "ms-python.python"
+tiers = ["gui"]
+
+[[packages]]
+key = "ms-python.vscode-pylance"
+section = "vscode"
+vscode = "ms-python.vscode-pylance"
+tiers = ["gui"]
+
+[[packages]]
+key = "ms-python.debugpy"
+section = "vscode"
+vscode = "ms-python.debugpy"
+tiers = ["gui"]
+
+[[packages]]
+key = "ms-python.vscode-python-envs"
+section = "vscode"
+vscode = "ms-python.vscode-python-envs"
+tiers = ["gui"]
+
+[[packages]]
+key = "rust-lang.rust-analyzer"
+section = "vscode"
+vscode = "rust-lang.rust-analyzer"
+tiers = ["gui"]
+
+[[packages]]
+key = "redhat.vscode-yaml"
+section = "vscode"
+vscode = "redhat.vscode-yaml"
+tiers = ["gui"]
+
+[[packages]]
+key = "redhat.vscode-xml"
+section = "vscode"
+vscode = "redhat.vscode-xml"
+tiers = ["gui"]
+
+[[packages]]
+key = "tamasfe.even-better-toml"
+section = "vscode"
+vscode = "tamasfe.even-better-toml"
+tiers = ["gui"]
+
+[[packages]]
+key = "yzhang.markdown-all-in-one"
+section = "vscode"
+vscode = "yzhang.markdown-all-in-one"
+tiers = ["gui"]
+
+[[packages]]
+key = "github.copilot-chat"
+section = "vscode"
+vscode = "github.copilot-chat"
+tiers = ["gui"]
+
+[[packages]]
+key = "github.vscode-github-actions"
+section = "vscode"
+vscode = "github.vscode-github-actions"
+tiers = ["gui"]
+
+[[packages]]
+key = "ms-vscode-remote.remote-ssh"
+section = "vscode"
+vscode = "ms-vscode-remote.remote-ssh"
+tiers = ["gui"]
+
+[[packages]]
+key = "ms-vscode-remote.remote-ssh-edit"
+section = "vscode"
+vscode = "ms-vscode-remote.remote-ssh-edit"
+tiers = ["gui"]
+
+[[packages]]
+key = "ms-vscode.remote-explorer"
+section = "vscode"
+vscode = "ms-vscode.remote-explorer"
+tiers = ["gui"]
+
+[[packages]]
+key = "foxundermoon.shell-format"
+section = "vscode"
+vscode = "foxundermoon.shell-format"
+tiers = ["gui"]
+
+[[packages]]
+key = "vadimcn.vscode-lldb"
+section = "vscode"
+vscode = "vadimcn.vscode-lldb"
+tiers = ["gui"]
+
+[[packages]]
+key = "saoudrizwan.claude-dev"
+section = "vscode"
+vscode = "saoudrizwan.claude-dev"
+tiers = ["gui"]
+
+[[packages]]
+key = "astro-build.astro-vscode"
+section = "vscode"
+vscode = "astro-build.astro-vscode"
+tiers = ["gui"]
+
+[[packages]]
+key = "lkrms.inifmt"
+section = "vscode"
+vscode = "lkrms.inifmt"
+tiers = ["gui"]
+
+[[packages]]
+key = "chrischinchilla.vale-vscode"
+section = "vscode"
+vscode = "chrischinchilla.vale-vscode"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "coder.coder-remote"
+section = "vscode"
+vscode = "coder.coder-remote"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "golang.go"
+section = "vscode"
+vscode = "golang.go"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "flatpak-bitwarden"
+section = "flatpak"
+flatpak = "com.bitwarden.desktop"
+comment = "Bitwarden password manager (GUI)"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-discord"
+section = "flatpak"
+flatpak = "com.discordapp.Discord"
+comment = "Discord"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-joplin"
+section = "flatpak"
+flatpak = "net.cozic.joplin_desktop"
+comment = "Joplin notes"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-vlc"
+section = "flatpak"
+flatpak = "org.videolan.VLC"
+comment = "VLC media player"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-keepassxc"
+section = "flatpak"
+flatpak = "org.keepassxc.KeePassXC"
+comment = "KeePassXC"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-okular"
+section = "flatpak"
+flatpak = "org.kde.okular"
+comment = "Okular document viewer"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-chromium"
+section = "flatpak"
+flatpak = "org.chromium.Chromium"
+comment = "Chromium"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-steam"
+section = "flatpak"
+flatpak = "com.valvesoftware.Steam"
+comment = "Steam"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-orcaslicer"
+section = "flatpak"
+flatpak = "com.orcaslicer.OrcaSlicer"
+comment = "OrcaSlicer 3D printing slicer"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-rustdesk"
+section = "flatpak"
+flatpak = "com.rustdesk.RustDesk"
+comment = "RustDesk remote desktop (mirrors macOS cask)"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-gnome-extensions"
+section = "flatpak"
+flatpak = "org.gnome.Extensions"
+comment = "GNOME Extensions manager"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-apostrophe"
+section = "flatpak"
+flatpak = "org.gnome.gitlab.somas.Apostrophe"
+comment = "Apostrophe Markdown editor"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-libreoffice"
+section = "flatpak"
+flatpak = "org.libreoffice.LibreOffice"
+comment = "LibreOffice office suite (mirrors macOS cask)"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "flatpak-rnote"
+section = "flatpak"
+flatpak = "com.github.flxzt.rnote"
+comment = "Rnote handwriting / stylus notes app"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "cargo-edit"
+section = "cargo"
+cargo = "cargo-edit"
+comment = "`cargo upgrade` to bump dep versions"
+tiers = ["rust"]
+profiles = ["personal"]
+
+[[packages]]
+key = "bws"
+section = "cargo"
+cargo = "bws"
+comment = "Bitwarden Secrets Manager CLI (no Homebrew formula); used by the infrastructure repo's coder/tofu.sh"
+tiers = ["secrets"]
+profiles = ["personal"]
+
+[[packages]]
+key = "cargo-audit"
+section = "cargo"
+cargo = "cargo-audit"
+comment = "Checks Cargo.lock against the RustSec advisory database"
+tiers = ["rust"]
+profiles = ["personal"]
+
+[[packages]]
+key = "golangci-lint"
+section = "go-tool"
+go = "github.com/golangci/golangci-lint/cmd/golangci-lint"
+tiers = ["go"]
+profiles = ["work"]
+
+[[packages]]
+key = "headroom-ai"
+section = "uv"
+uv = "headroom-ai"
+comment = "Claude Code context-compression tool (provides `headroom`)"
+tiers = ["core"]
+
+[[packages]]
+key = "weasyprint-uv"
+section = "uv"
+uv = "weasyprint"
+tiers = ["personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "pi-coding-agent"
+section = "npm"
+npm = "@earendil-works/pi-coding-agent"
+comment = "pi coding agent CLI"
+tiers = ["core"]
