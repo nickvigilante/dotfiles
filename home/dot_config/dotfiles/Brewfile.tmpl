@@ -6,181 +6,68 @@
 tap "coder/coder"
 
 # ── Cross-platform CLI (every full-toolkit machine) ──────────────────────────
-brew "git"           # Distributed revision control
-brew "curl"          # HTTP client
-brew "wget"          # File retriever
-brew "jq"            # JSON processor
-brew "ripgrep"       # Fast grep (rg)
-brew "fd"            # Fast find
-brew "fzf"           # Fuzzy finder
-brew "eza"           # Better ls
-brew "bat"           # Better cat (syntax highlighting)
-brew "zoxide"        # Better cd
-brew "tldr"          # Simplified man pages
-brew "htop"          # Process viewer
-brew "tree"          # Directory tree
-brew "tmux"          # Terminal multiplexer
-brew "neovim"        # Editor
-brew "gh"            # GitHub CLI
-brew "rtk"           # LLM token-saving CLI proxy (Claude Code Bash hook)
-brew "git-delta"     # Better git diff
-brew "lazygit"       # TUI git client
-brew "ncdu"          # NCurses Disk Usage
-brew "uv"            # Python package manager (Astral)
-brew "ruff"          # Python linter (Astral)
-brew "gnupg"         # OpenPGP
-brew "age"           # Modern encryption
-brew "chezmoi"       # Dotfiles manager
-brew "gum"           # Charm shell UI
-brew "just"          # Command runner / project Makefile alternative
-brew "mprocs"        # Run multiple commands in parallel
-brew "rustup"        # Rust toolchain manager (replaces brew rust; needed for wasm32 target)
-brew "node"          # Node.js
-brew "prettier"      # Code formatter
-brew "starship"      # Cross-shell prompt (initialized in completions.zsh)
-brew "dust"          # du replacement: visual disk usage tree
-brew "duf"           # df replacement: color-coded disk free
-brew "bottom"        # htop alt: graphs over time, mouse, layouts (binary: btm)
-brew "hyperfine"     # CLI benchmarking tool
-brew "glow"          # Markdown renderer for the terminal
-brew "sd"            # sed replacement: PCRE syntax, no GNU/BSD -i divergence
-brew "make"          # GNU make (macOS ships 3.81; use as `make` via libexec/gnubin)
-brew "gnu-getopt"    # GNU getopt with long-option support (keg-only)
-brew "yq"            # YAML/JSON/XML processor (the "jq for YAML")
-brew "nmap"          # Network/port scanner
-brew "f3"            # Flash-media fake-capacity tester (f3probe/f3write/f3read)
-brew "cmake"         # C/C++ build-system generator
-brew "coder/coder/coder" # Coder.com CLI — remote dev, manages the homelab deployment/templates
-
+{{ range .packages -}}
+{{ if and (eq .section "cli") .brew -}}
+{{ printf "%-21s# %s" (printf "brew %q" .brew) .comment }}
+{{ end -}}
+{{ end }}
 # ── Container runtime (skip inside Coder workspaces — they already run in one) ──
-{{ if ne .machine "ephemeral" -}}
-brew "podman"        # Container runtime (rootless/daemonless; replaces Docker/Colima everywhere)
-{{- end }}
+{{ range .packages -}}
+{{ if and (eq .section "container-runtime") .brew (or (not (index . "machine")) (has $.machine (index . "machine"))) -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "brew %q" .brew) (index . "comment") }}{{ else }}{{ printf "brew %q" .brew }}{{ end }}
+{{ end -}}
+{{ end }}
 
-# Repo quality gate (CI + pre-commit) — see docs/superpowers/plans/2026-06-22-repo-housekeeping-ci.md
-brew "actionlint"        # GitHub Actions workflow linter
-brew "markdownlint-cli2" # Markdown linter
-brew "pre-commit"        # Git hook framework
-brew "shellcheck"        # Shell script static analysis
-brew "shfmt"             # Shell script formatter
-brew "taplo"             # TOML toolkit (formatter + linter)
-brew "yamllint"          # YAML linter
+# ── Repo quality gate ────────────────────────────────────────────────────────
+{{ range .packages -}}
+{{ if and (eq .section "quality") .brew -}}
+{{ printf "%-21s# %s" (printf "brew %q" .brew) .comment }}
+{{ end -}}
+{{ end }}
 
 # ── macOS-only formulae ──────────────────────────────────────────────────────
-{{ if eq .chezmoi.os "darwin" -}}
-brew "mas"           # Mac App Store CLI
-brew "duti"          # Default-app picker
-brew "grep"          # GNU grep (better than BSD)
-brew "gnupg"         # (already above; macOS sometimes needs explicit)
-{{- end }}
-
+{{ range .packages -}}
+{{ if and (eq .section "macos-only") .brew (or (not (index . "os")) (has $.chezmoi.os (index . "os"))) -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "brew %q" .brew) (index . "comment") }}{{ else }}{{ printf "brew %q" .brew }}{{ end }}
+{{ end -}}
+{{ end }}
 # ── Secrets CLIs ─────────────────────────────────────────────────────────────
-{{ if or (eq .secrets "bitwarden") (eq .secrets "both") -}}
-brew "bitwarden-cli"    # bw CLI — one cross-platform binary (replaces the Linux snap)
-{{- end }}
-{{ if or (eq .secrets "1password") (eq .secrets "both") -}}
-    {{- if eq .chezmoi.os "darwin" }}
-cask "1password-cli"
-    {{- else }}
-brew "1password-cli"
-    {{- end }}
-{{- end }}
-
+{{ range .packages -}}
+{{ if and (eq .section "secrets") (or (not (index . "secrets")) (has $.secrets (index . "secrets"))) -}}
+{{ if and (index . "cask") (eq $.chezmoi.os "darwin") -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "cask %q" .cask) (index . "comment") }}{{ else }}{{ printf "cask %q" .cask }}{{ end }}
+{{ else if .brew -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "brew %q" .brew) (index . "comment") }}{{ else }}{{ printf "brew %q" .brew }}{{ end }}
+{{ end }}
+{{ end -}}
+{{ end }}
 # ── Work-only formulae ───────────────────────────────────────────────────────
-{{ if eq .profile "work" -}}
-brew "go"               # Go language (work-only; personal pushes Go dev to Coder workspaces)
-brew "vale"             # Prose linter
-brew "halibut"          # Document preparation
-brew "gopls"            # Go language server
-brew "snap"             # snap CLI on macOS (.snap files)
-{{- end }}
-
+{{ range .packages -}}
+{{ if and (eq .section "work") .brew (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "brew %q" .brew) (index . "comment") }}{{ else }}{{ printf "brew %q" .brew }}{{ end }}
+{{ end -}}
+{{ end }}
 # ── Personal-only formulae ───────────────────────────────────────────────────
-{{ if eq .profile "personal" -}}
-brew "fish"          # Friendly shell (alternative)
-brew "opentofu"      # OpenTofu — the infrastructure repo's contexts (homelab, cloudflare, coder)
-brew "kubernetes-cli" # kubectl — reach the homelab cluster and run the MCP break-glass port-forwards
-brew "wasm-pack"     # Rust->WASM packager (typhony demo site build)
-brew "openapi-generator"
-brew "pandoc"        # Markup converter
-brew "weasyprint"    # HTML → PDF
-{{- end }}
+{{ range .packages -}}
+{{ if and (eq .section "personal") .brew (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "brew %q" .brew) (index . "comment") }}{{ else }}{{ printf "brew %q" .brew }}{{ end }}
+{{ end -}}
+{{ end }}
 # Windows (separate setup): add `winget "RedHat.Podman"` gated to `.chezmoi.os "windows"`.
 
 # ── GUI casks (macOS + display only — Linux Homebrew has no casks) ──────────
 {{ if and .display (eq .chezmoi.os "darwin") -}}
-
-# Cross-profile casks (always installed when display + macOS)
-cask "warp"
-cask "ghostty"
-cask "visual-studio-code"
-cask "logi-options+"
-cask "displaylink"
-cask "keepingyouawake"
-cask "rustdesk"
-
-# Fonts
-cask "font-jetbrains-mono-nerd-font"
-cask "font-fira-code-nerd-font"
-cask "font-0xproto-nerd-font"
-
-  {{ if eq .profile "work" -}}
-# Work-only casks
-cask "claude"             # Anthropic Claude desktop
-cask "zoom"
-  {{- end }}
-
-  {{ if eq .profile "personal" -}}
-# Personal-only casks
-cask "firefox"
-cask "orion"              # WebKit browser
-cask "bitwarden"          # Password manager GUI
-cask "discord"
-cask "dolphin"            # GameCube/Wii emulator
-cask "freetube"           # YouTube client
-cask "joplin"             # Note-taking
-cask "libreoffice"
-cask "proton-drive"
-cask "proton-mail"
-cask "protonvpn"
-cask "raindropio"         # Bookmark manager
-cask "signal"
-cask "steam"
-cask "texmaker"           # LaTeX
-cask "todoist-app"
-cask "vlc"
-  {{- end }}
-
+{{ range .packages -}}
+{{ if and (eq .section "cask") .cask (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "cask %q" .cask) (index . "comment") }}{{ else }}{{ printf "cask %q" .cask }}{{ end }}
+{{ end -}}
+{{ end }}
 # ── VS Code extensions (only renders when display + macOS) ──────────────────
-vscode "esbenp.prettier-vscode"
-vscode "charliermarsh.ruff"
-vscode "ms-python.python"
-vscode "ms-python.vscode-pylance"
-vscode "ms-python.debugpy"
-vscode "ms-python.vscode-python-envs"
-vscode "rust-lang.rust-analyzer"
-vscode "redhat.vscode-yaml"
-vscode "redhat.vscode-xml"
-vscode "tamasfe.even-better-toml"
-vscode "yzhang.markdown-all-in-one"
-vscode "github.copilot-chat"
-vscode "github.vscode-github-actions"
-vscode "ms-vscode-remote.remote-ssh"
-vscode "ms-vscode-remote.remote-ssh-edit"
-vscode "ms-vscode.remote-explorer"
-vscode "foxundermoon.shell-format"
-vscode "vadimcn.vscode-lldb"
-vscode "saoudrizwan.claude-dev"
-vscode "astro-build.astro-vscode"
-vscode "lkrms.inifmt"
-
-  {{ if eq .profile "work" -}}
-# Work-only VS Code extensions
-vscode "chrischinchilla.vale-vscode"
-vscode "coder.coder-remote"
-vscode "golang.go"
-  {{- end }}
-
+{{ range .packages -}}
+{{ if and (eq .section "vscode") .vscode (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "vscode %q" .vscode) (index . "comment") }}{{ else }}{{ printf "vscode %q" .vscode }}{{ end }}
+{{ end -}}
+{{ end }}
 # Mac App Store apps (Keynote, Pages, Xcode, etc.) are NOT installed via mas —
 # the mas-cli has been broken on macOS Sonoma+ since Apple removed the private
 # APIs it relied on. Install those manually from the App Store; see README.md
@@ -191,43 +78,38 @@ vscode "golang.go"
 # Homebrew has no casks on Linux, so GUI apps come from Flathub via brew bundle's
 # native `flatpak` type. Mirrors the personal macOS casks above. Requires the
 # `flathub` remote (added by the Linux desktop bootstrap).
-{{ if and .display (eq .chezmoi.os "linux") (eq .profile "personal") -}}
-flatpak "com.bitwarden.desktop"             # Bitwarden password manager (GUI)
-flatpak "com.discordapp.Discord"            # Discord
-flatpak "net.cozic.joplin_desktop"          # Joplin notes
-flatpak "org.videolan.VLC"                  # VLC media player
-flatpak "org.keepassxc.KeePassXC"           # KeePassXC
-flatpak "org.kde.okular"                    # Okular document viewer
-flatpak "org.chromium.Chromium"             # Chromium
-flatpak "com.valvesoftware.Steam"           # Steam
-flatpak "com.orcaslicer.OrcaSlicer"        # OrcaSlicer 3D printing slicer
-flatpak "com.rustdesk.RustDesk"            # RustDesk remote desktop (mirrors macOS cask)
-flatpak "org.gnome.Extensions"             # GNOME Extensions manager
-flatpak "org.gnome.gitlab.somas.Apostrophe" # Apostrophe Markdown editor
-flatpak "org.libreoffice.LibreOffice"      # LibreOffice office suite (mirrors macOS cask)
-flatpak "com.github.flxzt.rnote"           # Rnote handwriting / stylus notes app
-{{- end }}
+{{ if and .display (eq .chezmoi.os "linux") -}}
+{{ range .packages -}}
+{{ if and (eq .section "flatpak") .flatpak (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-45s# %s" (printf "flatpak %q" .flatpak) (index . "comment") }}{{ else }}{{ printf "flatpak %q" .flatpak }}{{ end }}
+{{ end -}}
+{{ end -}}
+{{ end }}
 
 # ── Cargo crates (personal: primary Rust dev) ────────────────────────────────
 # These compile from source via cargo, so we only install on machines that
 # actually do Rust development. Add ad-hoc with `brew install cargo-edit`
 # (etc.) if you need them on the off-profile machine occasionally.
-{{ if eq .profile "personal" -}}
-cargo "cargo-edit"          # `cargo upgrade` to bump dep versions
-cargo "bws"                 # Bitwarden Secrets Manager CLI (no Homebrew formula); used by the infrastructure repo's coder/tofu.sh
-cargo "cargo-audit"         # Checks Cargo.lock against the RustSec advisory database
-{{- end }}
-
+{{ range .packages -}}
+{{ if and (eq .section "cargo") .cargo (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-29s# %s" (printf "cargo %q" .cargo) (index . "comment") }}{{ else }}{{ printf "cargo %q" .cargo }}{{ end }}
+{{ end -}}
+{{ end }}
 # ── Go tools (work: primary Go dev) ──────────────────────────────────────────
-{{ if eq .profile "work" -}}
-go "github.com/golangci/golangci-lint/cmd/golangci-lint"
-{{- end }}
-
+{{ range .packages -}}
+{{ if and (eq .section "go-tool") .go (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "go %q" .go) (index . "comment") }}{{ else }}{{ printf "go %q" .go }}{{ end }}
+{{ end -}}
+{{ end }}
 # ── uv-installed Python tools ────────────────────────────────────────────────
-uv "headroom-ai"        # Claude Code context-compression tool (provides `headroom`)
-{{ if eq .profile "personal" -}}
-uv "weasyprint"
-{{- end }}
-
+{{ range .packages -}}
+{{ if and (eq .section "uv") .uv (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-21s# %s" (printf "uv %q" .uv) (index . "comment") }}{{ else }}{{ printf "uv %q" .uv }}{{ end }}
+{{ end -}}
+{{ end }}
 # ── npm global tools ─────────────────────────────────────────────────────────
-npm "@earendil-works/pi-coding-agent"   # pi coding agent CLI
+{{ range .packages -}}
+{{ if and (eq .section "npm") .npm (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
+{{ if index . "comment" }}{{ printf "%-39s# %s" (printf "npm %q" .npm) (index . "comment") }}{{ else }}{{ printf "npm %q" .npm }}{{ end }}
+{{ end -}}
+{{ end }}
