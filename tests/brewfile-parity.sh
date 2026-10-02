@@ -31,5 +31,5 @@ EOF
 
 "$CHEZMOI" execute-template --config "$TMP/cfg.toml" < "$TMPL" |
 	sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' |
-	grep -E '^(tap|brew|cask|vscode|cargo|go|uv) ' |
+	grep -E '^(tap|brew|cask|vscode|cargo|go|uv|flatpak|npm) ' |
 	sort
