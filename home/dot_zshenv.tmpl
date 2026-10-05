@@ -20,6 +20,12 @@ export PATH="$HOME/venv/bin:$PATH"
 export VIRTUAL_ENV="$HOME/venv"
 export UV_PYTHON_PREFERENCE="only-managed"
 
+# ── Terminal font ──────────────────────────────────────────────────────────────
+# Every machine installs a Nerd Font (the Brewfile cask on macOS, the
+# run_once_04-install-fonts script on Linux), so tell tools that draw Nerd Font
+# icons, such as scuttle, that the glyphs are available.
+export NERD_FONT=1
+
 {{- if or (eq .secrets "1password") (eq .secrets "both") }}
 
 # 1Password service-account token (ephemeral / headless machines)
