@@ -71,6 +71,8 @@ update_dnf() {
 
 update_snap() {
 	command -v snap &> /dev/null || return 0
+	# The client can exist without a running daemon (containers).
+	[[ -S /run/snapd.socket ]] || return 0
 	run_update "snap" sudo snap refresh
 }
 

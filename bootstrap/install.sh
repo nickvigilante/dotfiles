@@ -179,14 +179,13 @@ case "$DETECTED_OS" in
 			sudo dnf install -y curl git zsh ca-certificates @development-tools file procps-ng gnupg2
 		fi
 
-		# snapd: required for Bitwarden CLI (snap install bw) on
-		# 64-bit Linux, baseline-installed regardless of --secrets
-		# choice so future snap-based tools just work. Skipped on
-		# 32-bit ARM (armv6/armv7) because armv6 has no snap support
-		# at all and armv7's snap story is rough enough that
-		# --secrets bitwarden/1password is explicitly errored out on
-		# 32-bit ARM anyway (see lib/secrets.sh). A 64-bit Pi (Pi 4
-		# or Pi 5 with a 64-bit OS → aarch64) uses snap just fine.
+		# snapd: baseline on every 64-bit Linux machine that runs
+		# systemd — desktops, headless servers, and Pis alike — so the
+		# os/linux/*.snap manifests (run_after_18-linux-snaps) can
+		# install. Skipped on 32-bit ARM (armv6/armv7) because armv6
+		# has no snap support at all and armv7's snap story is rough.
+		# A 64-bit Pi (Pi 4 or Pi 5 with a 64-bit OS → aarch64) uses
+		# snap just fine.
 		snap_supported=0
 		case "$DETECTED_ARCH" in
 			amd64 | arm64) snap_supported=1 ;;
@@ -199,7 +198,6 @@ case "$DETECTED_OS" in
 		# (the same test sd_booted(3) uses).
 		if [[ "$snap_supported" == 1 && ! -d /run/systemd/system ]]; then
 			warn "systemd is not running (container?); skipping snapd."
-			warn "  Bitwarden CLI installs from snap; use --secrets none here."
 			snap_supported=0
 		fi
 		if [[ "$snap_supported" == 1 ]] && ! command -v snap &> /dev/null; then
@@ -209,12 +207,10 @@ case "$DETECTED_OS" in
 			elif command -v dnf &> /dev/null; then
 				sudo dnf install -y snapd
 				# Fedora ships snapd but no /snap symlink; classically-
-				# confined snaps need it. Bitwarden's snap is strict, but
-				# creating the symlink keeps other snaps working too.
+				# confined snaps need it.
 				[[ -e /snap ]] || sudo ln -sf /var/lib/snapd/snap /snap
 			else
-				warn "snapd installer not implemented for this distro."
-				warn "  Bitwarden CLI installs from snap; --secrets bitwarden will fail in step 7."
+				warn "snapd installer not implemented for this distro; snaps will be skipped."
 			fi
 			if command -v systemctl &> /dev/null && command -v snap &> /dev/null; then
 				sudo systemctl enable --now snapd.socket
@@ -226,7 +222,7 @@ case "$DETECTED_OS" in
 		fi
 		# /snap/bin holds symlinks to snap-installed apps. On Fedora
 		# and similar, it isn't on $PATH until next login — prepend
-		# it now so 'command -v bw' works in step 7 of this same run.
+		# it now so snap-installed tools resolve later in this run.
 		# Skipped on 32-bit ARM (nothing in /snap/bin to find).
 		if [[ "$snap_supported" == 1 ]]; then
 			case ":${PATH}:" in

@@ -2,9 +2,8 @@
 # Secret-CLI installation helpers. Sourced by bootstrap/install.sh.
 #
 # Both helpers assume install.sh's earlier steps have provided:
-#   - Step 3/9: snapd on Linux (non-Pi) — used by install_bw
-#   - Step 6/9: Homebrew on Linux (non-Pi) + macOS — used by install_op
-#                (and by install_bw on macOS only)
+#   - Step 3/10: a C toolchain on Linux — bitwarden-cli builds via npm
+#   - Step 6/10: Homebrew on Linux (non-Pi) + macOS — used by both
 #
 # Requires DETECTED_OS, DETECTED_ARCH, DETECTED_IS_PI from detect.sh.
 # Requires GUM_BIN from install.sh for retry_or_skip prompts.

@@ -1,0 +1,11 @@
+# Snaps for EVERY Linux machine with a running snapd — headless servers and
+# 64-bit Pis included, not just desktops. Installed by
+# run_after_18-linux-snaps.sh (stamp-and-compare). Containers are skipped
+# automatically: no systemd as PID 1 means no snapd.
+#
+# Only CLI/server tools that need no display belong here; GUI apps go in
+# packages.snap. As with that file, prefer Homebrew for anything it ships and
+# use snap only where the Snap Store is the best channel (e.g. lxd, microk8s,
+# certbot).
+#
+# Names only, one per line — the installer extracts via `grep -Ev '^#|^$'`.

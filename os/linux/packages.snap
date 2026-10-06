@@ -1,5 +1,6 @@
 # Snap apps for graphical Linux machines (display = true).
-# Installed by run_after_18-linux-desktop-snaps.sh (stamp-and-compare).
+# Installed by run_after_18-linux-snaps.sh (stamp-and-compare). CLI/server
+# snaps that should reach headless machines too go in packages-cli.snap.
 #
 # ONLY apps whose official/best Linux channel is the Snap Store belong here —
 # everything else is a Brewfile `flatpak` (Flathub), a vendor apt repo
