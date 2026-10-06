@@ -191,6 +191,17 @@ case "$DETECTED_OS" in
 		case "$DETECTED_ARCH" in
 			amd64 | arm64) snap_supported=1 ;;
 		esac
+		# snapd needs systemd as PID 1, which containers (Coder,
+		# devcontainers, Docker) don't have. There, 'systemctl enable
+		# --now' only warns and exits 0, so the 'snap wait' below would
+		# then die and abort the whole bootstrap under 'set -e'.
+		# /run/systemd/system exists only when systemd booted the host
+		# (the same test sd_booted(3) uses).
+		if [[ "$snap_supported" == 1 && ! -d /run/systemd/system ]]; then
+			warn "systemd is not running (container?); skipping snapd."
+			warn "  Bitwarden CLI installs from snap; use --secrets none here."
+			snap_supported=0
+		fi
 		if [[ "$snap_supported" == 1 ]] && ! command -v snap &> /dev/null; then
 			info "Installing snapd..."
 			if command -v apt-get &> /dev/null; then
