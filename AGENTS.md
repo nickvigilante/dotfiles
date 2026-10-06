@@ -9,7 +9,7 @@ Fedora, Raspberry Pi, and Windows (Cygwin).
 |------|---------|
 | `home/` | chezmoi source root (`.chezmoiroot = home`); files here map to `~/` |
 | `home/*.tmpl` | Rendered by chezmoi at apply time; use `{{ .variable }}` for data |
-| `os/linux/` | Linux package lists (`packages.apt`, `packages.snap`, `packages.dnf`) and bootstrap scripts |
+| `os/linux/` | Linux package lists (`packages.apt`, `packages.snap`, `packages-cli.snap`, `packages.dnf`) and bootstrap scripts |
 | `os/raspberry-pi/` | Pi-specific package list |
 | `tests/` | Shell-script integration tests (run by `chezmoi-matrix` CI job) |
 | `.github/workflows/ci.yml` | CI; the `ci` job is the single required gate |

@@ -120,6 +120,23 @@ fi
 # now handled at the source — the dir is tracked as `private_homebrew` (0700) —
 # rather than chmod'd here, which fought chezmoi's own perms and caused drift.
 
+{{ if eq .chezmoi.os "linux" -}}
+# bitwarden-cli is an npm package under the hood, and any formula without a
+# bottle for this platform compiles, so both need a C toolchain. Bootstrap
+# Step 3 installs one, but a machine that reached `chezmoi apply` another way
+# may lack it. Warn rather than fail: most formulae install from bottles.
+if ! command -v cc &>/dev/null || ! command -v make &>/dev/null; then
+    echo "==> No C toolchain found — installing before brew bundle..."
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get install -y build-essential || style_fail "build-essential install failed; source builds (e.g. bitwarden-cli) may fail."
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y @development-tools || style_fail "@development-tools install failed; source builds (e.g. bitwarden-cli) may fail."
+    else
+        style_fail "No C toolchain (cc/make) and no known installer; source builds (e.g. bitwarden-cli) may fail."
+    fi
+fi
+{{ end -}}
+
 bundle_flags=(--file="$BREWFILE")
 # No `mas` entries in the Brewfile — App Store apps are installed manually
 # (see README.md). Homebrew has removed bundle's --no-mas and --no-vscode
