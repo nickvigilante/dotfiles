@@ -164,7 +164,7 @@ args = ["", "*"]
 
 [permissions.commands.tree]
 args = ["", "*"]
-deny_flags = ["-o"]
+deny_flags = ["-o", "-R"]
 
 [permissions.commands.read]
 rtk_only = true

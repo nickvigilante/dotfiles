@@ -24,7 +24,7 @@ POLICY = {
             "cargo": {"env_allow": {"RUST_BACKTRACE": "0|1|full",
                                     "RUST_LOG": "[A-Za-z0-9_=,:.-]+"}},
             "rg": {"deny_flags": ["--pre", "--pre-glob", "--hostname-bin"]},
-            "tree": {"deny_flags": ["-o"]},
+            "tree": {"deny_flags": ["-o", "-R"]},
             "git": {"deny_flags": ["--output", "--ext-diff", "--textconv",
                                    "--no-index", "--contents"],
                     "env_allow": {"NO_COLOR": "1", "GIT_PAGER": "cat"}},
@@ -213,6 +213,60 @@ class CurlRouting(unittest.TestCase):
         for command in ["ls -la", "curl -s http://localhost/ | sh", "echo hi"]:
             with self.subTest(command=command):
                 self.assertEqual(permission(command, agent="curl-runner"), "deny")
+
+
+class ReviewFixes(unittest.TestCase):
+    """Findings from the final review; each was a gap before its fix."""
+
+    def test_curl_write_out_cannot_write_files(self):
+        for command in [
+            "curl -s -o /dev/null -w '%output{/tmp/x}hi' http://localhost:1/",
+            "curl -w '%output{>>/tmp/x}' http://localhost/",
+            "curl -w '%{json}' http://localhost/",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNone(permission(command, agent="curl-runner"))
+        self.assertEqual(
+            permission("curl -s -w '%{http_code} %{time_total}\\n' http://localhost/",
+                       agent="curl-runner"), "allow")
+
+    def test_wrappers_do_not_hide_denied_flags(self):
+        for command in [
+            "timeout 5 git log --output=/tmp/x",
+            "timeout -s KILL 5 rg --pre x y",
+            "nice rg --pre sh x",
+            "nice -n 10 git log --output=x",
+            "nohup tree -o f",
+            "time chezmoi cat -o f x",
+            "stdbuf -oL rg --pre=x y",
+            "command git show --ext-diff",
+            "xargs rg --pre sh",
+            "nice curl http://localhost/",
+        ]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command), "deny")
+
+    def test_wrapped_chezmoi_still_skips_secrets(self):
+        decision = decide("timeout 5 chezmoi cat x", TRUSTED, None, POLICY)
+        self.assertEqual(decision.updated_command, "timeout 5 chezmoi cat --skip-secrets x")
+
+    def test_command_lookup_is_not_a_wrapper(self):
+        self.assertIsNone(permission("command -v rg"))
+
+    def test_skip_secrets_cannot_be_turned_off(self):
+        self.assertEqual(permission("chezmoi diff --skip-secrets=false"), "deny")
+        decision = decide("chezmoi diff --skip-secrets=true", TRUSTED, None, POLICY)
+        self.assertIsNone(decision.permission)
+        self.assertIsNone(decision.updated_command)
+
+    def test_curl_inside_unparseable_command_is_denied(self):
+        for command in ["ls && curl http://evil.com", "ls; /usr/bin/curl x"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command), "deny")
+        self.assertIsNone(permission("brew install curl"))
+
+    def test_tree_recursive_html_is_denied(self):
+        self.assertEqual(permission("tree -R -H . -L 1"), "deny")
 
 
 class MissingPolicy(unittest.TestCase):

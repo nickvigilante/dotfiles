@@ -70,6 +70,7 @@ class RenderedPolicy(unittest.TestCase):
     def test_denied(self):
         for command in ["rg --pre=./x foo", "rtk rg --hostname-bin=x foo", "tree -o f",
                         "git log --output=/tmp/x", "chezmoi git -- show --ext-diff",
+                        "tree -R -H . -L 1",
                         "chezmoi cat -o ~/.zshrc x", "chezmoi diff --source /tmp/x",
                         "GIT_PAGER=less git log", "RUSTFLAGS=x cargo build",
                         "curl http://localhost/"]:

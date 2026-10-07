@@ -29,6 +29,8 @@ ROUTE_TO_CURL_AGENT = (
     "Use the Agent tool with subagent_type curl-runner for HTTP requests."
 )
 _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+# curl as a command word somewhere in a command scan() rejected.
+_CURL_WORD = re.compile(r"(?:^|[\s;&|(`/])curl\b")
 _ANY = r"(?s).*"
 _NUMBER = r"\d+"
 
@@ -44,7 +46,7 @@ def decide(
     command: str, cwd: str, agent_type: Optional[str], policy: Dict
 ) -> Decision:
     segments = scan(command)
-    crude = _crude_head(command)
+    crude, rough_args = _rough_split(command)
     heads = [_normalize(s.argv)[0] for s in segments] if segments else []
     is_curl = os.path.basename(crude) == "curl" or any(
         os.path.basename(h) == "curl" for h in heads
@@ -52,7 +54,7 @@ def decide(
 
     if agent_type == CURL_AGENT:
         return _decide_curl_agent(segments, heads, crude)
-    if is_curl:
+    if is_curl or (segments is None and _CURL_WORD.search(command)):
         return Decision("deny", ROUTE_TO_CURL_AGENT)
 
     if segments is None:
@@ -60,9 +62,8 @@ def decide(
             # A rough whitespace split can still spot a forbidden flag, and
             # erring toward deny is safe; otherwise ask, since hidden syntax
             # could smuggle one past the check.
-            rough = [w.strip("'\"") for w in command.split()]
             table = _commands(policy).get(crude, {})
-            flag = _has_flag(rough, table.get("deny_flags", []))
+            flag = _has_flag(rough_args, table.get("deny_flags", []))
             if flag:
                 return Decision("deny", "%s %s is blocked." % (crude, flag))
             return Decision(
@@ -87,33 +88,59 @@ def decide(
 # --- shared helpers -----------------------------------------------------------
 
 
+# Process wrappers Claude Code strips before matching allow rules, mapped to
+# their options that take a separate value. `timeout` also takes a duration.
+_WRAPPERS = {
+    "timeout": {"-s", "--signal", "-k", "--kill-after"},
+    "nice": {"-n", "--adjustment"},
+    "stdbuf": {"-i", "--input", "-o", "--output", "-e", "--error"},
+    "nohup": set(),
+    "time": set(),
+    "command": set(),
+    "builtin": set(),
+    "noglob": set(),
+}
+
+
 def _normalize(argv: List[str]):
-    """Return (head, args, rtk) with a leading `rtk` removed and
-    `chezmoi git [--]` mapped to `git`."""
-    rtk = bool(argv) and argv[0] == "rtk"
-    if rtk:
-        argv = argv[1:]
-    if len(argv) >= 2 and argv[0] == "chezmoi" and argv[1] == "git":
-        args = argv[2:]
+    """Return (head, args, index): the command with a leading `rtk`, the
+    process wrappers in _WRAPPERS, and a bare `xargs` removed, the way
+    Claude Code removes them before matching allow rules, and with
+    `chezmoi git [--]` mapped to `git`. `index` is the head's position."""
+    i = 0
+    while i < len(argv):
+        word = argv[i]
+        if word == "rtk":
+            i += 1
+        elif word == "xargs" and i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+            i += 1
+        elif word in _WRAPPERS:
+            if word == "command" and i + 1 < len(argv) and argv[i + 1] in ("-v", "-V"):
+                break  # `command -v` looks a name up; it runs nothing
+            i += 1
+            while i < len(argv) and argv[i].startswith("-"):
+                i += 2 if argv[i] in _WRAPPERS[word] else 1
+            if word == "timeout":
+                i += 1
+        else:
+            break
+    rest = argv[i:]
+    if len(rest) >= 2 and rest[0] == "chezmoi" and rest[1] == "git":
+        args = rest[2:]
         if args and args[0] == "--":
             args = args[1:]
-        return "git", args, rtk
-    return (argv[0] if argv else ""), argv[1:], rtk
+        return "git", args, i
+    return (rest[0] if rest else ""), rest[1:], i
 
 
-def _crude_head(command: str) -> str:
-    """First command word by whitespace split. Only used when scan() fails,
-    so it errs toward recognizing the command."""
-    words = command.split()
+def _rough_split(command: str):
+    """(head, args) from a whitespace split. Only used when scan() fails, so
+    it errs toward recognizing the command."""
+    words = [w.strip("'\"") for w in command.split()]
     while words and _ASSIGNMENT.match(words[0]):
         words.pop(0)
-    if words and words[0] == "rtk":
-        words.pop(0)
-    if not words:
-        return ""
-    if words[0] == "chezmoi" and len(words) > 1 and words[1] == "git":
-        return "git"
-    return words[0].strip("'\"")
+    head, args, _ = _normalize(words)
+    return head, args
 
 
 def _commands(policy: Dict) -> Dict:
@@ -344,6 +371,7 @@ def _decide_cargo(segments: List[Segment], cwd: str, policy: Dict) -> Decision:
 # --- chezmoi --------------------------------------------------------------------
 
 _SECRET_RENDERING = {"cat", "diff", "status", "verify"}
+_SKIP_SECRETS_ON = {"--skip-secrets", "--skip-secrets=true"}
 
 
 def _option_values(args: List[str], long: str, short: str) -> Optional[List[str]]:
@@ -370,6 +398,10 @@ def _option_values(args: List[str], long: str, short: str) -> Optional[List[str]
 
 
 def _check_chezmoi_source(args: List[str], cwd: str, policy: Dict) -> Decision:
+    # The hook adds --skip-secrets; a later --skip-secrets=false would win.
+    for arg in args:
+        if arg.startswith("--skip-secrets=") and arg not in _SKIP_SECRETS_ON:
+            return Decision("deny", "chezmoi %s would render secret-manager templates." % arg)
     values = _option_values(args, "--source", "S")
     if values is None:
         return Decision("deny", "chezmoi --source needs a value.")
@@ -385,10 +417,11 @@ def _check_chezmoi_source(args: List[str], cwd: str, policy: Dict) -> Decision:
 
 
 def _chezmoi_skip_secrets(command: str, segment: Segment) -> Decision:
-    if len(segment.words) < 2 or segment.words[0].value != "chezmoi":
+    head, args, index = _normalize(segment.argv)
+    if head != "chezmoi" or len(segment.words) < index + 2:
         return Decision()
-    sub = segment.words[1]
-    if sub.value not in _SECRET_RENDERING or "--skip-secrets" in segment.argv:
+    sub = segment.words[index + 1]
+    if sub.value not in _SECRET_RENDERING or set(args) & _SKIP_SECRETS_ON:
         return Decision()
     updated = command[: sub.end] + " --skip-secrets" + command[sub.end :]
     return Decision(
@@ -410,7 +443,13 @@ _CURL_BOOL = {
 _CURL_METHOD = "GET|HEAD|OPTIONS"
 _CURL_TIME = r"\d+(?:\.\d+)?"
 _CURL_HEADER = r"(?s)[A-Za-z0-9-]+:.*"
-_CURL_WRITE_OUT = r"(?s)[^@].*"
+# Literal text plus a few read-only variables; `%output{FILE}` would write a
+# file and `@FILE` would read one.
+_CURL_WRITE_OUT = (
+    r"(?:[^%@\\]|\\n|%\{(?:http_code|response_code|time_total|time_connect"
+    r"|time_starttransfer|size_download|content_type|url_effective|remote_ip"
+    r"|num_redirects)\})*"
+)
 _CURL_VALUE = {
     "-X": _CURL_METHOD, "--request": _CURL_METHOD,
     "-m": _CURL_TIME, "--max-time": _CURL_TIME, "--connect-timeout": _CURL_TIME,
