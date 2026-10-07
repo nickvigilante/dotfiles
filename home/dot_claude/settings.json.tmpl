@@ -3,29 +3,16 @@
     "defaultMode": "auto",
     "allow": [
 {{- range $base, $spec := .permissions.commands }}
-    {{- $heads := list $base }}
+    {{- $heads := list }}
+    {{- if not (hasKey $spec "rtk_only") }}{{ $heads = append $heads $base }}{{ end }}
     {{- if has $base $.permissions.rtk_wraps }}{{ $heads = append $heads (printf "rtk %s" $base) }}{{ end }}
     {{- if hasKey $spec "extra_heads" }}{{ range $eh := $spec.extra_heads }}{{ $heads = append $heads $eh }}{{ end }}{{ end }}
     {{- range $head := $heads }}
         {{- range $arg := $spec.args }}
-      "Bash({{ $head }} {{ $arg }})",
+      "Bash({{ $head }}{{ if $arg }} {{ $arg }}{{ end }})",
         {{- end }}
     {{- end }}
 {{- end }}
-{{- range $tool := .permissions.rtk_only_tools }}
-      "Bash(rtk {{ $tool }} *)",
-{{- end }}
-      "Bash(chezmoi diff *)",
-      "Bash(chezmoi status *)",
-      "Bash(chezmoi data)",
-      "Bash(chezmoi doctor)",
-      "Bash(chezmoi verify *)",
-      "Bash(chezmoi cat *)",
-      "Bash(chezmoi managed *)",
-      "Bash(chezmoi unmanaged *)",
-      "Bash(chezmoi ignored *)",
-      "Bash(chezmoi target-path *)",
-      "Bash(chezmoi source-path *)",
       "Bash(brew info *)",
       "Bash(brew search *)",
       "Bash(brew outdated)",
@@ -101,12 +88,20 @@
       "Bash(:)"
     ],
     "deny": [
-      "Bash(git branch -d *)",
-      "Bash(git branch -D *)",
-      "Bash(git branch --delete *)",
-      "Bash(rtk git branch -d *)",
-      "Bash(rtk git branch -D *)",
-      "Bash(rtk git branch --delete *)"
+{{- $first := true }}
+{{- range $base, $spec := .permissions.commands }}
+  {{- if hasKey $spec "deny_args" }}
+    {{- $heads := list $base }}
+    {{- if has $base $.permissions.rtk_wraps }}{{ $heads = append $heads (printf "rtk %s" $base) }}{{ end }}
+    {{- if hasKey $spec "extra_heads" }}{{ range $eh := $spec.extra_heads }}{{ $heads = append $heads $eh }}{{ end }}{{ end }}
+    {{- range $head := $heads }}
+      {{- range $arg := $spec.deny_args }}
+        {{- if not $first }},{{ end }}{{ $first = false }}
+      "Bash({{ $head }} {{ $arg }})"
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
     ]
   },
   "model": "sonnet",
