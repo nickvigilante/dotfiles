@@ -164,6 +164,11 @@ jobs:
       - name: Git template hooks honor the trusted-root gate
         run: ./tests/git-template-hooks.sh home/dot_config/git/template/hooks
 
+      # The Firefox sync script must never abort `chezmoi apply`, and must find
+      # native, snap and Flatpak profiles. Needs chezmoi, installed above.
+      - name: Firefox sync script
+        run: ./tests/firefox-sync.sh home/run_after_configure-firefox-sync.sh.tmpl
+
   actionlint:
     name: actionlint
     runs-on: ubuntu-latest
