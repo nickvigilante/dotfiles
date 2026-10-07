@@ -147,6 +147,12 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: betterleaks git --no-banner --redact -v --log-opts="origin/${BASE_REF}..HEAD" .
 
+      # Unit tests for the Claude Code permission hook and its rendered config.
+      # The scanner test compares against real bash and zsh, and the config test
+      # renders templates with chezmoi; both are installed above.
+      - name: Python unit tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
       - name: pre-commit
         uses: pre-commit/action@v3.0.1
         env:

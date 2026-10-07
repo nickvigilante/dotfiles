@@ -7,8 +7,17 @@
 # this is what keeps rtk at 100% permission parity.
 #
 # A space before `*` is required for Claude Code prefix matching. A bare entry (no
-# trailing ` *`) matches that exact invocation only. List ONLY read-only,
-# non-mutating, non-exfiltrating subcommands.
+# trailing ` *`) matches that exact invocation only; an empty string matches the
+# bare command. List ONLY read-only, non-mutating, non-exfiltrating subcommands.
+#
+# Optional per-command keys, enforced at runtime by the permission-prefilter hook
+# (home/dot_claude/hooks/) for every head form at once:
+#   deny_flags  flags that block the command (`--flag`, `--flag=value`, and a
+#               one-letter flag inside a cluster such as `-ao`)
+#   ask_flags   flags that force a manual approval instead
+#   env_allow   NAME = "regex" for allowed VAR= prefixes; any other prefix blocks
+#   deny_args   static deny rules, generated for every head form like args
+#   rtk_only    generate only the `rtk <cmd>` head (no plain command exists)
 #
 # A head must NEVER contain a wildcard. A head's text sits BEFORE the subcommand,
 # and Claude Code matches these patterns as plain strings with no tokenisation, so
@@ -42,6 +51,9 @@ rtk_wraps = [
   "wc",
   "ls",
   "tree",
+  "du",
+  "df",
+  "ps",
   "read",
   "env",
   "jest",
@@ -71,26 +83,25 @@ rtk_wraps = [
   "mvn",
 ]
 
-# rtk-only coreutils twins: vanilla form is auto-allowed by Claude Code, so only
-# Bash(rtk <tool> *) is needed. (du/df/ps retained from prior hand-maintained config.)
-rtk_only_tools = [
-  "ls",
-  "tree",
-  "read",
-  "grep",
-  "rg",
-  "wc",
-  "diff",
-  "du",
-  "df",
-  "ps",
-]
+# Settings for the permission-prefilter hook.
+[permissions.hook]
+# `cargo test|clippy|build|run|check` is auto-approved only under these roots.
+trusted_dev_roots = ["~/git/nickvigilante", "~/rust"]
 
 # Base command -> read-only arg patterns (everything after the command name).
 # NOTE: scalar keys above must precede these sub-tables (TOML ordering rule).
 
 [permissions.commands.git]
 extra_heads = ["chezmoi git"]
+deny_flags = [
+  "--output",
+  "--ext-diff",
+  "--textconv",
+  "--no-index",
+  "--contents",
+]
+env_allow = { NO_COLOR = "1", GIT_PAGER = "cat" }
+deny_args = ["branch -d *", "branch -D *", "branch --delete *"]
 args = [
   "log *",
   "diff *",
@@ -144,6 +155,76 @@ args = ["list *", "outdated *", "info *"]
 
 [permissions.commands.cargo]
 args = ["tree *", "metadata *", "search *"]
+env_allow = { RUST_BACKTRACE = "0|1|full", RUST_LOG = "[A-Za-z0-9_=,:.-]+", CARGO_TERM_COLOR = "always|never|auto", NO_COLOR = "1" }
+
+# Read-only tools. rtk rewrites the plain forms (`cat`/`head` become `rtk read`),
+# so each needs its plain and rtk heads; deny_flags covers both.
+[permissions.commands.ls]
+args = ["", "*"]
+
+[permissions.commands.tree]
+args = ["", "*"]
+deny_flags = ["-o", "-R"]
+
+[permissions.commands.read]
+rtk_only = true
+args = ["*"]
+
+[permissions.commands.grep]
+args = ["*"]
+
+[permissions.commands.rg]
+args = ["*"]
+deny_flags = ["--pre", "--pre-glob", "--hostname-bin"]
+
+[permissions.commands.wc]
+args = ["*"]
+
+[permissions.commands.diff]
+args = ["*"]
+
+[permissions.commands.du]
+args = ["", "*"]
+
+[permissions.commands.df]
+args = ["", "*"]
+
+[permissions.commands.ps]
+args = ["", "*"]
+
+[permissions.commands.chezmoi]
+args = [
+  "diff *",
+  "status *",
+  "data",
+  "doctor",
+  "verify *",
+  "cat *",
+  "managed *",
+  "unmanaged *",
+  "ignored *",
+  "target-path *",
+  "source-path *",
+]
+# --source is allowed only inside the dotfiles repo (checked by the hook).
+deny_flags = [
+  "--config",
+  "-c",
+  "--pager",
+  "--output",
+  "-o",
+  "--persistent-state",
+  "--cache",
+  "--refresh-externals",
+  "-R",
+  "--destination",
+  "-D",
+  "--override-data-file",
+  "--init",
+  "--working-tree",
+  "-W",
+]
+env_allow = { NO_COLOR = "1" }
 
 [permissions.commands.kubectl]
 args = [
@@ -286,14 +367,4 @@ args = [
   "describe orders *",
   "describe helmcharts *",
   "describe helmchartconfigs *",
-]
-
-[permissions.commands.curl]
-args = [
-  "--head *",
-  "-I *",
-  "-X GET http://localhost:*",
-  "-X HEAD http://localhost:*",
-  "-X OPTIONS http://localhost:*",
-  "-X TRACE http://localhost:*",
 ]
