@@ -133,6 +133,13 @@ def _normalize(argv: List[str]):
     return (rest[0] if rest else ""), rest[1:], i
 
 
+def _through_xargs(argv: List[str]) -> bool:
+    """True if the command runs through xargs, which turns piped text into
+    arguments nobody checked. Deny checks look through xargs; approvals
+    never do."""
+    return "xargs" in argv[: _normalize(argv)[2]]
+
+
 def _rough_split(command: str):
     """(head, args) from a whitespace split. Only used when scan() fails, so
     it errs toward recognizing the command."""
@@ -291,7 +298,7 @@ _FILTERS = {
 
 
 def _filter_ok(segment: Segment) -> bool:
-    if segment.env or segment.redirects:
+    if segment.env or segment.redirects or _through_xargs(segment.argv):
         return False
     head, args, _ = _normalize(segment.argv)
     check = _FILTERS.get(head)
@@ -359,7 +366,7 @@ def _trusted(cwd: str, policy: Dict) -> bool:
 
 def _decide_cargo(segments: List[Segment], cwd: str, policy: Dict) -> Decision:
     _, args, _ = _normalize(segments[0].argv)
-    if not _cargo_args_ok(args):
+    if _through_xargs(segments[0].argv) or not _cargo_args_ok(args):
         return Decision()
     if not all(_filter_ok(s) for s in segments[1:]):
         return Decision()
@@ -486,6 +493,6 @@ def _decide_curl_agent(segments, heads, crude) -> Decision:
         )
     first = segments[0]
     _, args, _ = _normalize(first.argv)
-    if first.env or not _curl_ok(args):
+    if first.env or _through_xargs(first.argv) or not _curl_ok(args):
         return Decision()
     return Decision("allow", "local read-only curl request in curl-runner")

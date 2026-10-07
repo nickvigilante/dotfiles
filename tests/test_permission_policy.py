@@ -269,6 +269,27 @@ class ReviewFixes(unittest.TestCase):
         self.assertEqual(permission("tree -R -H . -L 1"), "deny")
 
 
+class XargsNeverApproved(unittest.TestCase):
+    """xargs turns piped text into arguments, so a command run through it is
+    never approved, even though deny checks look through it."""
+
+    def test_xargs_filters_and_producers(self):
+        for command in ["cargo test | xargs uniq", "cargo test | xargs sort",
+                        "cargo test | xargs jq .", "xargs cargo test",
+                        "cargo test | nice xargs grep x"]:
+            with self.subTest(command=command):
+                self.assertIsNone(permission(command))
+
+    def test_xargs_curl_in_curl_runner(self):
+        self.assertIsNone(permission("xargs curl http://localhost/", agent="curl-runner"))
+
+    def test_other_wrappers_still_allowed(self):
+        for command in ["cargo test | nice grep x", "cargo test | rtk grep x",
+                        "timeout 600 cargo test"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command), "allow")
+
+
 class MissingPolicy(unittest.TestCase):
     def test_empty_policy_never_allows_but_still_routes_curl(self):
         self.assertIsNone(permission("cargo test", policy={}))
