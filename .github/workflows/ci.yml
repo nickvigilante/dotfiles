@@ -365,6 +365,75 @@ jobs:
           chezmoi apply --dry-run --no-pager --exclude=externals \
             --config "$tmp/chezmoi.toml"
 
+  brewfile-parity:
+    name: brewfile-parity (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      CHEZMOI_VERSION: v2.72.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install chezmoi ${{ env.CHEZMOI_VERSION }}
+        run: |
+          set -euo pipefail
+          installer="$(mktemp)"
+          if ! curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$installer" https://get.chezmoi.io \
+            || [ ! -s "$installer" ]; then
+            echo "error: could not download the chezmoi installer from https://get.chezmoi.io" >&2
+            exit 1
+          fi
+          sh "$installer" -b "$HOME/.local/bin" -t "$CHEZMOI_VERSION"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # macOS is not optional here: .chezmoi.os cannot be overridden from a
+      # config file, so the cask and macOS-formulae blocks are only exercised
+      # on a macOS runner. A Linux-only check would pass while those blocks
+      # were broken.
+      #
+      # The Linux leg also varies `machine` (laptop/ephemeral): Coder
+      # workspaces run as `machine = "ephemeral"` and gate packages like
+      # podman out by machine role, which the profile/display/secrets-only
+      # loop below would never exercise. `machine = "ephemeral"` is Linux-only
+      # by construction (Coder workspaces run inside k3s/Docker containers),
+      # so the macOS leg has no machine dimension and keeps the brief's
+      # original 3-dimensional loop.
+      - name: Check the rendered package set
+        run: |
+          set -euo pipefail
+          fail=0
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            for p in work personal; do
+              for d in true false; do
+                for s in none bitwarden 1password both; do
+                  exp="tests/brewfile-expected/darwin-$p-$d-$s.txt"
+                  if ! ./tests/brewfile-parity.sh "$p" "$d" "$s" | diff -u "$exp" -; then
+                    echo "DRIFT: darwin/$p/$d/$s"; fail=1
+                  fi
+                done
+              done
+            done
+          else
+            for p in work personal; do
+              for d in true false; do
+                for s in none bitwarden 1password both; do
+                  for m in laptop ephemeral; do
+                    exp="tests/brewfile-expected/linux-$p-$d-$s-$m.txt"
+                    if ! ./tests/brewfile-parity.sh "$p" "$d" "$s" "$m" | diff -u "$exp" -; then
+                      echo "DRIFT: linux/$p/$d/$s/$m"; fail=1
+                    fi
+                  done
+                done
+              done
+            done
+          fi
+          exit "$fail"
+
   # ── Required gate ───────────────────────────────────────────────────────────
   # A single job branch-protection can require, instead of listing every matrix
   # cell individually. Runs with `if: always()` so it never gets skipped by a
@@ -373,7 +442,8 @@ jobs:
   ci:
     name: ci
     if: always()
-    needs: [lint, actionlint, commit-messages, chezmoi-matrix, chezmoi-apply-dry-run]
+    needs:
+      [lint, actionlint, commit-messages, chezmoi-matrix, chezmoi-apply-dry-run, brewfile-parity]
     runs-on: ubuntu-latest
     steps:
       - name: All required jobs passed
