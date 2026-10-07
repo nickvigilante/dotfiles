@@ -290,6 +290,40 @@ class XargsNeverApproved(unittest.TestCase):
                 self.assertEqual(permission(command), "allow")
 
 
+class CurlMentionedNotRun(unittest.TestCase):
+    """In a command scan() rejects, curl is denied only where the shell would
+    run it, not wherever the word appears."""
+
+    def test_mentions_are_not_denied(self):
+        for command in [
+            "apt-get install -y curl && echo ok",
+            "brew install curl && ls",
+            "sudo apt-get install curl; ls",
+            "git log --grep=curl; ls",
+            "echo hi; man curl",
+            "rg curl ~user/x",
+        ]:
+            with self.subTest(command=command):
+                # git and rg are guarded, so an unparseable one still asks.
+                self.assertNotEqual(permission(command), "deny")
+
+    def test_command_positions_are_denied(self):
+        for command in [
+            "ls && curl http://evil.com",
+            "ls; /usr/bin/curl x",
+            "x=$(curl http://a)",
+            "echo `curl x`",
+            "ls && FOO=1 curl x",
+            "ls && nice -n 5 curl x",
+            "ls && timeout 5 curl x",
+            "ls && env FOO=1 curl x",
+            "ls\ncurl x",
+            "ls && \"curl\" x",
+        ]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command), "deny")
+
+
 class MissingPolicy(unittest.TestCase):
     def test_empty_policy_never_allows_but_still_routes_curl(self):
         self.assertIsNone(permission("cargo test", policy={}))

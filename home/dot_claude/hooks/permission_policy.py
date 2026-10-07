@@ -30,7 +30,16 @@ ROUTE_TO_CURL_AGENT = (
 )
 _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 # curl as a command word somewhere in a command scan() rejected.
-_CURL_WORD = re.compile(r"(?:^|[\s;&|(`/])curl\b")
+# curl in a command position somewhere in a command scan() rejected: at the
+# start, after `; & | ( $( ` or a newline, past VAR= assignments and wrappers
+# with their options. A bare mention such as `brew install curl` is not one.
+_CURL_WORD = re.compile(
+    r"""(?:^|[;&|(`\n])\s*"""
+    r"""(?:(?:rtk|sudo|env|exec|nice|nohup|time|timeout|command|builtin|noglob|stdbuf|xargs)"""
+    r"""(?:\s+(?:-\S*|\d\S*|[A-Za-z_]\w*=\S*))*\s+"""
+    r"""|[A-Za-z_]\w*=\S*\s+)*"""
+    r"""['"]?(?:\S*/)?curl\b"""
+)
 _ANY = r"(?s).*"
 _NUMBER = r"\d+"
 
