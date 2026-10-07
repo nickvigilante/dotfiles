@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
-# See hooks/pre-commit (seeded alongside this file) for why this exists and
-# what overwrites it. Covers repos whose .pre-commit-config.yaml declares a
-# commit-msg hook (e.g. this dotfiles repo's own AI-attribution guard).
+# See hooks/pre-commit (seeded alongside this file) for why this exists, the
+# TRUSTED_ROOTS gate, and what overwrites it. Covers repos whose
+# .pre-commit-config.yaml declares a commit-msg hook (e.g. this dotfiles
+# repo's own AI-attribution guard).
 set -euo pipefail
+
+TRUSTED_ROOTS=("$HOME/git/nickvigilante")
+
+trusted() {
+	local top root
+	top=$(cd "$(git rev-parse --show-toplevel)" && pwd -P) || return 1
+	for root in "${TRUSTED_ROOTS[@]}"; do
+		root=$(cd "$root" 2> /dev/null && pwd -P) || continue
+		case "$top/" in "$root"/*) return 0 ;; esac
+	done
+	return 1
+}
+
+trusted || exit 0
 
 if [ -f .pre-commit-config.yaml ] && command -v pre-commit > /dev/null 2>&1; then
 	exec pre-commit run --hook-stage commit-msg --commit-msg-filename "$1"

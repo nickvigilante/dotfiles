@@ -3,11 +3,28 @@
 # per-repo `pre-commit install` step first. Seeded into every new/cloned
 # repo's .git/hooks/ via git's `init.templateDir` (see ~/.gitconfig [init]).
 #
+# Only repos under TRUSTED_ROOTS get this: a cloned config chooses what code
+# runs, so anywhere else stays opt-in via `pre-commit install`.
+#
 # Running `pre-commit install` in a repo later overwrites this file with
 # pre-commit's own managed hook for this stage -- expected and harmless,
 # since that hook does the same thing here (plus any other stages the repo's
 # config declares).
 set -euo pipefail
+
+TRUSTED_ROOTS=("$HOME/git/nickvigilante")
+
+trusted() {
+	local top root
+	top=$(cd "$(git rev-parse --show-toplevel)" && pwd -P) || return 1
+	for root in "${TRUSTED_ROOTS[@]}"; do
+		root=$(cd "$root" 2> /dev/null && pwd -P) || continue
+		case "$top/" in "$root"/*) return 0 ;; esac
+	done
+	return 1
+}
+
+trusted || exit 0
 
 if [ -f .pre-commit-config.yaml ] && command -v pre-commit > /dev/null 2>&1; then
 	exec pre-commit run --hook-stage pre-commit
