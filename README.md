@@ -368,3 +368,9 @@ CI (`.github/workflows/ci.yml`) has three jobs:
 - `lint` runs the hooks and the secret scans, including one over the pull request's commits.
 - `actionlint` lints the workflow files.
 - `commit-messages` checks every commit message, and the pull request title and body, for vendor-specific AI attribution.
+
+---
+
+## License
+
+This repo is released under the [MIT License](LICENSE).
