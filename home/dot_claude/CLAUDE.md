@@ -43,11 +43,10 @@ This applies broadly — code, files, research, Figma/design work, anything with
 # Claude Code permissions
 
 The Bash permission allowlist in `~/.claude/settings.json` is **generated**, not hand-written.
-To allow a read-only command, add its subcommand to `home/.chezmoidata/permissions.toml` and `chezmoi apply` —
-never edit `settings.json` directly (neither the source `.tmpl` nor the live file), and don't reach for the `update-config` skill to do it.
+To allow a read-only command, add its subcommand to `home/.chezmoidata/permissions.toml` and `chezmoi apply` — never edit `settings.json` directly (neither the source `.tmpl` nor the live file), and don't reach for the `update-config` skill to do it.
 One entry there grants the vanilla, `rtk`, and (for git) `chezmoi git` forms together.
-A head must never contain a wildcard:
-a `*` before the subcommand also matches global options such as `git -c` and `--exec-path`,
-which run arbitrary commands.
-Code-execution prompts (`cargo`, `python -c`) are gated at runtime by `dot_claude/hooks/permission-prefilter.py`, not the allowlist.
+A head must never contain a wildcard: a `*` before the subcommand also matches global options such as `git -c` and `--exec-path`, which run arbitrary commands.
+Flags that run programs, write files or read secrets go in that command's `deny_flags`, and allowed `VAR=` prefixes go in its `env_allow`; the `permission-prefilter.py` hook enforces both for every form of the command.
+The same hook approves `cargo` builds in trusted directories, and `python3 -c` always prompts (rebuilding that fast-path is issue #135).
+Run HTTP requests through the `curl-runner` agent: the hook denies `curl` everywhere else.
 See the `chezmoi` skill ("Generated targets") for the full workflow.
