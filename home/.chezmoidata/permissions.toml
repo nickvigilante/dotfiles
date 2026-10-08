@@ -177,6 +177,9 @@ args = ["*"]
 args = ["*"]
 deny_flags = ["--pre", "--pre-glob", "--hostname-bin"]
 
+[permissions.commands.head]
+args = ["*"]
+
 [permissions.commands.wc]
 args = ["*"]
 
