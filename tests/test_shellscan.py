@@ -51,6 +51,20 @@ class ScanAccepts(unittest.TestCase):
         self.assertEqual(segment.argv, ["grep", "é ü", "x"])
 
 
+class ScanGlobs(unittest.TestCase):
+    def test_glob_after_literal_prefix_is_accepted(self):
+        segments = scan("rg x dir/*.go | grep -n y | head -30")
+        self.assertEqual(segments[0].argv, ["rg", "x", "dir/*.go"])
+
+    def test_glob_rejected_where_it_could_become_a_flag_or_command(self):
+        for command in [
+            "rg x *.go", "rg x -*", "rg x --pre=*", "rg x \"\"*", "rg x \"-\"*",
+            "r* x", "FOO=a* rg x", "a | *b", "rg x ?.go",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNone(scan(command))
+
+
 class ScanRejects(unittest.TestCase):
     REJECTED = [
         "a ~user/x", "a x~", "FOO=~/x", "=ls", "a\nb", "a; b", "a && b", "a & b", "a > f", "a < f",

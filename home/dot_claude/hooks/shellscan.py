@@ -86,6 +86,7 @@ def scan(command: str) -> Optional[List[Segment]]:
 
 def _lex(command):
     tokens = []
+    have_command = False
     i, n = 0, len(command)
     while i < n:
         c = command[i]
@@ -93,6 +94,7 @@ def _lex(command):
             i += 1
         elif c == "|":
             tokens.append(("pipe", None))
+            have_command = False
             i += 1
         else:
             redirect = next(
@@ -108,12 +110,14 @@ def _lex(command):
                 tokens.append(("redirect", redirect))
                 i += len(redirect)
             else:
-                word, i = _read_word(command, i)
+                word, i = _read_word(command, i, have_command)
                 tokens.append(("word", word))
+                if not _ASSIGNMENT.match(word.unquoted_prefix):
+                    have_command = True
     return tokens
 
 
-def _read_word(command, i):
+def _read_word(command, i, allow_glob):
     start, n = i, len(command)
     value, prefix = [], []
     prefix_open = True
@@ -134,6 +138,10 @@ def _read_word(command, i):
             value.append(os.path.expanduser("~"))
             if prefix_open:
                 prefix.append(c)
+            i += 1
+        elif c == "*" and allow_glob and "".join(value)[:1] not in ("", "-"):
+            value.append(c)
+            prefix_open = False
             i += 1
         elif c in _UNQUOTED_OK:
             if c == "=" and i == start:
