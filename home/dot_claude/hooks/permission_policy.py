@@ -67,20 +67,26 @@ def decide(
         return Decision("deny", ROUTE_TO_CURL_AGENT)
 
     if segments is None:
-        if crude in _guarded_heads(policy):
+        # Check every piece, not just the first: a guarded command later in
+        # the pipeline would otherwise be approved by the static allowlist.
+        verdict = Decision()
+        for piece in [command, *_PIECE_SEPARATORS.split(command)]:
+            head, piece_args = _rough_split(piece)
+            if head not in _guarded_heads(policy):
+                continue
             # A rough whitespace split can still spot a forbidden flag, and
             # erring toward deny is safe; otherwise ask, since hidden syntax
             # could smuggle one past the check.
-            table = _commands(policy).get(crude, {})
-            flag = _has_flag(rough_args, table.get("deny_flags", []))
+            table = _commands(policy).get(head, {})
+            flag = _has_flag(piece_args, table.get("deny_flags", []))
             if flag:
-                return Decision("deny", "%s %s is blocked." % (crude, flag))
-            return Decision(
+                return Decision("deny", "%s %s is blocked." % (head, flag))
+            verdict = verdict if verdict.permission else Decision(
                 "ask",
                 "Could not parse this %s command safely, so its flags "
-                "cannot be checked." % crude,
+                "cannot be checked." % head,
             )
-        return Decision()
+        return verdict
 
     for segment in segments:
         decision = _check_segment(segment, cwd, policy)
@@ -147,6 +153,9 @@ def _through_xargs(argv: List[str]) -> bool:
     arguments nobody checked. Deny checks look through xargs; approvals
     never do."""
     return "xargs" in argv[: _normalize(argv)[2]]
+
+
+_PIECE_SEPARATORS = re.compile(r"[|;&\n()`]")
 
 
 def _rough_split(command: str):
