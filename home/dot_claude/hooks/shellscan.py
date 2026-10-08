@@ -41,6 +41,9 @@ class Word:
     # Leading characters that appeared outside quotes; decides whether
     # `NAME=value` is an environment assignment or a quoted argument.
     unquoted_prefix: str
+    # True if an unquoted `*` appears: the shell, not the scanner, decides
+    # what this word finally becomes.
+    glob: bool = False
 
 
 @dataclass
@@ -121,6 +124,7 @@ def _read_word(command, i, allow_glob):
     start, n = i, len(command)
     value, prefix = [], []
     prefix_open = True
+    glob = False
     while i < n and command[i] not in _WORD_END:
         c = command[i]
         if c == "'":
@@ -142,6 +146,7 @@ def _read_word(command, i, allow_glob):
         elif c == "*" and allow_glob and "".join(value)[:1] not in ("", "-"):
             value.append(c)
             prefix_open = False
+            glob = True
             i += 1
         elif c in _UNQUOTED_OK:
             if c == "=" and i == start:
@@ -152,7 +157,7 @@ def _read_word(command, i, allow_glob):
             i += 1
         else:
             raise ValueError("character not allowed outside quotes: %r" % c)
-    return Word("".join(value), start, i, "".join(prefix)), i
+    return Word("".join(value), start, i, "".join(prefix), glob), i
 
 
 def _read_double_quoted(command, i):

@@ -269,6 +269,18 @@ class ReviewFixes(unittest.TestCase):
         self.assertEqual(permission("tree -R -H . -L 1"), "deny")
 
 
+class GlobsOnlyForSearchTools(unittest.TestCase):
+    def test_rg_and_grep_may_take_a_prefixed_glob(self):
+        self.assertIsNone(permission("rg x dir/*.go | grep -n y | head -30"))
+
+    def test_glob_elsewhere_is_treated_as_unparseable(self):
+        # A symlink inside the repo could point out of it once zsh expands `*`.
+        self.assertEqual(permission("chezmoi status --source %s/*" % ROOT), "ask")
+        # A filename could read as a jq program that dumps the environment.
+        self.assertEqual(permission("cargo test | jq dir/*"), "ask")
+        self.assertEqual(permission("git log -- dir/*"), "ask")
+
+
 class XargsNeverApproved(unittest.TestCase):
     """xargs turns piped text into arguments, so a command run through it is
     never approved, even though deny checks look through it."""

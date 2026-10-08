@@ -51,10 +51,22 @@ class Decision:
     updated_command: Optional[str] = None
 
 
+# Only these commands may take an unquoted glob. Anywhere else the shell's
+# expansion could slip past a check on the literal text: a symlink out of the
+# `chezmoi --source` tree, or a filename that reads as a `jq` program.
+_GLOB_HEADS = {"rg", "grep"}
+
+
 def decide(
     command: str, cwd: str, agent_type: Optional[str], policy: Dict
 ) -> Decision:
     segments = scan(command)
+    if segments and any(
+        word.glob and _normalize(segment.argv)[0] not in _GLOB_HEADS
+        for segment in segments
+        for word in segment.words
+    ):
+        segments = None
     crude, rough_args = _rough_split(command)
     heads = [_normalize(s.argv)[0] for s in segments] if segments else []
     is_curl = os.path.basename(crude) == "curl" or any(
