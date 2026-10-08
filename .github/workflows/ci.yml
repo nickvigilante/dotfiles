@@ -153,6 +153,11 @@ jobs:
       - name: Python unit tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
 
+      # The bootstrap must fetch its libs without git (a fresh Mac only has the
+      # Xcode stub) and fall back to git elsewhere. Offline: uses fakes.
+      - name: Bootstrap lib fetch
+        run: ./tests/bootstrap-fetch.sh bootstrap/install.sh
+
       - name: pre-commit
         uses: pre-commit/action@v3.0.1
         env:
