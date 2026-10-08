@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -97,6 +98,8 @@ def decide(
         return _decide_cargo(segments, cwd, policy)
     if heads[0] == "chezmoi":
         return _chezmoi_skip_secrets(command, segments[0])
+    if heads[0] == "git":
+        return _decide_git_sync(command, segments, cwd, policy)
     return Decision()
 
 
@@ -391,6 +394,120 @@ def _decide_cargo(segments: List[Segment], cwd: str, policy: Dict) -> Decision:
     if not _trusted(cwd, policy):
         return Decision()
     return Decision("allow", "cargo build/test in a trusted dev root (%s)" % cwd)
+
+
+# --- git fetch / pull ------------------------------------------------------------
+
+_SYNC_BOOL = {
+    "-q", "--quiet", "-v", "--verbose", "-p", "--prune", "-t", "--tags",
+    "--no-tags", "--no-recurse-submodules", "--no-rebase",
+}
+_SYNC_FLAGS = {
+    "fetch": _SYNC_BOOL | {"--all", "--dry-run", "--unshallow"},
+    "pull": _SYNC_BOOL | {"--ff-only"},
+}
+# Always added, so repo config cannot start a rebase or fetch submodules whose
+# URLs were never checked.
+_SYNC_FORCED = {
+    "fetch": ["--no-recurse-submodules"],
+    "pull": ["--no-rebase", "--no-recurse-submodules"],
+}
+_REMOTE_NAME = re.compile(r"[A-Za-z0-9._-]+")
+_REF = r"[A-Za-z0-9_][A-Za-z0-9._/-]*"
+_REFSPEC = re.compile(r"%s(?::%s)?" % (_REF, _REF))
+_BRANCH = re.compile(_REF)
+
+
+def _git_lines(cwd: str, *args: str) -> Optional[List[str]]:
+    """stdout lines of a read-only `git -C cwd ...`, or None if it fails."""
+    try:
+        done = subprocess.run(
+            ["git", "-C", cwd, *args],
+            capture_output=True, text=True, timeout=5,
+            env=dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0"),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return done.stdout.splitlines() if done.returncode == 0 else None
+
+
+def _approved_git_url(policy: Dict):
+    hook = policy.get("permissions", {}).get("hook", {})
+    hosts, owners = hook.get("approved_git_hosts"), hook.get("approved_git_owners")
+    if not hosts or not owners:
+        return None
+    host = "|".join(re.escape(h) for h in hosts)
+    owner = "|".join(re.escape(o) for o in owners)
+    return re.compile(
+        r"(?:https://(?:[^@/\s]+@)?(?:%s)/|ssh://git@(?:%s)/|git@(?:%s):)"
+        r"(?:%s)/[A-Za-z0-9._-]+/?" % (host, host, host, owner),
+        re.IGNORECASE,
+    )
+
+
+def _remotes_approved(targets: List[str], cwd: str, policy: Dict) -> bool:
+    """True if every target (a remote name or URL) expands, after any
+    `url.<base>.insteadOf` rewriting, to an approved URL."""
+    approved = _approved_git_url(policy)
+    if approved is None or not targets:
+        return False
+    for target in targets:
+        lines = _git_lines(cwd, "ls-remote", "--get-url", target)
+        if not lines or not approved.fullmatch(lines[0]):
+            return False
+    return True
+
+
+def _sync_targets(sub: str, args: List[str], cwd: str) -> Optional[List[str]]:
+    """Validate fetch/pull arguments; return the remotes they contact, or None."""
+    positionals = []
+    for arg in args:
+        if arg in _SYNC_FLAGS[sub] or re.fullmatch(r"--depth=\d+", arg):
+            continue
+        if re.fullmatch(r"-[a-zA-Z]{2,}", arg) and all(
+            "-" + ch in _SYNC_FLAGS[sub] for ch in arg[1:]
+        ):
+            continue
+        if arg.startswith("-"):
+            return None
+        positionals.append(arg)
+    if sub == "pull" and "--ff-only" not in args:
+        return None
+    if positionals:
+        if "--all" in args or len(positionals) > (2 if sub == "pull" else 5):
+            return None
+        remote, specs = positionals[0], positionals[1:]
+        pattern = _BRANCH if sub == "pull" else _REFSPEC
+        if not all(pattern.fullmatch(spec) and ".." not in spec for spec in specs):
+            return None
+        return [remote]
+    return _git_lines(cwd, "remote")
+
+
+def _decide_git_sync(command: str, segments: List[Segment], cwd: str, policy: Dict) -> Decision:
+    first = segments[0]
+    # Only a bare `git`/`rtk git`: `chezmoi git` runs in the source repo.
+    if first.argv[:1] != ["git"] and first.argv[:2] != ["rtk", "git"]:
+        return Decision()
+    if first.env or first.redirects or _through_xargs(first.argv):
+        return Decision()
+    _, args, index = _normalize(first.argv)
+    if not args or args[0] not in _SYNC_FLAGS:
+        return Decision()
+    if not all(_filter_ok(s) for s in segments[1:]):
+        return Decision()
+    sub, rest = args[0], args[1:]
+    targets = _sync_targets(sub, rest, cwd)
+    if not targets or not _remotes_approved(targets, cwd, policy):
+        return Decision()
+    extra = "".join(" " + f for f in _SYNC_FORCED[sub] if f not in rest)
+    updated = command
+    if extra:
+        word = first.words[index + 1]
+        updated = command[: word.end] + extra + command[word.end :]
+    return Decision(
+        "allow", "git %s from an approved remote" % sub, updated if extra else None
+    )
 
 
 # --- chezmoi --------------------------------------------------------------------
