@@ -1015,6 +1015,14 @@ tiers = ["secrets"]
 profiles = ["personal"]
 
 [[packages]]
+key = "scuttle"
+section = "cargo"
+cargo = "scuttle-tui"
+cargo_source = "https://github.com/nickvigilante/scuttle?branch=main"
+comment = "scuttle, a terminal client for Coder Agents; installs the `scuttle` binary"
+tiers = ["rust"]
+
+[[packages]]
 key = "cargo-audit"
 section = "cargo"
 cargo = "cargo-audit"

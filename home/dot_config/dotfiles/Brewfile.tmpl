@@ -92,7 +92,8 @@ tap "coder/coder"
 # (etc.) if you need them on the off-profile machine occasionally.
 {{ range .packages -}}
 {{ if and (eq .section "cargo") .cargo (or (not (index . "profiles")) (has $.profile (index . "profiles"))) -}}
-{{ if index . "comment" }}{{ printf "%-29s# %s" (printf "cargo %q" .cargo) (index . "comment") }}{{ else }}{{ printf "cargo %q" .cargo }}{{ end }}
+{{ $line := printf "cargo %q" .cargo }}{{ if index . "cargo_source" }}{{ $line = printf "%s, source: %q" $line (index . "cargo_source") }}{{ end -}}
+{{ if index . "comment" }}{{ printf "%-28s # %s" $line (index . "comment") }}{{ else }}{{ $line }}{{ end }}
 {{ end -}}
 {{ end }}
 # ── Go tools (work: primary Go dev) ──────────────────────────────────────────
