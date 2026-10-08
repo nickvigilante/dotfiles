@@ -57,14 +57,23 @@ class Decision:
 _GLOB_HEADS = {"rg", "grep"}
 
 
+def _glob_ok(segment: Segment) -> bool:
+    """True if `rg`/`grep` (optionally after `rtk`) is literally the command
+    word. Behind any other wrapper (`timeout 5* rg`) an expanded glob could
+    shift which word the shell runs as the command."""
+    argv = segment.argv
+    if argv[:1] == ["rtk"]:
+        argv = argv[1:]
+    return argv[:1] != [] and argv[0] in _GLOB_HEADS and not segment.env
+
+
 def decide(
     command: str, cwd: str, agent_type: Optional[str], policy: Dict
 ) -> Decision:
     segments = scan(command)
     if segments and any(
-        word.glob and _normalize(segment.argv)[0] not in _GLOB_HEADS
+        any(word.glob for word in segment.words) and not _glob_ok(segment)
         for segment in segments
-        for word in segment.words
     ):
         segments = None
     crude, rough_args = _rough_split(command)
