@@ -87,6 +87,11 @@ rtk_wraps = [
 [permissions.hook]
 # `cargo test|clippy|build|run|check` is auto-approved only under these roots.
 trusted_dev_roots = ["~/git/nickvigilante", "~/rust"]
+# `git fetch` and `git pull --ff-only` are auto-approved only when every remote
+# they would contact is `https://`, `ssh://git@` or `git@` on one of these
+# hosts under one of these owners.
+approved_git_hosts = ["github.com"]
+approved_git_owners = ["nickvigilante", "coder"]
 
 # Base command -> read-only arg patterns (everything after the command name).
 # NOTE: scalar keys above must precede these sub-tables (TOML ordering rule).
@@ -99,6 +104,11 @@ deny_flags = [
   "--textconv",
   "--no-index",
   "--contents",
+  # `ls-remote`/`fetch` run a program named here; `grep -O` opens a pager.
+  "--upload-pack",
+  "--exec",
+  "-O",
+  "--open-files-in-pager",
 ]
 env_allow = { NO_COLOR = "1", GIT_PAGER = "cat" }
 deny_args = ["branch -d *", "branch -D *", "branch --delete *"]
@@ -124,6 +134,8 @@ args = [
   "reflog",
   "check-ignore *",
   "rev-list *",
+  "grep *",
+  "ls-remote *",
 ]
 
 [permissions.commands.gh]
