@@ -185,12 +185,17 @@ def _guarded_heads(policy: Dict) -> set:
 
 def _has_flag(args: List[str], flags: List[str]) -> Optional[str]:
     """Return the first of `flags` present in `args`. Long flags match
-    `--flag` and `--flag=value`; a one-letter flag like `-o` also matches
-    inside a cluster such as `-ao` or `-ofile`."""
+    `--flag` and `--flag=value`, and also any abbreviation of it such as
+    `--upl=x` (git accepts unambiguous prefixes; a prefix that is also another
+    option is denied too, which errs safe). A one-letter flag like `-o` also
+    matches inside a cluster such as `-ao` or `-ofile`."""
     for arg in args:
         for flag in flags:
             if flag.startswith("--"):
+                name = arg.split("=", 1)[0]
                 if arg == flag or arg.startswith(flag + "="):
+                    return flag
+                if len(name) >= 3 and name.startswith("--") and flag.startswith(name):
                     return flag
             elif len(flag) == 2 and flag.startswith("-"):
                 if arg.startswith("-") and not arg.startswith("--") and flag[1] in arg[1:]:
@@ -431,6 +436,39 @@ def _git_lines(cwd: str, *args: str) -> Optional[List[str]]:
     return done.stdout.splitlines() if done.returncode == 0 else None
 
 
+# Repo-local settings that make git run a program or talk to another host while
+# fetching or pulling. Whoever can write .git/config or .git/hooks controls
+# them, and approving a command on top of them would run that code unprompted.
+_RISKY_LOCAL_CONFIG = re.compile(
+    r"core\.(sshcommand|gitproxy|hookspath|fsmonitor|askpass|attributesfile"
+    r"|alternaterefscommand)"
+    r"|credential\..*|protocol\..*|include\..*|includeif\..*|filter\..*"
+    r"|remote\..*\.(uploadpack|receivepack|vcs|proxy|proxyauthmethod)"
+    r"|http\..*(proxy|proxyauthmethod|extraheader)",
+    re.IGNORECASE,
+)
+_FETCH_PULL_HOOKS = (
+    "reference-transaction", "post-merge", "post-checkout", "pre-auto-gc",
+    "fsmonitor-watchman", "post-index-change", "post-rewrite",
+)
+
+
+def _repo_state_is_clean(cwd: str) -> bool:
+    """False if repo-local config or a hook could run code during fetch/pull."""
+    lines = _git_lines(cwd, "config", "--show-scope", "--list", "--name-only")
+    if lines is None:
+        return False
+    for line in lines:
+        scope, _, key = line.partition("\t")
+        if scope in ("local", "worktree", "command") and _RISKY_LOCAL_CONFIG.fullmatch(key):
+            return False
+    hooks = _git_lines(cwd, "rev-parse", "--git-path", "hooks")
+    if not hooks:
+        return False
+    hooks_dir = os.path.join(cwd, hooks[0])
+    return not any(os.path.exists(os.path.join(hooks_dir, h)) for h in _FETCH_PULL_HOOKS)
+
+
 def _approved_git_url(policy: Dict):
     hook = policy.get("permissions", {}).get("hook", {})
     hosts, owners = hook.get("approved_git_hosts"), hook.get("approved_git_owners")
@@ -499,6 +537,8 @@ def _decide_git_sync(command: str, segments: List[Segment], cwd: str, policy: Di
     sub, rest = args[0], args[1:]
     targets = _sync_targets(sub, rest, cwd)
     if not targets or not _remotes_approved(targets, cwd, policy):
+        return Decision()
+    if not _repo_state_is_clean(cwd):
         return Decision()
     extra = "".join(" " + f for f in _SYNC_FORCED[sub] if f not in rest)
     updated = command
