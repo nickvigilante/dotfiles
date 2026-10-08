@@ -108,11 +108,39 @@ err() { printf "%s  ✗%s %s\n" "$RED" "$RESET" "$*" >&2; }
 # Under `bash -c "..."`, $0 == "--" or "bash" and BASH_SOURCE[0] is empty;
 # force a path operand so `dirname --` doesn't trigger GNU's end-of-options.
 SCRIPT_DIR="$(cd "$(dirname -- "${BASH_SOURCE[0]:-$0}")" 2> /dev/null && pwd || echo "")"
+
+# Fetch the repo into <dest>/src for the bootstrap libs. This runs before
+# Step 3 installs git, and on a fresh Mac `git` is only the Xcode stub, so a
+# GitHub repo comes down as a tarball over curl (already present: it fetched
+# this script). git is the fallback for other hosts or a failed download.
+# DOTFILES_REF picks the branch (default main).
+fetch_bootstrap_libs() { # dest-dir
+	local dest="$1" ref="${DOTFILES_REF:-main}" slug
+	slug=$(printf '%s' "$DOTFILES_REPO" | sed -nE 's#^https://github\.com/([^/]+/[^/]+)$#\1#p')
+	slug="${slug%.git}"
+	if [[ -n "$slug" ]]; then
+		mkdir -p "$dest/src"
+		if curl -fsSL "https://codeload.github.com/$slug/tar.gz/refs/heads/$ref" |
+			tar -xz -C "$dest/src" --strip-components=1; then
+			return 0
+		fi
+		rm -rf "$dest/src"
+	fi
+	if git --version > /dev/null 2>&1; then
+		git clone --depth=1 --branch "$ref" "$DOTFILES_REPO" "$dest/src"
+		return
+	fi
+	err "Could not fetch the bootstrap libs: the download failed and git is not usable yet."
+	err "  Install git (macOS: xcode-select --install), then re-run."
+	return 1
+}
+
 if [[ -z "$SCRIPT_DIR" ]] || [[ ! -d "$SCRIPT_DIR/lib" ]]; then
 	TMP_REPO="$(mktemp -d)"
-	info "Cloning dotfiles to $TMP_REPO for bootstrap libs..."
-	git clone --depth=1 "$DOTFILES_REPO" "$TMP_REPO"
-	SCRIPT_DIR="$TMP_REPO/bootstrap"
+	trap 'rm -rf "$TMP_REPO"' EXIT
+	info "Fetching dotfiles to $TMP_REPO for bootstrap libs..."
+	fetch_bootstrap_libs "$TMP_REPO"
+	SCRIPT_DIR="$TMP_REPO/src/bootstrap"
 fi
 
 # shellcheck source=/dev/null
