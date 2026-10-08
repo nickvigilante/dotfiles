@@ -281,6 +281,16 @@ class GlobsOnlyForSearchTools(unittest.TestCase):
         self.assertEqual(permission("git log -- dir/*"), "ask")
 
 
+class UnparseableChecksEveryPiece(unittest.TestCase):
+    def test_guarded_command_after_an_unparseable_one(self):
+        self.assertEqual(permission("ls dir/* | rg --pre=evil y"), "deny")
+        self.assertEqual(permission("ls $(x) | git log --output=f"), "deny")
+        self.assertEqual(permission("ls dir/* | chezmoi status --source /etc"), "ask")
+
+    def test_unguarded_pipeline_is_left_alone(self):
+        self.assertIsNone(permission("ls dir/* | wc -l"))
+
+
 class XargsNeverApproved(unittest.TestCase):
     """xargs turns piped text into arguments, so a command run through it is
     never approved, even though deny checks look through it."""
