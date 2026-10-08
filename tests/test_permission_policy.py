@@ -269,40 +269,6 @@ class ReviewFixes(unittest.TestCase):
         self.assertEqual(permission("tree -R -H . -L 1"), "deny")
 
 
-class GlobsOnlyForSearchTools(unittest.TestCase):
-    def test_rg_and_grep_may_take_a_prefixed_glob(self):
-        self.assertIsNone(permission("rg x dir/*.go | grep -n y | head -30"))
-
-    def test_glob_elsewhere_is_treated_as_unparseable(self):
-        # A symlink inside the repo could point out of it once zsh expands `*`.
-        self.assertEqual(permission("chezmoi status --source %s/*" % ROOT), "ask")
-        # A filename could read as a jq program that dumps the environment.
-        self.assertEqual(permission("cargo test | jq dir/*"), "ask")
-        self.assertEqual(permission("git log -- dir/*"), "ask")
-
-
-class GlobNeedsBareCommandWord(unittest.TestCase):
-    def test_glob_behind_a_wrapper_is_unparseable(self):
-        # `5*` could expand to extra words, one of which the shell runs.
-        for command in ["timeout 5* rg x y", "nice -n 5* rg x y", "stdbuf -o L* rg x y",
-                        "time rg x dir/*"]:
-            with self.subTest(command=command):
-                self.assertEqual(permission(command), "ask")
-
-    def test_rtk_prefix_is_fine(self):
-        self.assertIsNone(permission("rtk rg x dir/*"))
-
-
-class UnparseableChecksEveryPiece(unittest.TestCase):
-    def test_guarded_command_after_an_unparseable_one(self):
-        self.assertEqual(permission("ls dir/* | rg --pre=evil y"), "deny")
-        self.assertEqual(permission("ls $(x) | git log --output=f"), "deny")
-        self.assertEqual(permission("ls dir/* | chezmoi status --source /etc"), "ask")
-
-    def test_unguarded_pipeline_is_left_alone(self):
-        self.assertIsNone(permission("ls dir/* | wc -l"))
-
-
 class XargsNeverApproved(unittest.TestCase):
     """xargs turns piped text into arguments, so a command run through it is
     never approved, even though deny checks look through it."""

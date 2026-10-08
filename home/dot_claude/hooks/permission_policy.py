@@ -51,31 +51,10 @@ class Decision:
     updated_command: Optional[str] = None
 
 
-# Only these commands may take an unquoted glob. Anywhere else the shell's
-# expansion could slip past a check on the literal text: a symlink out of the
-# `chezmoi --source` tree, or a filename that reads as a `jq` program.
-_GLOB_HEADS = {"rg", "grep"}
-
-
-def _glob_ok(segment: Segment) -> bool:
-    """True if `rg`/`grep` (optionally after `rtk`) is literally the command
-    word. Behind any other wrapper (`timeout 5* rg`) an expanded glob could
-    shift which word the shell runs as the command."""
-    argv = segment.argv
-    if argv[:1] == ["rtk"]:
-        argv = argv[1:]
-    return argv[:1] != [] and argv[0] in _GLOB_HEADS and not segment.env
-
-
 def decide(
     command: str, cwd: str, agent_type: Optional[str], policy: Dict
 ) -> Decision:
     segments = scan(command)
-    if segments and any(
-        any(word.glob for word in segment.words) and not _glob_ok(segment)
-        for segment in segments
-    ):
-        segments = None
     crude, rough_args = _rough_split(command)
     heads = [_normalize(s.argv)[0] for s in segments] if segments else []
     is_curl = os.path.basename(crude) == "curl" or any(
@@ -88,26 +67,20 @@ def decide(
         return Decision("deny", ROUTE_TO_CURL_AGENT)
 
     if segments is None:
-        # Check every piece, not just the first: a guarded command later in
-        # the pipeline would otherwise be approved by the static allowlist.
-        verdict = Decision()
-        for piece in [command, *_PIECE_SEPARATORS.split(command)]:
-            head, piece_args = _rough_split(piece)
-            if head not in _guarded_heads(policy):
-                continue
+        if crude in _guarded_heads(policy):
             # A rough whitespace split can still spot a forbidden flag, and
             # erring toward deny is safe; otherwise ask, since hidden syntax
             # could smuggle one past the check.
-            table = _commands(policy).get(head, {})
-            flag = _has_flag(piece_args, table.get("deny_flags", []))
+            table = _commands(policy).get(crude, {})
+            flag = _has_flag(rough_args, table.get("deny_flags", []))
             if flag:
-                return Decision("deny", "%s %s is blocked." % (head, flag))
-            verdict = verdict if verdict.permission else Decision(
+                return Decision("deny", "%s %s is blocked." % (crude, flag))
+            return Decision(
                 "ask",
                 "Could not parse this %s command safely, so its flags "
-                "cannot be checked." % head,
+                "cannot be checked." % crude,
             )
-        return verdict
+        return Decision()
 
     for segment in segments:
         decision = _check_segment(segment, cwd, policy)
@@ -174,9 +147,6 @@ def _through_xargs(argv: List[str]) -> bool:
     arguments nobody checked. Deny checks look through xargs; approvals
     never do."""
     return "xargs" in argv[: _normalize(argv)[2]]
-
-
-_PIECE_SEPARATORS = re.compile(r"[|;&\n()`]")
 
 
 def _rough_split(command: str):

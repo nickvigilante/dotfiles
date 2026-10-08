@@ -41,9 +41,6 @@ class Word:
     # Leading characters that appeared outside quotes; decides whether
     # `NAME=value` is an environment assignment or a quoted argument.
     unquoted_prefix: str
-    # True if an unquoted `*` appears: the shell, not the scanner, decides
-    # what this word finally becomes.
-    glob: bool = False
 
 
 @dataclass
@@ -89,7 +86,6 @@ def scan(command: str) -> Optional[List[Segment]]:
 
 def _lex(command):
     tokens = []
-    have_command = False
     i, n = 0, len(command)
     while i < n:
         c = command[i]
@@ -97,7 +93,6 @@ def _lex(command):
             i += 1
         elif c == "|":
             tokens.append(("pipe", None))
-            have_command = False
             i += 1
         else:
             redirect = next(
@@ -113,18 +108,15 @@ def _lex(command):
                 tokens.append(("redirect", redirect))
                 i += len(redirect)
             else:
-                word, i = _read_word(command, i, have_command)
+                word, i = _read_word(command, i)
                 tokens.append(("word", word))
-                if not _ASSIGNMENT.match(word.unquoted_prefix):
-                    have_command = True
     return tokens
 
 
-def _read_word(command, i, allow_glob):
+def _read_word(command, i):
     start, n = i, len(command)
     value, prefix = [], []
     prefix_open = True
-    glob = False
     while i < n and command[i] not in _WORD_END:
         c = command[i]
         if c == "'":
@@ -143,11 +135,6 @@ def _read_word(command, i, allow_glob):
             if prefix_open:
                 prefix.append(c)
             i += 1
-        elif c == "*" and allow_glob and "".join(value)[:1] not in ("", "-"):
-            value.append(c)
-            prefix_open = False
-            glob = True
-            i += 1
         elif c in _UNQUOTED_OK:
             if c == "=" and i == start:
                 raise ValueError("zsh expands a word starting with =")
@@ -157,7 +144,7 @@ def _read_word(command, i, allow_glob):
             i += 1
         else:
             raise ValueError("character not allowed outside quotes: %r" % c)
-    return Word("".join(value), start, i, "".join(prefix), glob), i
+    return Word("".join(value), start, i, "".join(prefix)), i
 
 
 def _read_double_quoted(command, i):
