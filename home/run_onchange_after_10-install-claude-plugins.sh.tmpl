@@ -36,10 +36,17 @@ fi
 
 failed=0
 
+# Every `claude plugin marketplace add` / `install` re-serializes settings.json
+# in the CLI's own key order, which chezmoi then reports as drift on the next
+# diff. So only call them for what is actually missing; if a listing fails the
+# set stays empty and everything is attempted, as before.
+known_repos=$(claude plugin marketplace list --json 2>/dev/null | jq -r '.[].repo? // empty')
+installed_ids=$(claude plugin list --json 2>/dev/null | jq -r '.[] | select(.scope == "user") | .id')
+
 # A marketplace must be known before a plugin can be installed from it.
-# Re-adding one that is already known is a no-op.
 for repo in $(jq -r '.extraKnownMarketplaces // {} | .[].source
     | select(.source == "github") | .repo' "$SETTINGS"); do
+  printf '%s\n' "$known_repos" | grep -qxF "$repo" && continue
   claude plugin marketplace add "$repo" >/dev/null 2>&1 || {
     echo "==> failed to add plugin marketplace ${repo}" >&2
     failed=1
@@ -50,6 +57,7 @@ done
 # A plugin that needs one fails here and is left to the interactive /plugin flow.
 for plugin in $(jq -r '.enabledPlugins // {} | to_entries[]
     | select(.value == true) | .key' "$SETTINGS"); do
+  printf '%s\n' "$installed_ids" | grep -qxF "$plugin" && continue
   claude plugin install --scope user "$plugin" >/dev/null 2>&1 || {
     echo "==> failed to install Claude Code plugin ${plugin}" >&2
     failed=1

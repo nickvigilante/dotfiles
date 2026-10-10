@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
 {{- range $base, $spec := .permissions.commands }}
     {{- $heads := list }}
@@ -102,9 +101,13 @@
     {{- end }}
   {{- end }}
 {{- end }}
-    ]
+    ],
+    "defaultMode": "auto"
   },
   "model": "sonnet",
+  "skillOverrides": {
+    "notion-mcp-waf": "off"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -156,9 +159,6 @@
     "playground@claude-plugins-official": false,
     "explanatory-output-style@claude-plugins-official": true,
     "mcp-server-dev@claude-plugins-official": false
-  },
-  "skillOverrides": {
-    "notion-mcp-waf": "off"
   },
   "extraKnownMarketplaces": {
     "claude-code-warp": {
