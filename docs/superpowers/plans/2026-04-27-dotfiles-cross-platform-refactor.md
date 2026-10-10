@@ -630,7 +630,7 @@ brew "fzf"           # Fuzzy finder
 brew "eza"           # Better ls
 brew "bat"           # Better cat (syntax highlighting)
 brew "zoxide"        # Better cd
-brew "tldr"          # Simplified man pages
+brew "tlrc"          # Simplified man pages
 brew "htop"
 brew "tree"
 brew "tmux"
