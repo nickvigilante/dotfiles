@@ -87,7 +87,7 @@ tiers = ["core"]
 [[packages]]
 key = "tldr"
 section = "cli"
-brew = "tldr"
+brew = "tlrc"
 comment = "Simplified man pages"
 tiers = ["core"]
 
