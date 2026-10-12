@@ -395,5 +395,104 @@ class BoundedGitHubCalls(unittest.TestCase):
             self.assertEqual(gh_pr.gh_get("repos/a/b/pulls/5"), {"number": 5})
 
 
+def fake_github(files_changed=1, files_seen=1, comments_partial=False, merged=True):
+    """Minimal GitHub responses for one coder/coder PR whose only change is docs/a.md, doc-check green."""
+    pr = {"title": "t", "user": {"login": "x", "type": "User"}, "author_association": "MEMBER",
+          "merged_at": "2026-10-01T00:00:00Z" if merged else None, "state": "closed" if merged else "open", "closed_at": None,
+          "draft": False, "base": {"ref": "main", "repo": {"default_branch": "main"}},
+          "head": {"sha": "a" * 40, "repo": {"owner": {"login": "coder"}}}, "requested_reviewers": [],
+          "requested_teams": [], "assignees": [], "body": "", "changed_files": files_changed}
+
+    def get(path):
+        if path.endswith("/pulls/1"):
+            return pr
+        if path.endswith("/files"):
+            return [{"filename": "docs/a.md"}] * files_seen
+        if "/issues/1/comments" in path:
+            return gh_pr.PartialList() if comments_partial else []
+        if "check-runs" in path:
+            return {"check_runs": [{"name": "Analyze PR for Documentation Updates Needed", "conclusion": "success"}]}
+        return []
+    return get
+
+
+def facts_from(**kw):
+    gh_pr._CACHE.clear()
+    return gh_pr.pr_facts("coder/coder", 1, CFG, get=fake_github(**kw), requests=lambda repo, n: [])
+
+
+class FailClosed(unittest.TestCase):
+    """When GitHub data is missing or cut short, nothing may be marked read or called safe."""
+
+    def test_complete_data_is_trusted(self):
+        f = facts_from()
+        self.assertEqual((f["scope"], f["doc_check"]["status"], f["drift"], f["partial"]), ("docs_only", "passed", False, []))
+
+    def test_cut_short_file_list_is_not_docs_only(self):
+        f = facts_from(files_changed=5000, files_seen=1)
+        self.assertEqual((f["scope"], f["docs_class"]), ("unknown", "unknown"))
+        self.assertIn("files", f["partial"])
+
+    def test_cut_short_comments_mean_doc_check_unknown_not_passed(self):
+        f = facts_from(comments_partial=True)
+        self.assertEqual(f["doc_check"]["status"], "unknown")
+        self.assertIn("comments", f["partial"])
+        self.assertTrue(f["drift"])
+        self.assertIn("unknown", f["drift_reasons"][0])
+
+    def test_open_pr_with_unknown_doc_check_is_not_drift(self):
+        self.assertFalse(facts_from(comments_partial=True, merged=False)["drift"])
+
+    def test_gh_get_flags_lists_cut_short_by_the_page_cap(self):
+        from unittest import mock
+        page = json.dumps([{"n": i} for i in range(gh_pr.PER_PAGE)])
+        with mock.patch.object(gh_pr, "_run_gh", return_value=page):
+            capped = gh_pr.gh_get("repos/a/b/issues/1/comments")
+        self.assertTrue(getattr(capped, "truncated", False))
+        with mock.patch.object(gh_pr, "_run_gh", return_value=json.dumps([{"n": 1}])):
+            short = gh_pr.gh_get("repos/a/b/issues/1/comments")
+        self.assertFalse(getattr(short, "truncated", False))
+
+    def test_gh_get_flags_check_runs_cut_short(self):
+        from unittest import mock
+        page = json.dumps({"check_runs": [{"name": "x"}] * gh_pr.PER_PAGE})
+        with mock.patch.object(gh_pr, "_run_gh", return_value=page):
+            self.assertTrue(gh_pr.gh_get("repos/a/b/commits/abc/check-runs").get("truncated"))
+
+    def merged_event_thread(self):
+        return thread("t1", 1, [msg("Merged #1 into main.", reasons=("subscribed",))])
+
+    def test_failed_github_lookup_keeps_a_merged_pr_thread(self):
+        p = plan_for([self.merged_event_thread()], {"coder/coder#1": {"error": "gh timed out"}})
+        self.assertEqual(action(p, "t1"), "keep")
+
+    def test_partial_facts_keep_a_merged_pr_thread(self):
+        p = plan_for([self.merged_event_thread()], {"coder/coder#1": facts(state="merged", partial=["comments"])})
+        self.assertEqual(action(p, "t1"), "keep")
+
+    def test_partial_facts_never_suggest_read(self):
+        t = thread("t1", 1, [msg("@a requested your review on: coder/coder#1 t.")])
+        p = plan_for([t], {"coder/coder#1": facts(scope="unknown", docs_class="unknown", docs_handwritten=[], partial=["files"])})
+        self.assertNotIn("GEN", p["buckets"])
+        self.assertNotIn("P1", p["buckets"])
+        self.assertEqual(p["suggested_read_thread_ids"], [])
+
+    def test_commit_emails_and_docs_previews_are_still_read_without_facts(self):
+        push = thread("p", 1, [msg("@a pushed 1 commit.", reasons=("push",))])
+        preview = thread("v", 1, [msg("github-actions[bot] left a comment (coder/coder#1) ## Docs preview", reasons=("comment",))])
+        p = plan_for([push, preview], {"coder/coder#1": {"error": "gh timed out"}})
+        self.assertEqual((action(p, "p"), action(p, "v")), ("read", "read"))
+
+    def test_docs_preview_on_a_drift_pr_is_kept(self):
+        t = thread("v", 1, [msg("github-actions[bot] left a comment (coder/coder#1) ## Docs preview", reasons=("comment",))])
+        drift = facts(state="merged", drift=True, drift_reasons=["doc-check failed"])
+        self.assertEqual(action(plan_for([t], {"coder/coder#1": drift}), "v"), "keep")
+
+    def test_unreadable_codeowners_rules_make_no_answer_unknown(self):
+        text = "%s @nickvigilante\ndocs/ @core\n" % ("a/" * 400)
+        self.assertEqual(gh_pr.count_unusable_rules(text), 1)
+        self.assertEqual(gh_pr.count_unusable_rules("docs/ @core\n"), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

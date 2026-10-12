@@ -140,12 +140,14 @@ def decide_thread(thread, facts, cfg):
 
     Precedence, first match wins:
     1. only new commits -> read (always)
-    2. message names the user -> keep
-    3. doc-check update -> keep
-    4. merged PR with drift -> keep
-    5. docs preview checklist only -> read
-    6. merged/closed event or a PR that is already merged/closed -> read
-    7. anything else on an open PR -> keep
+    2. a message names the user -> keep
+    3. a doc-check update -> keep
+    4. GitHub facts missing or only partly fetched -> keep, except a docs preview checklist alone (never guess)
+    5. merged PR with drift -> keep
+    6. docs preview checklist only -> read
+    7. reopened -> keep
+    8. merged/closed event, or a PR that is already merged/closed -> read
+    9. anything else on an open PR -> keep
     """
     msgs = thread["unread"]
     if not msgs:
@@ -153,17 +155,24 @@ def decide_thread(thread, facts, cfg):
     if all(m["kind"] == "push" for m in msgs):
         return "read", "new commits only"
     live = [m for m in msgs if m["kind"] != "push"]
+    preview_only = all(m["kind"] == "docs_preview" for m in live)
     if any(m["mentions_me"] for m in live):
         return "keep", "names you"
     if any(m["kind"] == "doc_check" for m in live):
         return "keep", "doc-check update"
-    if facts and facts.get("drift"):
+    if facts is None:
+        return ("read", "docs preview checklist") if preview_only else ("keep", "GitHub facts unavailable")
+    if facts.get("partial"):
+        if preview_only:
+            return "read", "docs preview checklist"
+        return "keep", "partial GitHub data: " + ", ".join(facts["partial"])
+    if facts.get("drift"):
         return "keep", "merged with doc drift"
-    if all(m["kind"] == "docs_preview" for m in live):
+    if preview_only:
         return "read", "docs preview checklist"
     if any(m["kind"] == "reopened" for m in live):
         return "keep", "reopened"
-    state = facts.get("state") if facts else None
+    state = facts.get("state")
     if live and all(m["kind"] in ("merged", "closed") for m in live):
         return "read", "%s event" % live[0]["kind"]
     if state in ("merged", "closed"):
@@ -331,8 +340,8 @@ def line(item):
         bits.append("DRIFT: " + "; ".join(f["drift_reasons"]))
     if g.get("approved_by"):
         bits.append("approved by " + ", ".join(g["approved_by"]))
-    if f.get("files_partial"):
-        bits.append("PARTIAL-FILES")
+    if f.get("partial"):
+        bits.append("PARTIAL-DATA: " + ", ".join(f["partial"]))
     if item.get("marked_read"):
         bits.append("[marked read]")
     if item["kept_threads"] > 1 or len(g["threads"]) > 1:

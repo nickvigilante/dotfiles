@@ -34,6 +34,12 @@ MAX_FILES = 3000
 LIST_KEYS = ("check_runs",)
 
 
+class PartialList(list):
+    """A list that hit the page cap; `truncated` tells callers not to trust its absences."""
+
+    truncated = True
+
+
 def _run_gh(args):
     """Run `gh` with a timeout so one stuck call cannot hang a whole triage."""
     try:
@@ -49,6 +55,7 @@ def gh_get(path, max_pages=MAX_PAGES):
     """GET a REST path through `gh api`; list endpoints are fetched page by page up to a cap."""
     joiner = "&" if "?" in path else "?"
     merged = None
+    exhausted = True
     for page in range(1, max_pages + 1):
         data = json.loads(_run_gh(["api", "%s%sper_page=%d&page=%d" % (path, joiner, PER_PAGE, page)]))
         if isinstance(data, list):
@@ -63,6 +70,12 @@ def gh_get(path, max_pages=MAX_PAGES):
             return data
         if batch < PER_PAGE:
             break
+    else:
+        exhausted = False
+    if not exhausted:
+        if isinstance(merged, list):
+            return PartialList(merged)
+        merged["truncated"] = True
     return merged
 
 
@@ -104,7 +117,7 @@ def classify_files(files, cfg):
     }
 
 
-def doc_check_status(repo, comments, check_runs, cfg):
+def doc_check_status(repo, comments, check_runs, cfg, complete=True):
     """Summarize doc-check for one PR.
 
     flagged: a doc-check comment has unchecked items.
@@ -113,6 +126,7 @@ def doc_check_status(repo, comments, check_runs, cfg):
     failed: the check ran but never succeeded (timeout, failure, cancelled).
     skipped: only skipped runs.
     never_ran: no run found.
+    unknown: the comment or check lists were cut short, so absence proves nothing.
     n/a: not the repo that runs doc-check.
     """
     dc = cfg["doc_check"]
@@ -129,6 +143,8 @@ def doc_check_status(repo, comments, check_runs, cfg):
             "open_items": unchecked,
             "items": unchecked + checked,
         }
+    if not complete:
+        return {"status": "unknown", "open_items": 0, "items": 0}
     runs = [r for r in check_runs if dc["check_name_contains"] in r.get("name", "")]
     conclusions = {r.get("conclusion") or r.get("status") for r in runs}
     if "success" in conclusions:
@@ -220,6 +236,16 @@ def _pattern_matches(compiled, path):
     return any(pos < len(parts) for pos in positions) if dir_only else bool(positions)
 
 
+def count_unusable_rules(text):
+    """CODEOWNERS rules skipped for size; if any were skipped, a "not an owner" answer is unreliable."""
+    count = 0
+    for raw in text.splitlines():
+        raw = raw.split("#", 1)[0].strip()
+        if raw and _compile_codeowners_pattern(raw.split()[0]) is None:
+            count += 1
+    return count
+
+
 def match_codeowners(text, files, handles):
     """Return the changed files that `handles` own; the last matching rule wins, as on GitHub."""
     rules = []
@@ -292,6 +318,8 @@ def drift_reasons(state, doc_check):
         return ["%d unchecked doc-check item%s" % (doc_check["open_items"], "" if doc_check["open_items"] == 1 else "s")]
     if status in ("failed", "never_ran", "running", "skipped"):
         return ["doc-check " + status.replace("_", " ")]
+    if status == "unknown":
+        return ["doc-check status unknown (partial GitHub data)"]
     return []
 
 
@@ -313,7 +341,7 @@ def codeowner_facts(repo, number, files, cfg, get, requests):
         status = "requested"
     elif owned:
         status = "by_file"
-    elif text is None:
+    elif text is None or count_unusable_rules(text):
         status = "unknown"
     else:
         status = "no"
@@ -331,17 +359,23 @@ def pr_facts(repo, number, cfg, get=gh_get, requests=gh_review_requests):
     mention = [re.compile(p) for p in cfg["name_patterns"] if "nickvigilante" in p.lower()]
     base = "repos/%s" % repo
     pr = get("%s/pulls/%d" % (base, number))
-    files = [f["filename"] for f in get("%s/pulls/%d/files" % (base, number))][:MAX_FILES]
+    files_raw = get("%s/pulls/%d/files" % (base, number))
+    files = [f["filename"] for f in files_raw][:MAX_FILES]
     reviews = get("%s/pulls/%d/reviews" % (base, number))
     issue_comments = get("%s/issues/%d/comments" % (base, number))
     inline_comments = get("%s/pulls/%d/comments" % (base, number))
     timeline = get("%s/issues/%d/timeline" % (base, number))
     head_sha = pr["head"]["sha"]
-    check_runs = get("%s/commits/%s/check-runs" % (base, head_sha))
-    if isinstance(check_runs, dict):
-        check_runs = check_runs.get("check_runs", [])
-    elif check_runs and isinstance(check_runs[0], dict) and "check_runs" in check_runs[0]:
-        check_runs = [r for page in check_runs for r in page["check_runs"]]
+    check_runs_raw = get("%s/commits/%s/check-runs" % (base, head_sha))
+    check_runs = check_runs_raw.get("check_runs", []) if isinstance(check_runs_raw, dict) else check_runs_raw
+    partial = [
+        name for name, data in (
+            ("reviews", reviews), ("comments", issue_comments), ("inline comments", inline_comments),
+            ("timeline", timeline),
+            ("check runs", check_runs_raw if isinstance(check_runs_raw, dict) and check_runs_raw.get("truncated") else []),
+        )
+        if getattr(data, "truncated", False) or (name == "check runs" and data)
+    ]
 
     author = pr["user"]["login"]
     state = "merged" if pr.get("merged_at") else pr["state"]
@@ -404,7 +438,6 @@ def pr_facts(repo, number, cfg, get=gh_get, requests=gh_review_requests):
         "base": pr["base"]["ref"],
         "stacked": pr["base"]["ref"] != (pr["base"]["repo"] or {}).get("default_branch", pr["base"]["ref"]),
         "head_sha": head_sha[:8],
-        "files_partial": len(files) < pr.get("changed_files", len(files)),
         "involvement": involvement,
         "mentioned": mentioned,
         "i_requested_now": me in pending_users,
@@ -418,7 +451,13 @@ def pr_facts(repo, number, cfg, get=gh_get, requests=gh_review_requests):
         "approved_by_others": approved_by,
     }
     facts.update(classify_files(files, cfg))
-    facts["doc_check"] = doc_check_status(repo, issue_comments, check_runs, cfg)
+    if getattr(files_raw, "truncated", False) or len(files) < pr.get("changed_files", len(files)):
+        partial.insert(0, "files")
+        # Without the full file list nothing can be called docs-only or generated-only.
+        facts["scope"] = facts["docs_class"] = "unknown"
+    facts["partial"] = partial
+    comments_complete = not ({"comments", "check runs"} & set(partial))
+    facts["doc_check"] = doc_check_status(repo, issue_comments, check_runs, cfg, comments_complete)
     facts.update(codeowner_facts(repo, number, files, cfg, get, requests))
     facts["drift_reasons"] = drift_reasons(state, facts["doc_check"])
     facts["drift"] = bool(facts["drift_reasons"])

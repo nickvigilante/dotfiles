@@ -41,15 +41,16 @@ Claude presents the brief, handles the few items that need thought, and marks th
 
 First match wins for each thread.
 
-| Order | Condition                                                          | Action                                |
-|-------|--------------------------------------------------------------------|---------------------------------------|
-| 1     | Every unread message only announces new commits, even if a commit title names the user | Read, always              |
-| 2     | A message names the user (`@nickvigilante`, `Nick`, mention)       | Keep unread                           |
-| 3     | A message is a doc-check update                                    | Keep unread                           |
-| 4     | PR is merged and its docs could not be verified as complete (drift) | Keep unread, rank P2                  |
-| 5     | The only unread messages are `Docs preview` checklists             | Read                                  |
-| 6     | Message is "merged" or "closed", or the PR is already one          | Read; notify (all merges, own closes) |
-| 7     | Anything else on an open PR                                        | Keep unread, rank by bucket           |
+| Order | Condition                                                                               | Action                                |
+|-------|-----------------------------------------------------------------------------------------|---------------------------------------|
+| 1     | Every unread message only announces new commits, even if a commit title names the user  | Read, always                          |
+| 2     | A message names the user (`@nickvigilante`, `Nick`, mention)                            | Keep unread                           |
+| 3     | A message is a doc-check update                                                         | Keep unread                           |
+| 4     | GitHub facts are missing or were only partly fetched                                    | Keep unread; never guess              |
+| 5     | PR is merged and its docs could not be verified as complete (drift)                     | Keep unread, rank P2                  |
+| 6     | The only unread messages are `Docs preview` checklists                                  | Read                                  |
+| 7     | Message is "merged" or "closed", or the PR is already one                               | Read; notify (all merges, own closes) |
+| 8     | Anything else on an open PR                                                             | Keep unread, rank by bucket           |
 
 On the user's own PRs:
 approvals are read once the PR is merged or closed, but a human comment on the same PR stays unread, and every approval is listed in the **Your PRs were approved** section.
