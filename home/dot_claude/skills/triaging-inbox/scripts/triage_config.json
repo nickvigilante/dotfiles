@@ -1,0 +1,21 @@
+{
+  "me": "nickvigilante",
+  "name_patterns": ["(?i)@?nickvigilante", "\\bNick\\b"],
+  "org": "coder",
+  "primary_repo": "coder/coder",
+  "docs_prefixes": ["docs/"],
+  "generated_docs": [
+    "^docs/reference/(api|cli)/",
+    "^docs/manifest\\.json$",
+    "^docs/manifest/generated/",
+    "^docs/admin/security/audit-logs\\.md$",
+    "^docs/reference/api-key-scopes\\.md$"
+  ],
+  "doc_check": {
+    "check_name_contains": "Documentation Updates",
+    "sticky_marker": "doc-check-sticky",
+    "email_markers": ["Documentation Check", "doc-check"]
+  },
+  "internal_associations": ["OWNER", "MEMBER", "COLLABORATOR"],
+  "bot_hints": ["[bot]", "coderagents", "chatgpt-codex-connector"]
+}
