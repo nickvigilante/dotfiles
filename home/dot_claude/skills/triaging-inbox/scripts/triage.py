@@ -250,7 +250,8 @@ def build_plan(threads, facts_by_ref, cfg):
         group = {
             "ref": ref,
             "threads": [t["id"] for t in ts],
-            "mentions_me": any(m["mentions_me"] for t in ts for m in t["unread"]),
+            # A "new commits" email naming the user is read, so it must not make the PR a mention.
+            "mentions_me": any(m["mentions_me"] for t in ts for m in t["unread"] if m["kind"] != "push"),
             "codeowner_hint": any(m["codeowner"] for t in ts for m in t["messages"]),
             "approved_by": approvers,
             "protected": protected,

@@ -565,5 +565,20 @@ class DriftNamesTheFailedJob(unittest.TestCase):
         self.assertEqual(gh_pr.drift_reasons("merged", dc), ["1 unchecked doc-check item"])
 
 
+class CommitEmailsDoNotMakeMentions(unittest.TestCase):
+    def test_push_email_naming_me_does_not_move_the_pr_into_mentions(self):
+        push = thread("p", 1, [msg("@a pushed 1 commit. abc address Nick's feedback", reasons=("push",))])
+        other = thread("o", 1, [msg("@b commented on this pull request. looks fine", reasons=("review_requested",))])
+        p = plan_for([push, other], {"coder/coder#1": facts(docs_class="generated", docs_handwritten=[])})
+        self.assertNotIn("P5", p["buckets"])
+        self.assertEqual(action(p, "p"), "read")
+
+    def test_a_real_mention_in_another_thread_still_counts(self):
+        push = thread("p", 1, [msg("@a pushed 1 commit.", reasons=("push",))])
+        named = thread("n", 1, [msg("@b commented: Nick, please look", reasons=("subscribed",))])
+        p = plan_for([push, named], {"coder/coder#1": facts()})
+        self.assertIn("P5", p["buckets"])
+
+
 if __name__ == "__main__":
     unittest.main()
