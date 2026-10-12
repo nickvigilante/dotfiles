@@ -35,8 +35,7 @@ BUCKET_ORDER = [
     ("P4", "Updates on your PRs"),
     ("P5", "You are mentioned"),
     ("P6", "Needs your review"),
-    ("GEN", "Generated-docs-only codeowner requests, doc-check passed (suggest mark read)"),
-    ("P7", "Follow-ups on PRs you reviewed"),
+    ("GEN", "Suggest mark read: only generated docs with doc-check passed, or PRs you already reviewed"),
     ("P8", "External contributors"),
     ("P9", "Other PR activity"),
     ("NP", "Not pull requests"),
@@ -185,6 +184,11 @@ def decide_thread(thread, facts, cfg):
     return "keep", "open PR activity"
 
 
+# A thread kept for one of these reasons is never suggested as read, whatever else is true of its PR.
+PROTECTED_REASONS = ("names you", "doc-check update", "reopened", "merged with doc drift", "comment on your",
+                     "partial GitHub data", "GitHub facts unavailable")
+
+
 def bucket_for(group, facts, cfg):
     if not facts or "error" in facts:
         return "P9"
@@ -202,13 +206,14 @@ def bucket_for(group, facts, cfg):
         return "P4"
     if facts["mentioned"] or group["mentions_me"]:
         return "P5"
-    if (facts["state"] == "open" and facts["scope"] == "code_and_docs" and not facts["docs_handwritten"]
+    safe = not group.get("protected")
+    if (safe and facts["state"] == "open" and facts["scope"] == "code_and_docs" and not facts["docs_handwritten"]
             and facts["doc_check"]["status"] == "passed" and not facts["i_reviewed"]):
         return "GEN"
     if facts["i_requested_now"] and (not facts["i_reviewed"] or facts["rerequested_after_my_review"]):
         return "P6"
-    if facts["i_reviewed"]:
-        return "P7"
+    if safe and facts["i_reviewed"] and facts["state"] == "open":
+        return "GEN"
     if facts["external_contributor"]:
         return "P8"
     return "P9"
@@ -240,6 +245,7 @@ def build_plan(threads, facts_by_ref, cfg):
             if action == "keep" and t is not anchor:
                 action, reason = "collapse_read", "folded into thread %s" % anchor["id"]
             plan_threads.append({"id": t["id"], "ref": ref, "action": action, "reason": reason})
+        protected = any(decisions[t["id"]][0] == "keep" and decisions[t["id"]][1].startswith(PROTECTED_REASONS) for t in ts)
         approvers = sorted({a for t in ts for m in t["unread"] if m["kind"] == "approved" for a in m["approvers"]})
         group = {
             "ref": ref,
@@ -247,11 +253,16 @@ def build_plan(threads, facts_by_ref, cfg):
             "mentions_me": any(m["mentions_me"] for t in ts for m in t["unread"]),
             "codeowner_hint": any(m["codeowner"] for t in ts for m in t["messages"]),
             "approved_by": approvers,
+            "protected": protected,
         }
         title = facts["title"] if facts else re.sub(r"^.*?\]\s*", "", ts[0]["subject"]).replace("Re: ", "")
         if keeps:
-            items.append({"bucket": bucket_for(group, facts, cfg), "group": group, "facts": facts, "title": title,
+            bucket = bucket_for(group, facts, cfg)
+            why = ("already reviewed" if facts and facts["i_reviewed"] else "generated docs only") if bucket == "GEN" else None
+            items.append({"bucket": bucket, "group": group, "facts": facts, "title": title, "why": why,
                           "state": state, "kept_threads": len(keeps), "last": max(t["last_unread"] for t in keeps)})
+            if why == "already reviewed":
+                unsub.append(ref)
         mine_approved = bool(facts and facts["author"] == cfg["me"] and approvers)
         if mine_approved and not keeps:
             items.append({"bucket": "AP", "group": group, "facts": facts, "title": title, "state": state,
@@ -302,6 +313,7 @@ def build_plan(threads, facts_by_ref, cfg):
         "mark_read_thread_ids": by_action["read"],
         "collapse_read_thread_ids": by_action["collapse_read"],
         "suggested_read_thread_ids": suggested,
+        "non_pr_thread_ids": [it["group"]["threads"][0] for it in items if it["bucket"] == "NP"],
         "notify": notify,
         "unsubscribe_candidates": sorted(set(unsub)),
         "threads": plan_threads,
@@ -340,6 +352,8 @@ def line(item):
         bits.append("DRIFT: " + "; ".join(f["drift_reasons"]))
     if g.get("approved_by"):
         bits.append("approved by " + ", ".join(g["approved_by"]))
+    if item.get("why"):
+        bits.append("suggest read: " + item["why"])
     if f.get("partial"):
         bits.append("PARTIAL-DATA: " + ", ".join(f["partial"]))
     if item.get("marked_read"):
@@ -363,7 +377,8 @@ def render_brief(plan):
         out += ["", "FYI (marked read, nothing to do) (%d)" % len(plan["notify"])]
         out += ["- " + n for n in plan["notify"]]
     if plan["unsubscribe_candidates"]:
-        out += ["", "Unsubscribe candidates (%d): %s" % (len(plan["unsubscribe_candidates"]), ", ".join(plan["unsubscribe_candidates"]))]
+        out += ["", "Unsubscribe candidates (%d, needs the notifications token scope): %s"
+                % (len(plan["unsubscribe_candidates"]), ", ".join(plan["unsubscribe_candidates"]))]
     out += ["", "Check: %d threads = %d keep + %d read + %d folded -> %s"
             % (t["threads"], t["keep"], t["read"], t["collapse_read"],
                "OK" if t["keep"] + t["read"] + t["collapse_read"] == t["threads"] else "MISMATCH")]
@@ -395,7 +410,8 @@ def main(argv=None):
         print(render_brief(plan))
     if args.format == "both":
         print("\nPLAN " + json.dumps({k: plan[k] for k in (
-            "mark_read_thread_ids", "collapse_read_thread_ids", "suggested_read_thread_ids", "keep_thread_ids")}))
+            "mark_read_thread_ids", "collapse_read_thread_ids", "suggested_read_thread_ids", "keep_thread_ids",
+            "non_pr_thread_ids")}))
     if args.format == "json":
         print(json.dumps(plan, indent=1, default=str))
     for ref, err in errors.items():

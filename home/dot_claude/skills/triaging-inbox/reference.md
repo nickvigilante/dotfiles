@@ -14,11 +14,10 @@ Within a bucket, PRs with hand-written docs come first, then newest activity.
 | P4     | The user's own PRs                                                                            |
 | P5     | A message names the user                                                                      |
 | P6     | Review requested of the user and not yet done, or re-requested after the user's review        |
-| GEN    | Open, only generated docs changed, doc-check passed: suggested read, never automatic          |
-| P7     | PRs the user already reviewed that have new activity                                          |
+| GEN    | Suggested read, never automatic: open PRs where only generated docs changed and doc-check passed, or that the user already reviewed and was not asked to review again. The line says which (`suggest read: generated docs only` or `already reviewed`); reviewed ones also become unsubscribe candidates. Nothing in a protected state qualifies: a name, a doc-check update, a reopen, drift, or partial GitHub data |
 | P8     | External contributors                                                                         |
 | P9     | Everything else, including PRs whose GitHub facts could not be fetched                        |
-| NP     | Not pull requests: people first, then calendar, Linear, shares, automated mail                |
+| NP     | Not pull requests: people first, then calendar, Linear, shares, automated mail; kept unread, with a one-line gist added by Claude |
 
 ## Brief line legend
 
@@ -65,6 +64,11 @@ When the Makefile gains a new generated docs target, add its pattern there.
   The wrapper (`~/.local/bin/triage-inbox`) pins the interpreter and script path and refuses every option except its own, so `python3` itself stays unapproved.
 
 ## Settled decisions
+
+- Open PRs the user already reviewed are suggested read and offered for unsubscribe, to cut clutter now.
+  The cost is accepted: after a review the PR and its docs can still change, and nothing here will notice.
+  The intended fix is a separate commit status check for doc-check, so the last commit at merge time is verified, rather than this triage.
+- Non-PR mail with no rule stays unread; the skill says what is in it, and the user filters or unsubscribes recurring senders in Gmail.
 
 - A "new commits" email is always read, even when a commit title names the user.
   Every other message that names the user stays unread.

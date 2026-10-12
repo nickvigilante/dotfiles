@@ -494,5 +494,76 @@ class FailClosed(unittest.TestCase):
         self.assertEqual(gh_pr.count_unusable_rules("docs/ @core\n"), 0)
 
 
+class ReviewedPrsAndNonPrMail(unittest.TestCase):
+    REQUESTED = "@a requested your review on: coder/coder#1 t as a code owner."
+
+    def reviewed(self, **over):
+        return facts(i_reviewed=True, i_requested_now=False, sole_pending_reviewer=False, **over)
+
+    def test_reviewed_open_pr_is_suggested_read_and_unsubscribe_candidate(self):
+        t = thread("t1", 1, [msg("@a commented on this pull request. nit", reasons=("review_requested",))])
+        p = plan_for([t], {"coder/coder#1": self.reviewed()})
+        self.assertIn("GEN", p["buckets"])
+        self.assertEqual(p["buckets"]["GEN"][0]["why"], "already reviewed")
+        self.assertEqual(p["suggested_read_thread_ids"], ["t1"])
+        self.assertIn("coder/coder#1", p["unsubscribe_candidates"])
+        self.assertIn("suggest read: already reviewed", triage.render_brief(p))
+        self.assertEqual(action(p, "t1"), "keep")
+
+    def test_rerequested_review_is_not_suggested_read(self):
+        t = thread("t1", 1, [msg(self.REQUESTED)])
+        p = plan_for([t], {"coder/coder#1": facts(i_reviewed=True, rerequested_after_my_review=True)})
+        self.assertIn("P6", p["buckets"])
+        self.assertEqual(p["suggested_read_thread_ids"], [])
+
+    def test_name_or_doc_check_protects_a_reviewed_pr(self):
+        named = thread("n", 1, [msg("@a commented: Nick, can you re-check?", reasons=("subscribed",))])
+        dc = thread("d", 1, [msg("coderagents[bot] left a comment (coder/coder#1) ## Documentation Check", reasons=("comment",))])
+        for t in (named, dc):
+            p = plan_for([t], {"coder/coder#1": self.reviewed()})
+            self.assertNotIn("GEN", p["buckets"], t["id"])
+            self.assertEqual(p["suggested_read_thread_ids"], [])
+            self.assertEqual(action(p, t["id"]), "keep")
+
+    def test_partial_data_protects_a_reviewed_pr(self):
+        t = thread("t1", 1, [msg("@a commented on this pull request. nit", reasons=("review_requested",))])
+        p = plan_for([t], {"coder/coder#1": self.reviewed(partial=["comments"])})
+        self.assertNotIn("GEN", p["buckets"])
+
+    def test_reviewed_merged_pr_is_not_listed_as_suggested(self):
+        t = thread("t1", 1, [msg("@a approved this pull request.", reasons=("review_requested",))])
+        p = plan_for([t], {"coder/coder#1": self.reviewed(state="merged")})
+        self.assertEqual(p["suggested_read_thread_ids"], [])
+        self.assertEqual(action(p, "t1"), "read")
+
+    def test_non_pr_threads_are_listed_for_summarizing_and_stay_unread(self):
+        ts = [{"id": "s1", "messages": [{"id": "s1m", "date": "2026-10-12T10:00:00Z", "sender": "noreply@hotjar.com",
+                                          "subject": "Weekly digest", "snippet": "3 new responses", "labelIds": ["UNREAD"],
+                                          "ccRecipients": []}]},
+              {"id": "s2", "messages": [{"id": "s2m", "date": "2026-10-12T10:00:00Z", "sender": "davidkramer@coder.com",
+                                          "subject": "Project Scout", "snippet": "We decided", "labelIds": ["UNREAD"],
+                                          "ccRecipients": []}]}]
+        p = plan_for(ts, {})
+        self.assertEqual(sorted(p["non_pr_thread_ids"]), ["s1", "s2"])
+        self.assertEqual((action(p, "s1"), action(p, "s2")), ("keep", "keep"))
+        self.assertEqual(p["buckets"]["NP"][0]["state"], "person")
+
+
+class DriftNamesTheFailedJob(unittest.TestCase):
+    def status(self, runs, body="- [ ] `a.md` - fix"):
+        sticky = [{"body": body + "\n<!-- doc-check-sticky -->", "updated_at": "x"}]
+        return gh_pr.doc_check_status("coder/coder", sticky, runs, CFG)
+
+    JOB = "Analyze PR for Documentation Updates Needed"
+
+    def test_unchecked_items_plus_failed_job_are_both_reported(self):
+        dc = self.status([{"name": self.JOB, "conclusion": "failure"}, {"name": self.JOB, "conclusion": "skipped"}])
+        self.assertEqual(gh_pr.drift_reasons("merged", dc), ["1 unchecked doc-check item; the doc-check job also failed"])
+
+    def test_a_later_green_run_clears_the_failure_note(self):
+        dc = self.status([{"name": self.JOB, "conclusion": "failure"}, {"name": self.JOB, "conclusion": "success"}])
+        self.assertEqual(gh_pr.drift_reasons("merged", dc), ["1 unchecked doc-check item"])
+
+
 if __name__ == "__main__":
     unittest.main()

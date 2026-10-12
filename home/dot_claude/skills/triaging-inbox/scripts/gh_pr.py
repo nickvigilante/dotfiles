@@ -138,10 +138,13 @@ def doc_check_status(repo, comments, check_runs, cfg, complete=True):
         body = latest["body"]
         unchecked = len(re.findall(r"^- \[ \]", body, re.M))
         checked = len(re.findall(r"^- \[[xX]\]", body, re.M))
+        runs = [r for r in check_runs if dc["check_name_contains"] in r.get("name", "")]
+        done = {r.get("conclusion") for r in runs}
         return {
             "status": "flagged" if unchecked else "resolved",
             "open_items": unchecked,
             "items": unchecked + checked,
+            "run_failed": complete and "success" not in done and bool(done & {"failure", "timed_out", "cancelled", "startup_failure"}),
         }
     if not complete:
         return {"status": "unknown", "open_items": 0, "items": 0}
@@ -315,7 +318,8 @@ def drift_reasons(state, doc_check):
         return []
     status = doc_check["status"]
     if status == "flagged":
-        return ["%d unchecked doc-check item%s" % (doc_check["open_items"], "" if doc_check["open_items"] == 1 else "s")]
+        reason = "%d unchecked doc-check item%s" % (doc_check["open_items"], "" if doc_check["open_items"] == 1 else "s")
+        return [reason + ("; the doc-check job also failed" if doc_check.get("run_failed") else "")]
     if status in ("failed", "never_ran", "running", "skipped"):
         return ["doc-check " + status.replace("_", " ")]
     if status == "unknown":

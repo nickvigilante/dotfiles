@@ -27,14 +27,20 @@ Claude presents the brief, handles the few items that need thought, and marks th
 3. **Present the brief verbatim.**
    Add today's calendar from Google Calendar `list_events` above it, one line per event.
    Do not expand the lines or re-list what the script already printed.
+   Non-PR mail stays unread, but tell the user what is in it: read each id in `non_pr_thread_ids` with Gmail `get_thread` (`PLAIN_TEXT`) and add a one-line gist under its line.
+   Read them in parallel, with subagents when there are more than about five, and name any sender that recurs, since the user may filter or unsubscribe those in Gmail.
 4. **Handle P1 and P2 with judgment.**
    For a P1 docs-only PR, read the docs diff and report findings.
    For P2 drift, say what could not be verified (the unchecked item, or the failed or missing doc-check run) and offer a Documentation-team Linear ticket.
    Create nothing without asking.
 5. **Apply after confirmation.**
    Ask once for `mark_read_thread_ids`, then separately for `collapse_read_thread_ids` and `suggested_read_thread_ids`.
+   A go-ahead the user already gave, such as "just do it", counts as confirmation for what they covered.
    Mark read by removing the `UNREAD` label with `unlabel_thread`, one call per thread, in parallel.
    Retry a failed call once and report any that still fail.
+   For PRs in `unsubscribe_candidates` that the user approves, run the GraphQL `updateSubscription` mutation with state `UNSUBSCRIBED`.
+   It needs the `notifications` token scope; if it is missing, tell the user to run `! gh auth refresh -h github.com -s notifications`.
+   Unsubscribing still lets direct mentions and review requests through, and it is not part of the `triage-inbox` command, which stays read-only.
 6. **Report the result** as counts plus any thread ids left unchanged.
 
 ## The rules
@@ -60,7 +66,7 @@ Every unread thread ends up in exactly one of keep, read, or folded, and the bri
 
 ## Never
 
-- Mark anything read before the user confirms the plan.
+- Mark anything read before the user confirms the plan or has told you to go ahead.
 - Treat a doc-check run that failed or never ran as "nothing flagged"; on a merged PR that is drift.
 - Edit `settings.json` to allow the script; permission changes go through `permissions.toml`.
 
