@@ -3,6 +3,7 @@
 
 Run: python3 -m unittest test_triage -v   (from this directory)
 """
+import json
 import unittest
 
 import gh_pr
@@ -312,6 +313,86 @@ class PushEmailsBeatNames(unittest.TestCase):
         mention = thread("m", 1, [msg("@a commented: Nick, can you confirm?", reasons=("subscribed",))])
         p = plan_for([push, mention], {"coder/coder#1": facts()})
         self.assertEqual((action(p, "p"), action(p, "m")), ("read", "keep"))
+
+
+class HostileInput(unittest.TestCase):
+    """Inputs an outside contributor or a repo's CODEOWNERS can control must not hang a triage."""
+
+    def timed(self, fn):
+        import time
+        start = time.time()
+        result = fn()
+        self.assertLess(time.time() - start, 2.0, "took too long")
+        return result
+
+    def test_pathological_codeowners_patterns_finish_quickly(self):
+        deep = "/".join(["d"] * 60) + "/y"
+        for pattern in ("**/**/**/**/**/**/**/**/x", "*a*a*a*a*a*a*a*a*a*b", "**/*a*/**/*a*/**/*a*/**/x"):
+            text = "%s @nickvigilante\n" % pattern
+            self.timed(lambda: gh_pr.match_codeowners(text, [deep, "a" * 200, deep + "/" + "a" * 200], ["@nickvigilante"]))
+
+    def test_oversized_pattern_or_path_is_ignored_not_fatal(self):
+        text = "%s @nickvigilante\ndocs/ @nickvigilante\n" % ("a/" * 400)
+        self.assertEqual(gh_pr.match_codeowners(text, ["docs/x.md", "z/" * 2000], ["@nickvigilante"]), ["docs/x.md"])
+
+    def test_double_star_semantics_still_hold(self):
+        own = lambda text, path: bool(gh_pr.match_codeowners(text + " @me\n", [path], ["@me"]))
+        self.assertTrue(own("docs/**/x.md", "docs/a/b/x.md"))
+        self.assertTrue(own("**/x.md", "a/b/x.md"))
+        self.assertTrue(own("*.md", "docs/a/b/x.md"))
+        self.assertFalse(own("/*.md", "docs/x.md"))
+        self.assertFalse(own("docs/", "docs"))
+
+    def test_hostile_subjects_parse_quickly(self):
+        subject = "[a/b]" * 2000 + " (PR #1" + " " * 3000 + "x"
+        raw = [{"id": "t", "messages": [{"id": "m", "date": "d", "sender": "notifications@github.com", "subject": subject,
+                                         "snippet": "x", "labelIds": ["UNREAD"], "ccRecipients": []}]}]
+        parsed = self.timed(lambda: triage.parse_threads(raw, CFG))
+        self.assertFalse(parsed[0]["is_pr"])
+
+    def test_real_subjects_still_parse(self):
+        raw = [thread("t", 42, [msg("x")], repo="coder/coder.com")]
+        parsed = triage.parse_threads(raw, CFG)[0]
+        self.assertEqual((parsed["repo"], parsed["number"], parsed["is_pr"]), ("coder/coder.com", 42, True))
+
+
+class BoundedGitHubCalls(unittest.TestCase):
+    def test_a_hung_gh_call_times_out_with_a_clear_error(self):
+        import subprocess
+        from unittest import mock
+        boom = subprocess.TimeoutExpired(cmd="gh", timeout=60)
+        with mock.patch.object(subprocess, "run", side_effect=boom):
+            with self.assertRaisesRegex(RuntimeError, "timed out after 60s"):
+                gh_pr.gh_get("repos/a/b/pulls/1")
+
+    def test_every_gh_call_passes_a_timeout(self):
+        import subprocess
+        from unittest import mock
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr="")
+        with mock.patch.object(subprocess, "run", return_value=done) as run:
+            gh_pr.gh_get("repos/a/b/pulls/1")
+        self.assertEqual(run.call_args.kwargs["timeout"], gh_pr.GH_TIMEOUT_SECONDS)
+
+    def test_endless_lists_stop_at_the_page_cap(self):
+        from unittest import mock
+        page = json.dumps([{"n": i} for i in range(gh_pr.PER_PAGE)])
+        with mock.patch.object(gh_pr, "_run_gh", return_value=page) as run:
+            items = gh_pr.gh_get("repos/a/b/issues/1/comments")
+        self.assertEqual(run.call_count, gh_pr.MAX_PAGES)
+        self.assertEqual(len(items), gh_pr.MAX_PAGES * gh_pr.PER_PAGE)
+
+    def test_check_runs_pages_are_merged(self):
+        from unittest import mock
+        full = json.dumps({"total_count": 101, "check_runs": [{"name": "x"}] * gh_pr.PER_PAGE})
+        last = json.dumps({"total_count": 101, "check_runs": [{"name": "y"}]})
+        with mock.patch.object(gh_pr, "_run_gh", side_effect=[full, last]):
+            data = gh_pr.gh_get("repos/a/b/commits/abc/check-runs")
+        self.assertEqual(len(data["check_runs"]), gh_pr.PER_PAGE + 1)
+
+    def test_single_objects_pass_through(self):
+        from unittest import mock
+        with mock.patch.object(gh_pr, "_run_gh", return_value=json.dumps({"number": 5})):
+            self.assertEqual(gh_pr.gh_get("repos/a/b/pulls/5"), {"number": 5})
 
 
 if __name__ == "__main__":

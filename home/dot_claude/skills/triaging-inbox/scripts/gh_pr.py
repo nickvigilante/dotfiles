@@ -27,32 +27,43 @@ def load_config(path=CONFIG_PATH):
         return json.load(fh)
 
 
-def _decode_concatenated(text):
-    """`gh api --paginate` prints one JSON document per page, back to back."""
-    decoder = json.JSONDecoder()
-    out, idx, text = [], 0, text.strip()
-    while idx < len(text):
-        value, end = decoder.raw_decode(text, idx)
-        out.append(value)
-        idx = end
-        while idx < len(text) and text[idx].isspace():
-            idx += 1
-    return out
+GH_TIMEOUT_SECONDS = 60
+PER_PAGE = 100
+MAX_PAGES = 20  # at most 2000 items per list; a longer list is reported as partial
+MAX_FILES = 3000
+LIST_KEYS = ("check_runs",)
 
 
-def gh_get(path):
-    """GET a REST path through `gh api`, following pagination for list endpoints."""
-    proc = subprocess.run(
-        ["gh", "api", "--paginate", path],
-        capture_output=True,
-        text=True,
-    )
+def _run_gh(args):
+    """Run `gh` with a timeout so one stuck call cannot hang a whole triage."""
+    try:
+        proc = subprocess.run(["gh"] + args, capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("gh %s timed out after %ds" % (" ".join(args[:2]), GH_TIMEOUT_SECONDS))
     if proc.returncode != 0:
-        raise RuntimeError("gh api %s failed: %s" % (path, proc.stderr.strip()))
-    pages = _decode_concatenated(proc.stdout)
-    if pages and all(isinstance(p, list) for p in pages):
-        return [item for page in pages for item in page]
-    return pages[0] if len(pages) == 1 else pages
+        raise RuntimeError("gh %s failed: %s" % (" ".join(args[:2]), proc.stderr.strip()[:300]))
+    return proc.stdout
+
+
+def gh_get(path, max_pages=MAX_PAGES):
+    """GET a REST path through `gh api`; list endpoints are fetched page by page up to a cap."""
+    joiner = "&" if "?" in path else "?"
+    merged = None
+    for page in range(1, max_pages + 1):
+        data = json.loads(_run_gh(["api", "%s%sper_page=%d&page=%d" % (path, joiner, PER_PAGE, page)]))
+        if isinstance(data, list):
+            merged = (merged or []) + data
+            batch = len(data)
+        elif isinstance(data, dict) and any(isinstance(data.get(k), list) for k in LIST_KEYS):
+            key = next(k for k in LIST_KEYS if isinstance(data.get(k), list))
+            merged = merged or dict(data, **{key: []})
+            merged[key] = merged[key] + data[key]
+            batch = len(data[key])
+        else:
+            return data
+        if batch < PER_PAGE:
+            break
+    return merged
 
 
 def parse_ref(ref):
@@ -142,14 +153,9 @@ reviewRequests(first:50){nodes{asCodeOwner requestedReviewer{__typename ... on U
 def gh_review_requests(repo, number):
     """Pending review requests with GitHub's own as-code-owner flag (query only, never a mutation)."""
     owner, name = repo.split("/")
-    proc = subprocess.run(
-        ["gh", "api", "graphql", "-f", "query=" + REVIEW_REQUESTS_QUERY, "-f", "owner=" + owner,
-         "-f", "name=" + name, "-F", "n=%d" % number],
-        capture_output=True, text=True,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError("graphql reviewRequests failed: %s" % proc.stderr.strip())
-    nodes = json.loads(proc.stdout)["data"]["repository"]["pullRequest"]["reviewRequests"]["nodes"]
+    out = _run_gh(["api", "graphql", "-f", "query=" + REVIEW_REQUESTS_QUERY, "-f", "owner=" + owner,
+                   "-f", "name=" + name, "-F", "n=%d" % number])
+    nodes = json.loads(out)["data"]["repository"]["pullRequest"]["reviewRequests"]["nodes"]
     return [
         {"reviewer": (n["requestedReviewer"] or {}).get("login") or "team:" + (n["requestedReviewer"] or {}).get("slug", "?"),
          "as_code_owner": n["asCodeOwner"]}
@@ -157,27 +163,61 @@ def gh_review_requests(repo, number):
     ]
 
 
-def _codeowners_regex(pattern):
-    """Translate one CODEOWNERS pattern (gitignore subset) to a regex over repo-relative paths."""
-    anchored = pattern.startswith("/") or "/" in pattern.strip("/")
-    body, out, i = pattern.strip("/"), "", 0
-    while i < len(body):
-        if body.startswith("**/", i):
-            out += "(?:.*/)?"
-            i += 3
-        elif body.startswith("**", i):
-            out += ".*"
-            i += 2
-        elif body[i] == "*":
-            out += "[^/]*"
-            i += 1
-        elif body[i] == "?":
-            out += "[^/]"
-            i += 1
+MAX_PATTERN_CHARS = 512
+MAX_PATTERN_SEGMENTS = 64
+MAX_PATH_CHARS = 2048
+
+
+def _glob_segment(pattern, text):
+    """Match one path segment against `*` and `?` in O(len(pattern) * len(text)), never exponential."""
+    p = t = 0
+    star, mark = -1, 0
+    while t < len(text):
+        if p < len(pattern) and pattern[p] == "*":
+            star, mark = p, t
+            p += 1
+        elif p < len(pattern) and pattern[p] in ("?", text[t]):
+            p += 1
+            t += 1
+        elif star != -1:
+            p, mark = star + 1, mark + 1
+            t = mark
         else:
-            out += re.escape(body[i])
-            i += 1
-    return re.compile(("^" if anchored else "^(?:.*/)?") + out + "(?:/.*)?$")
+            return False
+    while p < len(pattern) and pattern[p] == "*":
+        p += 1
+    return p == len(pattern)
+
+
+def _compile_codeowners_pattern(pattern):
+    """Parse one CODEOWNERS pattern (gitignore subset) into (anchored, dir_only, segments), or None if unusable."""
+    if len(pattern) > MAX_PATTERN_CHARS:
+        return None
+    anchored = pattern.startswith("/") or "/" in pattern.strip("/")
+    segments = [seg.replace("**", "*") if seg != "**" else seg for seg in pattern.strip("/").split("/") if seg]
+    if not segments or len(segments) > MAX_PATTERN_SEGMENTS:
+        return None
+    return anchored, pattern.endswith("/"), segments
+
+
+def _pattern_matches(compiled, path):
+    """True if the pattern matches the path or any directory above it, as gitignore-style rules do."""
+    anchored, dir_only, segments = compiled
+    parts = [p for p in path.split("/") if p]
+    if not parts or len(path) > MAX_PATH_CHARS:
+        return False
+    positions = {0} if anchored else set(range(len(parts)))
+    for seg in segments:
+        nxt = set()
+        for pos in positions:
+            if seg == "**":
+                nxt.update(range(pos, len(parts) + 1))
+            elif pos < len(parts) and _glob_segment(seg, parts[pos]):
+                nxt.add(pos + 1)
+        positions = nxt
+        if not positions:
+            return False
+    return any(pos < len(parts) for pos in positions) if dir_only else bool(positions)
 
 
 def match_codeowners(text, files, handles):
@@ -188,13 +228,15 @@ def match_codeowners(text, files, handles):
         if not raw:
             continue
         pattern, *owners = raw.split()
-        rules.append((_codeowners_regex(pattern), {o.lower() for o in owners}))
+        compiled = _compile_codeowners_pattern(pattern)
+        if compiled:
+            rules.append((compiled, {o.lower() for o in owners}))
     wanted = {h.lower() for h in handles}
     owned = []
-    for path in files:
+    for path in files[:MAX_FILES]:
         owners = None
-        for regex, rule_owners in rules:
-            if regex.search(path):
+        for compiled, rule_owners in rules:
+            if _pattern_matches(compiled, path):
                 owners = rule_owners
         if owners and owners & wanted:
             owned.append(path)
@@ -289,7 +331,7 @@ def pr_facts(repo, number, cfg, get=gh_get, requests=gh_review_requests):
     mention = [re.compile(p) for p in cfg["name_patterns"] if "nickvigilante" in p.lower()]
     base = "repos/%s" % repo
     pr = get("%s/pulls/%d" % (base, number))
-    files = [f["filename"] for f in get("%s/pulls/%d/files" % (base, number))]
+    files = [f["filename"] for f in get("%s/pulls/%d/files" % (base, number))][:MAX_FILES]
     reviews = get("%s/pulls/%d/reviews" % (base, number))
     issue_comments = get("%s/issues/%d/comments" % (base, number))
     inline_comments = get("%s/pulls/%d/comments" % (base, number))
@@ -362,6 +404,7 @@ def pr_facts(repo, number, cfg, get=gh_get, requests=gh_review_requests):
         "base": pr["base"]["ref"],
         "stacked": pr["base"]["ref"] != (pr["base"]["repo"] or {}).get("default_branch", pr["base"]["ref"]),
         "head_sha": head_sha[:8],
+        "files_partial": len(files) < pr.get("changed_files", len(files)),
         "involvement": involvement,
         "mentioned": mentioned,
         "i_requested_now": me in pending_users,

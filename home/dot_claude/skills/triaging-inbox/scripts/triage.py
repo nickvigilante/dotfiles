@@ -23,7 +23,9 @@ from collections import OrderedDict, defaultdict
 
 import gh_pr
 
-SUBJECT_RE = re.compile(r"\[(?P<repo>[\w.-]+/[\w.-]+)\].*\((?P<kind>PR|Issue) #(?P<n>\d+)\)\s*$")
+# Both patterns are anchored, so a hostile PR title cannot make matching super-linear.
+SUBJECT_REPO_RE = re.compile(r"^(?:Re: )?\[(?P<repo>[\w.-]+/[\w.-]+)\]")
+SUBJECT_REF_RE = re.compile(r"\((?P<kind>PR|Issue) #(?P<n>\d+)\)\s*$")
 EVENT_RE = re.compile(r"^\s*(Merged|Closed|Reopened) #\d+", re.I)
 BUCKET_ORDER = [
     ("P1", "Docs-only PRs waiting only on you"),
@@ -113,15 +115,16 @@ def parse_threads(raw_threads, cfg):
     for t in raw_threads:
         msgs = t.get("messages", [])
         subject = next((html.unescape(m["subject"]) for m in msgs if m.get("subject")), "")
-        match = SUBJECT_RE.search(subject)
+        repo_match, ref_match = SUBJECT_REPO_RE.match(subject), SUBJECT_REF_RE.search(subject[-80:])
+        match = (repo_match, ref_match) if repo_match and ref_match else None
         classified = [classify_message(m, subject, cfg) for m in msgs]
         unread = [m for m in classified if m["unread"]]
         threads.append({
             "id": t["id"],
             "subject": subject,
-            "repo": match.group("repo") if match else None,
-            "number": int(match.group("n")) if match else None,
-            "is_pr": bool(match and match.group("kind") == "PR"),
+            "repo": match[0].group("repo") if match else None,
+            "number": int(match[1].group("n")) if match else None,
+            "is_pr": bool(match and match[1].group("kind") == "PR"),
             "messages": classified,
             "unread": unread,
             "last_unread": max((m["date"] for m in unread), default=""),
@@ -328,6 +331,8 @@ def line(item):
         bits.append("DRIFT: " + "; ".join(f["drift_reasons"]))
     if g.get("approved_by"):
         bits.append("approved by " + ", ".join(g["approved_by"]))
+    if f.get("files_partial"):
+        bits.append("PARTIAL-FILES")
     if item.get("marked_read"):
         bits.append("[marked read]")
     if item["kept_threads"] > 1 or len(g["threads"]) > 1:
