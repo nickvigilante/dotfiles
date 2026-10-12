@@ -580,5 +580,17 @@ class CommitEmailsDoNotMakeMentions(unittest.TestCase):
         self.assertIn("P5", p["buckets"])
 
 
+class CliErrors(unittest.TestCase):
+    def test_a_bad_reference_is_a_clean_error_not_a_traceback(self):
+        import contextlib
+        import io
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = gh_pr.main(["coder/coder#1 coder/coder#2"])
+        self.assertEqual(rc, 2)
+        self.assertIn("expected owner/repo#number", err.getvalue())
+        self.assertNotIn("Traceback", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

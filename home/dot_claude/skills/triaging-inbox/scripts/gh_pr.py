@@ -488,6 +488,12 @@ def main(argv):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__)
         return 0 if argv else 2
+    try:
+        for ref in argv:
+            parse_ref(ref)
+    except ValueError as exc:
+        print("gh_pr.py: %s" % exc, file=sys.stderr)
+        return 2
     json.dump(collect(argv), sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
     return 0
