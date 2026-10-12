@@ -241,6 +241,13 @@ deny_flags = [
 ]
 env_allow = { NO_COLOR = "1" }
 
+# Wrapper installed by home/dot_local/bin/executable_triage-inbox for the
+# triaging-inbox skill. It pins the interpreter and script path and rejects every
+# option except its own, so these two entries approve the wrapper without
+# approving python3. The scripts behind it only read.
+[permissions.commands.triage-inbox]
+args = ["inbox *", "pr *"]
+
 [permissions.commands.kubectl]
 args = [
   "version*",

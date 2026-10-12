@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# triage-inbox: read-only entry point for the triaging-inbox Claude skill.
+#
+# Runs the skill's Python scripts from a pinned path and accepts only the
+# arguments below, so one permissions allowlist entry approves this command
+# without approving python3 in general. The scripts never write files or
+# change anything on Gmail or GitHub.
+#
+#   triage-inbox inbox --threads FILE [--format brief|json|both] [--facts FILE] [--no-gh]
+#   triage-inbox pr owner/repo#N [owner/repo#N ...]
+
+set -euo pipefail
+
+SCRIPTS="$HOME/.claude/skills/triaging-inbox/scripts"
+MAX_REFS=50
+
+die() {
+	echo "triage-inbox: $*" >&2
+	exit 2
+}
+
+usage() {
+	sed -n '/^#   triage-inbox/s/^#   //p' "$0"
+}
+
+# A file argument must be a plain path, or "-" for stdin where allowed, so it
+# can never be mistaken for an option by the Python scripts.
+need_file() {
+	local opt=$1 value=${2-} allow_stdin=${3-}
+	[[ -n $value ]] || die "$opt needs a value"
+	if [[ $value == "-" && $allow_stdin == stdin ]]; then
+		return 0
+	fi
+	[[ $value != -* ]] || die "$opt value must not start with '-': $value"
+	[[ -f $value ]] || die "$opt: not a file: $value"
+}
+
+cmd=${1-}
+case $cmd in
+	-h | --help | help)
+		usage
+		exit 0
+		;;
+	inbox | pr) shift ;;
+	*)
+		usage >&2
+		exit 2
+		;;
+esac
+
+[[ -d $SCRIPTS ]] || die "skill scripts not found at $SCRIPTS (run chezmoi apply)"
+command -v python3 > /dev/null || die "python3 is required"
+python3 -c 'import sys; sys.exit(sys.version_info < (3, 9))' || die "python3 3.9 or newer is required"
+
+args=()
+case $cmd in
+	inbox)
+		have_threads=""
+		while (($#)); do
+			case $1 in
+				--threads)
+					need_file "$1" "${2-}" stdin
+					args+=("$1" "$2")
+					have_threads=1
+					shift 2
+					;;
+				--facts)
+					need_file "$1" "${2-}"
+					args+=("$1" "$2")
+					shift 2
+					;;
+				--format)
+					[[ ${2-} =~ ^(brief|json|both)$ ]] || die "--format must be brief, json, or both"
+					args+=("$1" "$2")
+					shift 2
+					;;
+				--no-gh)
+					args+=("$1")
+					shift
+					;;
+				*) die "unknown option for inbox: $1" ;;
+			esac
+		done
+		[[ -n $have_threads ]] || die "inbox needs --threads FILE"
+		exec python3 -B "$SCRIPTS/triage.py" "${args[@]}"
+		;;
+	pr)
+		(($#)) || die "pr needs at least one owner/repo#N"
+		(($# <= MAX_REFS)) || die "pr takes at most $MAX_REFS references"
+		for ref in "$@"; do
+			[[ $ref =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+$ ]] || die "not an owner/repo#N reference: $ref"
+			[[ $ref != ./* && $ref != ../* && $ref != */.#* && $ref != */..#* ]] || die "not an owner/repo#N reference: $ref"
+		done
+		exec python3 -B "$SCRIPTS/gh_pr.py" "$@"
+		;;
+esac
