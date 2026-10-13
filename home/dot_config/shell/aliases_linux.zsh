@@ -27,4 +27,4 @@ elif command -v dnf &>/dev/null; then
 fi
 
 # ── Homebrew (if installed on Linux) ──────────────────────────────────────────
-command -v brew &>/dev/null && alias bup='brew update && brew upgrade && brew cleanup'
+# `bup` is a function in functions.zsh (takes the shared brew lock).

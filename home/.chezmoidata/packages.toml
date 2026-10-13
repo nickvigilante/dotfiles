@@ -29,6 +29,13 @@ comment = "HTTP client"
 tiers = ["core"]
 
 [[packages]]
+key = "flock"
+section = "cli"
+brew = "flock"
+comment = "File locking (serialises brew jobs)"
+tiers = ["core"]
+
+[[packages]]
 key = "wget"
 section = "cli"
 brew = "wget"

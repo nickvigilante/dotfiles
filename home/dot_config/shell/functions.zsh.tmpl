@@ -189,3 +189,17 @@ bw-lock() {
     echo "Bitwarden not configured for this machine (.secrets = {{ .secrets }})."
 {{- end }}
 }
+
+# Update Homebrew under the lock shared with update-packages and chezmoi apply,
+# so two brew jobs never overlap. Without flock (before the Brewfile installs
+# it) the update runs unlocked.
+bup() {
+    command -v brew &>/dev/null || { echo "brew not found" >&2; return 1; }
+    local lock="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/brew.lock"
+    if command -v flock &>/dev/null; then
+        mkdir -p "${lock:h}"
+        flock -w 300 "$lock" sh -c 'brew update && brew upgrade && brew cleanup'
+    else
+        brew update && brew upgrade && brew cleanup
+    fi
+}

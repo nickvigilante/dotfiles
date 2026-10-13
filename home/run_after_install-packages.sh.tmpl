@@ -137,6 +137,21 @@ if ! command -v cc &>/dev/null || ! command -v make &>/dev/null; then
 fi
 {{ end -}}
 
+# Serialise with update-packages and `bup`: a `brew upgrade` that overlaps
+# `brew bundle` can leave casks with broken Caskroom metadata and kegs unlinked.
+# flock itself comes from the Brewfile, so the very first run installs it
+# unlocked; every run after that is covered. Fd 9 stays open until this script
+# exits, which is what holds the lock.
+if command -v flock &>/dev/null; then
+    LOCK_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/brew.lock"
+    mkdir -p "$(dirname "$LOCK_FILE")"
+    exec 9> "$LOCK_FILE"
+    if ! flock -w 300 9; then
+        style_fail "Another Homebrew job has held the lock for 5 minutes. Re-run 'chezmoi apply' when it finishes."
+        exit 1
+    fi
+fi
+
 bundle_flags=(--file="$BREWFILE")
 # No `mas` entries in the Brewfile — App Store apps are installed manually
 # (see README.md). Homebrew has removed bundle's --no-mas and --no-vscode

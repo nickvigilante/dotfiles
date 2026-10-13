@@ -6,7 +6,7 @@ set -euo pipefail
 case "${1:-}" in
 	update)
 		chezmoi update
-		update-packages --force
+		update-packages
 		;;
 	doctor)
 		exec dotfiles-doctor
@@ -31,7 +31,7 @@ EOF
 Usage: dotfiles <command>
 
 Commands:
-  update           chezmoi update + update-packages --force
+  update           chezmoi update + update-packages
   doctor           run health check
   palette-import   show the manual palette-iteration workflow
 EOF

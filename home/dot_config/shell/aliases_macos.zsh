@@ -14,7 +14,7 @@ alias copy='pbcopy'
 alias paste='pbpaste'
 
 # ── Homebrew ──────────────────────────────────────────────────────────────────
-alias bup='brew update && brew upgrade && brew cleanup'
+# `bup` is a function in functions.zsh (takes the shared brew lock).
 alias bi='brew install'
 alias bs='brew search'
 alias bl='brew list'
