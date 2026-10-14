@@ -35,6 +35,34 @@
 .kube/homelab.yaml
 {{ end -}}
 
+# ─── Platform, display and profile gates ──────────────────────────────────
+# GTK bookmarks and mimeapps.list only matter on a Linux desktop. GUI app
+# configs follow the Brewfile, which installs those apps only where .display
+# is set; .config/Code is not OS-gated because on macOS
+# run_once_07-vscode-symlink links VS Code's settings path to it. The shell
+# fragments mirror the `source` lines in dot_zshrc.tmpl: one aliases file per
+# OS, and one profile file (any profile other than "work" sources personal).
+{{ if not (and (eq .chezmoi.os "linux") .display) -}}
+.config/gtk-3.0
+.config/mimeapps.list
+{{ end -}}
+{{ if ne .chezmoi.os "linux" -}}
+.config/shell/aliases_linux.zsh
+{{ end -}}
+{{ if ne .chezmoi.os "darwin" -}}
+.config/shell/aliases_macos.zsh
+{{ end -}}
+{{ if not .display -}}
+.config/Code
+.config/ghostty
+.warp
+{{ end -}}
+{{ if eq .profile "work" -}}
+.config/shell/personal.zsh
+{{ else -}}
+.config/shell/work.zsh
+{{ end -}}
+
 # ─── Home-directory audit (dotfiles #28) ──────────────────────────────────
 # Record of unmanaged files deliberately kept OUT of management, so the
 # decision is explicit. Most live only on the machine that needs them.

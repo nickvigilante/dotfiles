@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Render .chezmoiignore across the (profile, machine, secrets) matrix and
-# assert whether ~/.kube/homelab.yaml is IGNORED (listed) or DEPLOYED (absent).
+# assert whether ~/.kube/homelab.yaml is IGNORED (listed) or DEPLOYED (absent),
+# then check the platform, display and profile gates the same way.
 # BW_SESSION is set explicitly per cell (unlocked by default), so the caller's
 # own vault state never leaks into the result.
 #
@@ -21,14 +22,14 @@ trap 'rm -rf "$TMP"' EXIT
 fail=0
 bw_session=unlocked
 
-cfg() { # profile machine secrets
+cfg() { # profile machine secrets [display]
 	cat > "$TMP/cfg.toml" << EOF
 [data]
 profile = "$1"
 name    = "x"
 email   = ""
 machine = "$2"
-display = false
+display = ${4:-false}
 secrets = "$3"
 EOF
 }
@@ -125,6 +126,53 @@ breakglass() { # label profile machine secrets cluster_admin want
 breakglass "personal/laptop/bitwarden locked" personal laptop bitwarden "" DEPLOYED
 breakglass "work/laptop/bitwarden locked" work laptop bitwarden "" IGNORED
 bw_session=unlocked
+
+# .chezmoi.os cannot be overridden, so the OS gates are asserted for the host
+# running the test: CI covers Linux, a local run on a Mac covers darwin.
+os=$("$CHEZMOI" execute-template '{{ .chezmoi.os }}')
+gate() { # profile display path want
+	local label="$1/display=$2 $3" want="$4" got
+	cfg "$1" laptop none "$2"
+	if BW_SESSION="$bw_session" "$CHEZMOI" execute-template \
+		--config "$TMP/cfg.toml" < "$TMPL" 2> /dev/null |
+		grep -qxF "$3"; then
+		got=IGNORED
+	else
+		got=DEPLOYED
+	fi
+	if [ "$want" = "$got" ]; then
+		printf '  PASS  %-46s %s\n' "$label" "$got"
+	else
+		printf '  FAIL  %-46s want %s, got %s\n' "$label" "$want" "$got"
+		fail=1
+	fi
+}
+only_on() { # os
+	[ "$os" = "$1" ] && echo DEPLOYED || echo IGNORED
+}
+
+echo
+echo "== platform gates (host os: $os) =="
+gate personal true .config/shell/aliases_linux.zsh "$(only_on linux)"
+gate personal true .config/shell/aliases_macos.zsh "$(only_on darwin)"
+gate personal true .config/gtk-3.0 "$(only_on linux)"
+gate personal true .config/mimeapps.list "$(only_on linux)"
+gate personal false .config/gtk-3.0 IGNORED
+gate personal false .config/mimeapps.list IGNORED
+
+echo
+echo "== GUI app configs only with a display =="
+for p in .config/Code .config/ghostty .warp; do
+	gate personal true "$p" DEPLOYED
+	gate personal false "$p" IGNORED
+done
+
+echo
+echo "== one profile fragment per profile =="
+gate personal false .config/shell/personal.zsh DEPLOYED
+gate personal false .config/shell/work.zsh IGNORED
+gate work false .config/shell/work.zsh DEPLOYED
+gate work false .config/shell/personal.zsh IGNORED
 
 echo
 [ "$fail" -eq 0 ] && echo "ALL PASS" || echo "FAILURES"
