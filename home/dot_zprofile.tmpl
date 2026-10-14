@@ -25,3 +25,7 @@ fi
 if [[ -n "${HOMEBREW_PREFIX:-}" ]]; then
     export PATH="${HOMEBREW_PREFIX}/opt/make/libexec/gnubin:${HOMEBREW_PREFIX}/opt/gnu-getopt/bin:$PATH"
 fi
+
+# Put the .zshenv user dirs back in front: path_helper (macOS /etc/zprofile)
+# and the Homebrew lines above have pushed them behind system and brew paths.
+path=($user_path $path)
