@@ -52,6 +52,29 @@ class RenderedSettings(unittest.TestCase):
         self.assertIn("Bash(rtk read *)", self.allow)
         self.assertNotIn("Bash(read *)", self.allow)
 
+    def test_allow_list_is_fully_generated(self):
+        # A hand-written rule in the template would bypass the hook's
+        # deny_flags/env_allow checks and the rtk pairing.
+        with open(os.path.join(ROOT, "home/dot_claude/settings.json.tmpl"), encoding="utf-8") as handle:
+            template = handle.read()
+        allow_block = template[template.index('"allow"'):template.index('"deny"')]
+        self.assertNotRegex(allow_block, r'(?m)^\s*"Bash\(')
+
+    def test_rtk_rewritten_tools_have_both_forms(self):
+        for rule in ("jq *", "stat *", "shellcheck *", "helm template *"):
+            with self.subTest(rule=rule):
+                self.assertIn("Bash(%s)" % rule, self.allow)
+                self.assertIn("Bash(rtk %s)" % rule, self.allow)
+
+    def test_exact_rules_survive_quoting(self):
+        for rule in ('echo "exit $?"', "echo $?", "pwd", ":", "brew list", "sw_vers"):
+            with self.subTest(rule=rule):
+                self.assertIn("Bash(%s)" % rule, self.allow)
+
+    def test_brew_bundle_not_allowed(self):
+        # `brew bundle` evaluates a Brewfile, which is Ruby.
+        self.assertFalse([r for r in self.allow if "brew bundle" in r])
+
     def test_branch_delete_denied_in_every_form(self):
         for head in ("git", "rtk git", "chezmoi git"):
             with self.subTest(head=head):

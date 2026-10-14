@@ -4,7 +4,9 @@
 # expanded across its heads: the vanilla form, the rtk-wrapped form (when rtk wraps
 # it, per rtk_wraps), plus any extra_heads (git also gets `chezmoi git`). Add a
 # read-only subcommand ONCE here and every wrapper form is granted in lockstep --
-# this is what keeps rtk at 100% permission parity.
+# this is what keeps rtk at 100% permission parity. Every Bash allow rule lives
+# here, never as a static line in the template, so the hook's runtime checks
+# below cover all of them.
 #
 # A space before `*` is required for Claude Code prefix matching. A bare entry (no
 # trailing ` *`) matches that exact invocation only; an empty string matches the
@@ -29,7 +31,8 @@
 # hazard. Wildcards belong only AFTER the subcommand, in args.
 
 [permissions]
-# Base commands whose output rtk rewrites via its hook (source: `rtk --help`).
+# Base commands whose output rtk rewrites via its hook (source: `rtk --help`,
+# and `rtk rewrite "<cmd> ..."` for tools it filters without a subcommand).
 # Membership here grants a command its `rtk <cmd> ...` permission twin.
 rtk_wraps = [
   "git",
@@ -81,6 +84,10 @@ rtk_wraps = [
   "golangci-lint",
   "gradlew",
   "mvn",
+  "helm",
+  "jq",
+  "stat",
+  "shellcheck",
 ]
 
 # Settings for the permission-prefilter hook.
@@ -383,3 +390,125 @@ args = [
   "describe helmcharts *",
   "describe helmchartconfigs *",
 ]
+
+[permissions.commands.helm]
+args = [
+  "version*",
+  "env",
+  "list*",
+  "ls*",
+  "status *",
+  "history *",
+  "get hooks *",
+  "get notes *",
+  "get metadata *",
+  "repo list*",
+  "search *",
+  "dependency list *",
+  "lint *",
+  "template *",
+  "plugin list",
+]
+
+[permissions.commands.brew]
+args = [
+  "info *",
+  "search *",
+  "outdated",
+  "deps *",
+  "uses *",
+  "leaves",
+  "desc *",
+  "doctor",
+  "tap-info *",
+  "list",
+  "list *",
+  "tap",
+]
+
+[permissions.commands.rustup]
+args = ["show", "target list", "toolchain list", "component list *", "check"]
+
+[permissions.commands.rtk]
+args = ["gain *", "discover", "cc-economics *", "session *", "config show", "--version", "--help"]
+
+[permissions.commands.sw_vers]
+args = [""]
+
+[permissions.commands.defaults]
+args = ["read *"]
+
+[permissions.commands.system_profiler]
+args = ["*"]
+
+[permissions.commands.mdls]
+args = ["*"]
+
+[permissions.commands.plutil]
+args = ["-p *"]
+
+[permissions.commands.diskutil]
+args = ["info *", "list"]
+
+[permissions.commands.pkgutil]
+args = ["--pkgs *", "--pkg-info *"]
+
+[permissions.commands.xcode-select]
+args = ["-p"]
+
+[permissions.commands.launchctl]
+args = ["list *"]
+
+[permissions.commands.softwareupdate]
+args = ["-l"]
+
+[permissions.commands.duti]
+args = ["-x *", "-l *"]
+
+[permissions.commands.shellcheck]
+args = ["*"]
+
+[permissions.commands.gitleaks]
+args = ["version", "git *"]
+
+[permissions.commands.ffmpeg]
+args = ["-version"]
+
+[permissions.commands.ffprobe]
+args = ["*"]
+
+[permissions.commands.cf-terraforming]
+args = ["version"]
+
+[permissions.commands.jq]
+args = ["*"]
+
+[permissions.commands.stat]
+args = ["*"]
+
+[permissions.commands.file]
+args = ["*"]
+# -C compiles a magic file and writes the result next to it.
+deny_flags = ["-C", "--compile"]
+
+[permissions.commands.which]
+args = ["*"]
+
+[permissions.commands.tail]
+args = ["*"]
+
+[permissions.commands.date]
+args = ["*"]
+env_allow = { TZ = "[A-Za-z0-9_/+:-]+" }
+
+[permissions.commands.echo]
+args = ['"exit $?"', "exit $?", "$?"]
+
+[permissions.commands.pwd]
+args = [""]
+
+[permissions.commands.true]
+args = [""]
+
+[permissions.commands.":"]
+args = [""]
