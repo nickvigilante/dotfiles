@@ -476,10 +476,11 @@ def _git_run(cwd: str, *args: str):
     """(returncode, stdout, stderr) of a read-only `git -C cwd ...`, or None
     if git could not run."""
     try:
+        # LC_ALL=C: _repo_state_is_clean matches git's English error text.
         done = subprocess.run(
             ["git", "-C", cwd, *args],
             capture_output=True, text=True, timeout=5,
-            env=dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0"),
+            env=dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", LC_ALL="C"),
         )
     except (OSError, subprocess.SubprocessError):
         return None
