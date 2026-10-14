@@ -20,6 +20,10 @@
 #   env_allow   NAME = "regex" for allowed VAR= prefixes; any other prefix blocks
 #   deny_args   static deny rules, generated for every head form like args
 #   deny_arg_patterns  regexes; an argument matching one blocks the command
+#               (for exact single-dash words like ffprobe's `-o`, which a
+#               deny_flags entry would also match inside `-of`)
+#   trusted_roots_only  ask for the allowlisted subcommands outside
+#               [permissions.hook] trusted_dev_roots
 #   rtk_only    generate only the `rtk <cmd>` head (no plain command exists)
 #
 # A head must NEVER contain a wildcard. A head's text sits BEFORE the subcommand,
@@ -175,10 +179,11 @@ args = ["list *", "outdated *", "info *"]
 
 # cargo reads .cargo/config.toml and rust-toolchain.toml from the working
 # directory, and either can name a program to run (build.rustc-wrapper, a
-# toolchain path), so the hook asks for these outside trusted_dev_roots.
+# toolchain path), hence trusted_roots_only.
 [permissions.commands.cargo]
 args = ["tree *", "metadata *", "search *"]
 deny_flags = ["--config", "-Z"]
+trusted_roots_only = true
 env_allow = { RUST_BACKTRACE = "0|1|full", RUST_LOG = "[A-Za-z0-9_=,:.-]+", CARGO_TERM_COLOR = "always|never|auto", NO_COLOR = "1" }
 
 # Read-only tools. rtk rewrites the plain forms (`cat`/`head` become `rtk read`),
@@ -253,10 +258,22 @@ deny_flags = [
 ]
 env_allow = { NO_COLOR = "1" }
 
-# A kubeconfig can name an exec credential plugin, so only the default one is
-# allowed; KUBECONFIG= is blocked because env_allow does not list it.
+# A kubeconfig or kuberc can name an exec credential plugin or override
+# commands, so only the defaults are allowed; KUBECONFIG= and KUBERC= are
+# blocked because env_allow lists neither. --server (-s) and --proxy-url send
+# the default credentials to another host; --cache-dir and --profile write
+# files.
 [permissions.commands.kubectl]
-deny_flags = ["--kubeconfig"]
+deny_flags = [
+  "--kubeconfig",
+  "--kuberc",
+  "--server",
+  "--proxy-url",
+  "--cache-dir",
+  "--profile",
+  "--profile-output",
+]
+deny_arg_patterns = ['^-s']
 args = [
   "version*",
   "cluster-info",
@@ -399,9 +416,18 @@ args = [
   "describe helmchartconfigs *",
 ]
 
-# --kubeconfig and KUBECONFIG= as for kubectl; --post-renderer runs a program.
+# --kubeconfig, --kube-apiserver and the KUBECONFIG=/HELM_* environment as for
+# kubectl; --post-renderer runs a program; --output-dir and the cache options
+# write files.
 [permissions.commands.helm]
-deny_flags = ["--kubeconfig", "--post-renderer"]
+deny_flags = [
+  "--kubeconfig",
+  "--kube-apiserver",
+  "--post-renderer",
+  "--output-dir",
+  "--content-cache",
+  "--repository-cache",
+]
 args = [
   "version*",
   "env",
@@ -420,7 +446,12 @@ args = [
   "plugin list",
 ]
 
+# A formula or cask given as a path or URL is Ruby that brew would evaluate
+# (current Homebrew refuses paths outside a tap, but HOMEBREW_DEVELOPER and
+# older versions do not), and --eval-all evaluates every tapped formula.
 [permissions.commands.brew]
+deny_flags = ["--eval-all"]
+deny_arg_patterns = ['^[./~]', '\.rb$', '://']
 args = [
   "info *",
   "search *",
@@ -436,7 +467,10 @@ args = [
   "tap",
 ]
 
+# `rustup show` runs the active toolchain's rustc, which a rust-toolchain.toml
+# can point at any directory.
 [permissions.commands.rustup]
+trusted_roots_only = true
 args = ["show", "target list", "toolchain list", "component list *", "check"]
 
 [permissions.commands.rtk]
@@ -453,6 +487,8 @@ args = ["*"]
 
 [permissions.commands.mdls]
 args = ["*"]
+# -plist writes its output to a file.
+deny_flags = ["-plist", "-p"]
 
 [permissions.commands.plutil]
 args = ["-p *"]
@@ -478,14 +514,21 @@ args = ["-x *", "-l *"]
 [permissions.commands.shellcheck]
 args = ["*"]
 
+# The report and diagnostics flags write files and --log-opts passes options
+# to `git log`. `gitleaks git` runs git in the scanned repo, so the hook gives
+# it the same repo-local config check as git itself.
 [permissions.commands.gitleaks]
 args = ["version", "git *"]
+deny_flags = ["-r", "--report-path", "--log-opts", "--diagnostics", "--diagnostics-dir"]
 
 [permissions.commands.ffmpeg]
 args = ["-version"]
 
+# -o and -report write files; -f picks an input device such as lavfi, whose
+# filters can write files, or a camera.
 [permissions.commands.ffprobe]
 args = ["*"]
+deny_arg_patterns = ['^-(o|report|f|y)$']
 
 [permissions.commands.cf-terraforming]
 args = ["version"]
