@@ -16,12 +16,22 @@ hook checks what prefixes can't, using permission_policy.decide():
   - route curl: denied everywhere except the curl-runner agent, where local
     read-only requests are allowed
 
+It also runs `rtk hook claude` on its own (possibly rewritten) command and
+merges the two answers, so it is the only PreToolUse Bash hook. Claude Code
+runs matching hooks in parallel and does not say whose updatedInput wins
+(https://code.claude.com/docs/en/hooks: "All matching hooks run in
+parallel"; updatedInput "Replaces the entire input object"), so a separate
+rtk hook could replace `git pull --no-rebase ... --ff-only` with its own
+rewrite of the original command while this hook's allow still applied.
+
 It prints at most one JSON object. With no decision, Claude Code's normal
 permission flow (the static allowlist, then a prompt) runs as usual.
 """
 
 import json
 import os
+import shutil
+import subprocess
 import sys
 
 sys.dont_write_bytecode = True
@@ -41,6 +51,65 @@ def load_policy():
         return {}
 
 
+_RANK = {None: 0, "allow": 1, "ask": 2, "defer": 3, "deny": 4}
+
+
+def run_rtk(data, command):
+    """The hookSpecificOutput of `rtk hook claude` for `command`, or None."""
+    rtk = shutil.which("rtk")
+    if not rtk:
+        return None
+    payload = dict(data, tool_input=dict(data.get("tool_input") or {}, command=command))
+    try:
+        done = subprocess.run([rtk, "hook", "claude"], input=json.dumps(payload),
+                              capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode == 2:
+        reason = done.stderr.strip() or "rtk blocked this command."
+        return {"permissionDecision": "deny", "permissionDecisionReason": reason}
+    try:
+        spec = json.loads(done.stdout).get("hookSpecificOutput") if done.stdout.strip() else None
+    except (ValueError, AttributeError):
+        return None
+    return spec if isinstance(spec, dict) else None
+
+
+def only_adds_rtk(rewritten, command):
+    """True if `rewritten` is `command` with `rtk` words inserted, so every
+    flag this hook added survived rtk's rewrite."""
+    def strip(text):
+        return [w for w in text.split(" ") if w != "rtk"]
+    return strip(rewritten) == strip(command)
+
+
+def merge(tool_input, command, decision, rtk):
+    """One answer from this hook's decision and rtk's output."""
+    permission, reasons = decision.permission, [decision.reason]
+    final = decision.updated_command or command
+    rtk = rtk or {}
+    rtk_permission = rtk.get("permissionDecision")
+    rtk_command = (rtk.get("updatedInput") or {}).get("command")
+    usable = isinstance(rtk_command, str) and (
+        decision.updated_command is None or only_adds_rtk(rtk_command, final)
+    )
+    if usable:
+        final = rtk_command
+    if rtk_permission in _RANK and (usable or rtk_command is None or rtk_permission == "deny"):
+        if _RANK[rtk_permission] > _RANK[permission]:
+            permission = rtk_permission
+        reasons.append(rtk.get("permissionDecisionReason") or "")
+    output = {"hookEventName": "PreToolUse"}
+    if permission:
+        output["permissionDecision"] = permission
+    reason = "; ".join(r for r in reasons if r)
+    if reason:
+        output["permissionDecisionReason"] = reason
+    if final != command and permission != "deny":
+        output["updatedInput"] = dict(tool_input, command=final)
+    return output
+
+
 def main():
     try:
         data = json.load(sys.stdin)
@@ -53,13 +122,10 @@ def main():
     if not command:
         return
     decision = decide(command, data.get("cwd") or os.getcwd(), data.get("agent_type"), load_policy())
-    output = {"hookEventName": "PreToolUse"}
-    if decision.permission:
-        output["permissionDecision"] = decision.permission
-    if decision.reason:
-        output["permissionDecisionReason"] = decision.reason
-    if decision.updated_command is not None:
-        output["updatedInput"] = dict(tool_input, command=decision.updated_command)
+    rtk = None
+    if decision.permission != "deny":
+        rtk = run_rtk(data, decision.updated_command or command)
+    output = merge(tool_input, command, decision, rtk)
     if len(output) > 1:
         print(json.dumps({"hookSpecificOutput": output}))
 

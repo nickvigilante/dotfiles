@@ -76,6 +76,14 @@ class RenderedSettings(unittest.TestCase):
         # `brew bundle` evaluates a Brewfile, which is Ruby.
         self.assertFalse([r for r in self.allow if "brew bundle" in r])
 
+    def test_prefilter_is_the_only_bash_rewriter(self):
+        # Parallel hooks' updatedInput values are not merged, so rtk runs
+        # inside the prefilter instead of as a second hook.
+        bash = [h for entry in self.settings["hooks"]["PreToolUse"]
+                if entry.get("matcher") == "Bash" for h in entry["hooks"]]
+        self.assertEqual([h["command"] for h in bash],
+                         ['"$HOME/.claude/hooks/permission-prefilter.py"'])
+
     def test_branch_delete_denied_in_every_form(self):
         for head in ("git", "rtk git", "chezmoi git"):
             with self.subTest(head=head):
