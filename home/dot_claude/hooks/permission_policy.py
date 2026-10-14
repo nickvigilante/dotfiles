@@ -248,6 +248,8 @@ def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
         return _check_chezmoi_source(args, cwd, policy)
     if head == "cargo":
         return _check_cargo_root(args, table, cwd, policy)
+    if head == "git":
+        return _check_git_repo_state(segment, args, table, cwd, policy)
     return Decision()
 
 
@@ -467,8 +469,9 @@ _REFSPEC = re.compile(r"%s(?::%s)?" % (_REF, _REF))
 _BRANCH = re.compile(_REF)
 
 
-def _git_lines(cwd: str, *args: str) -> Optional[List[str]]:
-    """stdout lines of a read-only `git -C cwd ...`, or None if it fails."""
+def _git_run(cwd: str, *args: str):
+    """(returncode, stdout lines, stderr) of a read-only `git -C cwd ...`,
+    or None if git could not run."""
     try:
         done = subprocess.run(
             ["git", "-C", cwd, *args],
@@ -477,40 +480,140 @@ def _git_lines(cwd: str, *args: str) -> Optional[List[str]]:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return done.stdout.splitlines() if done.returncode == 0 else None
+    return done.returncode, done.stdout.splitlines(), done.stderr
 
 
-# Repo-local settings that make git run a program or talk to another host while
-# fetching or pulling. Whoever can write .git/config or .git/hooks controls
-# them, and approving a command on top of them would run that code unprompted.
-_RISKY_LOCAL_CONFIG = re.compile(
-    r"core\.(sshcommand|gitproxy|hookspath|fsmonitor|askpass|attributesfile"
-    r"|alternaterefscommand)"
+def _git_lines(cwd: str, *args: str) -> Optional[List[str]]:
+    """stdout lines of a read-only `git -C cwd ...`, or None if it fails."""
+    done = _git_run(cwd, *args)
+    return done[1] if done and done[0] == 0 else None
+
+
+# Repo-local settings that make git run a program or talk to another host.
+# Whoever can write .git/config or .git/hooks controls them, and approving a
+# command on top of them would run that code unprompted. core.hooksPath is
+# flagged only for fetch/pull; read-only commands just follow it to the hooks
+# they could fire.
+_RISKY_CONFIG = (
+    r"core\.(sshcommand|gitproxy|fsmonitor|askpass|attributesfile"
+    r"|alternaterefscommand|pager)"
     r"|credential\..*|protocol\..*|include\..*|includeif\..*|filter\..*"
     r"|remote\..*\.(uploadpack|receivepack|vcs|proxy|proxyauthmethod)"
-    r"|http\..*(proxy|proxyauthmethod|extraheader)",
-    re.IGNORECASE,
+    r"|http\..*(proxy|proxyauthmethod|extraheader)"
+    r"|diff\.external|diff\..*\.(command|textconv)|pager\..*|gpg\..*"
 )
+_RISKY_LOCAL_CONFIG = re.compile(_RISKY_CONFIG, re.IGNORECASE)
+_RISKY_SYNC_CONFIG = re.compile(_RISKY_CONFIG + r"|core\.hookspath", re.IGNORECASE)
 _FETCH_PULL_HOOKS = (
     "reference-transaction", "post-merge", "post-checkout", "pre-auto-gc",
     "fsmonitor-watchman", "post-index-change", "post-rewrite",
 )
+# `git status` and `git diff` refresh the index, which fires this hook.
+_READ_HOOKS = ("post-index-change",)
+_MAX_SUBMODULES = 50
 
 
-def _repo_state_is_clean(cwd: str) -> bool:
-    """False if repo-local config or a hook could run code during fetch/pull."""
-    lines = _git_lines(cwd, "config", "--show-scope", "--list", "--name-only")
+def _config_is_risky(lines: List[str], risky) -> bool:
+    for line in lines:
+        scope, _, key = line.rpartition("\t")
+        if scope in ("", "local", "worktree", "command") and risky.fullmatch(key):
+            return True
+    return False
+
+
+def _submodules_are_clean(common_dir: str, hooks: tuple) -> bool:
+    """`git status` runs git inside each populated submodule, under the
+    config and hooks in .git/modules/<name>/."""
+    modules = os.path.join(common_dir, "modules")
+    seen = 0
+    for root, dirs, files in os.walk(modules):
+        if "config" not in files or "HEAD" not in files:
+            continue
+        seen += 1
+        if seen > _MAX_SUBMODULES:
+            return False
+        lines = _git_lines(root, "config", "--file", os.path.join(root, "config"),
+                           "--list", "--name-only")
+        if lines is None or _config_is_risky(lines, _RISKY_SYNC_CONFIG):
+            return False
+        if any(os.path.exists(os.path.join(root, "hooks", h)) for h in hooks):
+            return False
+    return True
+
+
+def _repo_state_is_clean(cwd: str, git_opts=(), sync: bool = True) -> bool:
+    """False if repo-local config or a hook could run code during the git
+    command. `git_opts` are its location options (-C, --git-dir,
+    --work-tree), so the check looks at the repo the command will use."""
+    lines = _git_lines(cwd, *git_opts, "config", "--show-scope", "--list", "--name-only")
     if lines is None:
         return False
-    for line in lines:
-        scope, _, key = line.partition("\t")
-        if scope in ("local", "worktree", "command") and _RISKY_LOCAL_CONFIG.fullmatch(key):
-            return False
-    hooks = _git_lines(cwd, "rev-parse", "--git-path", "hooks")
-    if not hooks:
+    if _config_is_risky(lines, _RISKY_SYNC_CONFIG if sync else _RISKY_LOCAL_CONFIG):
         return False
-    hooks_dir = os.path.join(cwd, hooks[0])
-    return not any(os.path.exists(os.path.join(hooks_dir, h)) for h in _FETCH_PULL_HOOKS)
+    done = _git_run(cwd, *git_opts, "rev-parse", "--path-format=absolute",
+                    "--git-path", "hooks", "--git-common-dir")
+    if done is None:
+        return False
+    code, paths, stderr = done
+    if code != 0:
+        # Outside a repository git reads no repo-local config or hooks.
+        return "not a git repository" in stderr
+    if len(paths) != 2:
+        return False
+    hooks_dir, common_dir = paths
+    hooks = _FETCH_PULL_HOOKS if sync else _READ_HOOKS
+    if any(os.path.exists(os.path.join(hooks_dir, h)) for h in hooks):
+        return False
+    return _submodules_are_clean(common_dir, hooks)
+
+
+_GIT_LOCATION_OPTS = ("-C", "--git-dir", "--work-tree")
+_GIT_VALUE_OPTS = _GIT_LOCATION_OPTS + ("-c", "--config-env", "--namespace", "--super-prefix")
+
+
+def _git_globals(args: List[str]):
+    """(location options, subcommand, risky) for git's global options:
+    the options that pick the repo, the subcommand, and whether a `-c` or
+    --exec-path could run a program."""
+    location, risky, i = [], False, 0
+    while i < len(args):
+        arg = args[i]
+        if not arg.startswith("-"):
+            return location, arg, risky
+        name, has_value, value = arg.partition("=")
+        if name in _GIT_VALUE_OPTS and not has_value:
+            if i + 1 >= len(args):
+                return location, None, risky
+            value = args[i + 1]
+            i += 1
+        if name in _GIT_LOCATION_OPTS:
+            location += [name, value] if name == "-C" else ["%s=%s" % (name, value)]
+        elif name == "-c":
+            risky = risky or bool(_RISKY_SYNC_CONFIG.fullmatch(value.partition("=")[0]))
+        elif name == "--config-env" or (name == "--exec-path" and has_value):
+            risky = True
+        i += 1
+    return location, None, risky
+
+
+def _check_git_repo_state(segment: Segment, args: List[str], table: Dict,
+                          cwd: str, policy: Dict) -> Decision:
+    """Ask before an allowlisted git subcommand runs in a repo whose local
+    config or hooks would make it run a program."""
+    location, sub, risky = _git_globals(args)
+    allowlisted = {a.split()[0] for a in table.get("args", []) if a.strip()}
+    if sub not in allowlisted and sub not in _SYNC_FLAGS:
+        return Decision()
+    base = cwd
+    if segment.argv[_normalize(segment.argv)[2]] == "chezmoi":
+        base = policy.get("chezmoi_working_tree")
+    if risky or not base or not _repo_state_is_clean(base, location, sub in _SYNC_FLAGS):
+        return Decision(
+            "ask",
+            "This repository's local git config or hooks (or a -c option) can run "
+            "a program during git %s; review it before running." % sub,
+        )
+    return Decision()
 
 
 def _approved_git_url(policy: Dict):
@@ -580,9 +683,8 @@ def _decide_git_sync(command: str, segments: List[Segment], cwd: str, policy: Di
         return Decision()
     sub, rest = args[0], args[1:]
     targets = _sync_targets(sub, rest, cwd)
+    # _check_segment has already asked if the repo's config or hooks are risky.
     if not targets or not _remotes_approved(targets, cwd, policy):
-        return Decision()
-    if not _repo_state_is_clean(cwd):
         return Decision()
     extra = "".join(" " + f for f in _SYNC_FORCED[sub] if f not in rest)
     updated = command

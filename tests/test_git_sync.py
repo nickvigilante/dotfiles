@@ -20,7 +20,8 @@ POLICY = {
             "approved_git_owners": ["nickvigilante", "coder"],
         },
         "commands": {
-            "git": {"deny_flags": ["--upload-pack", "--exec", "--output"]},
+            "git": {"deny_flags": ["--upload-pack", "--exec", "--output"],
+                    "args": ["log *", "diff *", "status *", "ls-remote *", "remote show *"]},
         },
     },
 }
@@ -188,7 +189,7 @@ class GitSync(unittest.TestCase):
             with self.subTest(key=key):
                 repo = self.repo(origin="https://github.com/coder/coder.git")
                 subprocess.run(["git", "-C", repo, "config", key, value], check=True)
-                self.assertIsNone(self.decide("git fetch", repo).permission)
+                self.assertEqual(self.decide("git fetch", repo).permission, "ask")
 
     def test_harmless_repo_local_config_is_fine(self):
         repo = self.repo(origin="https://github.com/coder/coder.git")
@@ -202,7 +203,7 @@ class GitSync(unittest.TestCase):
                 repo = self.repo(origin="https://github.com/coder/coder.git")
                 with open(os.path.join(repo, ".git", "hooks", name), "w") as f:
                     f.write("#!/bin/sh\n")
-                self.assertIsNone(self.decide("git pull --ff-only", repo).permission)
+                self.assertEqual(self.decide("git pull --ff-only", repo).permission, "ask")
 
     def test_unrelated_hooks_do_not_block_approval(self):
         repo = self.repo(origin="https://github.com/coder/coder.git")
@@ -221,6 +222,93 @@ class GitSync(unittest.TestCase):
                 self.assertIsNone(self.decide("git fetch", repo, policy).permission)
 
 
+
+@unittest.skipUnless(shutil.which("git"), "needs git")
+class ReadOnlyGitRepoState(unittest.TestCase):
+    """Allowlisted read-only git commands also run repo-local config (diff
+    drivers, fsmonitor, pagers, credential helpers), so a risky repo asks."""
+
+    def setUp(self):
+        self._dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._dir.cleanup)
+        self.repo = make_repo(os.path.join(self._dir.name, "r"))
+
+    def permission(self, command, cwd=None, policy=POLICY):
+        return decide(command, cwd or self.repo, None, policy).permission
+
+    def config(self, key, value, repo=None):
+        subprocess.run(["git", "-C", repo or self.repo, "config", key, value], check=True)
+
+    def test_clean_repo_and_non_repo_get_no_decision(self):
+        for command in ["git status", "git log --oneline -3", "rtk git diff | head -5"]:
+            with self.subTest(command=command):
+                self.assertIsNone(self.permission(command))
+        self.assertIsNone(self.permission("git ls-remote https://github.com/coder/coder",
+                                          cwd=self._dir.name))
+
+    def test_risky_config_asks(self):
+        for key, value in [
+            ("core.fsmonitor", "./evil"), ("diff.external", "./evil"),
+            ("diff.x.textconv", "./evil"), ("diff.x.command", "./evil"),
+            ("core.pager", "./evil"), ("pager.log", "./evil"),
+            ("core.sshCommand", "./evil"), ("credential.helper", "!evil"),
+            ("filter.x.clean", "./evil"), ("gpg.program", "./evil"),
+            ("include.path", "../x"),
+        ]:
+            with self.subTest(key=key):
+                repo = make_repo(os.path.join(self._dir.name, key))
+                self.config(key, value, repo)
+                for command in ["git status", "rtk git diff", "git log -p",
+                                "git remote show origin", "ls | git log"]:
+                    self.assertEqual(self.permission(command, cwd=repo), "ask", command)
+
+    def test_unallowlisted_subcommands_are_left_alone(self):
+        self.config("core.fsmonitor", "./evil")
+        self.assertIsNone(self.permission("git commit -m x"))
+
+    def test_dash_c_dir_is_checked(self):
+        self.config("diff.external", "./evil")
+        self.assertEqual(self.permission("git -C %s diff" % self.repo, cwd=self._dir.name), "ask")
+        self.assertEqual(self.permission("git -C r diff", cwd=self._dir.name), "ask")
+        self.assertEqual(
+            self.permission("git --git-dir=%s/.git log" % self.repo, cwd=self._dir.name), "ask")
+
+    def test_risky_command_line_config_asks(self):
+        self.assertEqual(self.permission("git -c core.pager=./evil log"), "ask")
+        self.assertEqual(self.permission("git --exec-path=/tmp/x status"), "ask")
+        self.assertIsNone(self.permission("git -c color.ui=never log"))
+
+    def test_chezmoi_git_checks_the_source_repo(self):
+        policy = copy.deepcopy(POLICY)
+        policy["chezmoi_working_tree"] = self.repo
+        self.config("core.fsmonitor", "./evil")
+        self.assertEqual(self.permission("chezmoi git status", cwd="/", policy=policy), "ask")
+        self.assertEqual(self.permission("chezmoi git -- log", cwd="/", policy=policy), "ask")
+
+    def test_index_hook_asks_but_other_hooks_do_not(self):
+        hooks = os.path.join(self.repo, ".git", "hooks")
+        for name in ["pre-commit", "post-merge", "post-checkout"]:
+            with open(os.path.join(hooks, name), "w") as f:
+                f.write("#!/bin/sh\n")
+        self.assertIsNone(self.permission("git status"))
+        with open(os.path.join(hooks, "post-index-change"), "w") as f:
+            f.write("#!/bin/sh\n")
+        self.assertEqual(self.permission("git status"), "ask")
+
+    def test_hooks_path_is_followed_not_flagged(self):
+        os.makedirs(os.path.join(self.repo, ".husky"))
+        self.config("core.hooksPath", ".husky")
+        self.assertIsNone(self.permission("git status"))
+        with open(os.path.join(self.repo, ".husky", "post-index-change"), "w") as f:
+            f.write("#!/bin/sh\n")
+        self.assertEqual(self.permission("git status"), "ask")
+
+    def test_submodule_config_is_checked(self):
+        module = os.path.join(self.repo, ".git", "modules", "sub")
+        subprocess.run(["git", "init", "-q", "--bare", module], check=True)
+        self.assertIsNone(self.permission("git status"))
+        self.config("core.fsmonitor", "./evil", module)
+        self.assertEqual(self.permission("git status"), "ask")
 
 
 class AbbreviatedFlags(unittest.TestCase):

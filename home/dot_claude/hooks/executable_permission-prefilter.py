@@ -7,6 +7,9 @@ hook checks what prefixes can't, using permission_policy.decide():
   - deny forbidden flags (deny_flags) and environment overrides (env_allow)
     on allowlisted commands, in every form: plain, `rtk`, `chezmoi git`
   - ask when a guarded command can't be parsed safely
+  - ask before an allowlisted git command runs in a repo whose local config
+    or hooks would run a program, and before allowlisted cargo reads run
+    outside a trusted dev root
   - allow `cargo test|clippy|build|run|check` in a trusted dev root, piped
     only into read-only filters
   - add --skip-secrets to `chezmoi cat|diff|status|verify`
