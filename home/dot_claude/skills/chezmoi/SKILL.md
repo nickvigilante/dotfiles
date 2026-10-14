@@ -1,6 +1,6 @@
 ---
 name: chezmoi
-description: Use when adding, editing, moving, or applying any dotfile managed by chezmoi in this user's setup — anything under ~/.claude, ~/.config, ~/.zshrc, etc. Encodes THIS user's specific chezmoi layout (source location, .chezmoiroot, naming, PR workflow) so changes land in the right place and survive across machines.z
+description: Use when adding, editing, moving, or applying any dotfile managed by chezmoi in this user's setup — anything under ~/.claude, ~/.config, ~/.zshrc, etc. Encodes THIS user's specific chezmoi layout (source location, .chezmoiroot, naming, PR workflow) so changes land in the right place and survive across machines.
 ---
 
 # chezmoi (this user's setup)
@@ -34,13 +34,20 @@ Always go through the **source**.
 A few targets are **rendered** from data in `home/.chezmoidata/`, not stored literally. Editing the output — the `.tmpl`'s static text, or the live file — instead of the data either gets regenerated away or breaks the single source of truth.
 
 - **`~/.claude/settings.json`** ← `home/dot_claude/settings.json.tmpl` + `home/.chezmoidata/permissions.toml`.
-  The Bash permission allowlist for `git`/`gh`/`pnpm`/`npm`/`cargo`/`kubectl`/`curl` is **generated** by looping over `permissions.toml`, which expands each read-only subcommand across its wrapper "heads" (vanilla, `rtk`, and for git also `chezmoi git`).
+  The whole Bash permission allowlist (`git`, `gh`, `cargo`, `kubectl`, `helm`, `brew`, `jq` and the rest) is **generated** by looping over `permissions.toml`, which expands each read-only subcommand across its wrapper "heads" (vanilla, `rtk`, and for git also `chezmoi git`).
   - **Heads must never contain a wildcard.** A head sits before the subcommand and Claude Code matches these patterns as plain strings, so a `*` there also matches the base command's global options and pre-approves them — `Bash(git -C * log *)` matched `git -C /repo -c core.pager=<cmd> log` and ran `<cmd>` unprompted. Wildcards belong only after the subcommand, in `args`.
-  - **To allow a read-only command:** add the subcommand to the right list in `permissions.toml` — NOT the `.tmpl` static block, and never the live file. One entry grants every wrapper form at once (the rtk-parity invariant). This is the correct move even when a request would otherwise route through the `update-config` skill.
-  - **To allow a brand-new base command:** add a `[permissions.commands.<cmd>]` table, and add the command to `rtk_wraps` too if `rtk` proxies it (check `rtk --help`).
-  - A genuinely one-off entry that isn't part of a wrapped family can stay as a static line in the `.tmpl`.
+  - **To allow a read-only command:** add the subcommand to the right list in `permissions.toml` — never the `.tmpl` and never the live file. One entry grants every wrapper form at once (the rtk-parity invariant). This is the correct move even when a request would otherwise route through the `update-config` skill.
+  - **To allow a brand-new base command:** add a `[permissions.commands.<cmd>]` table, and add the command to `rtk_wraps` too if `rtk` rewrites it (check `rtk --help` and `rtk rewrite "<cmd> ..."`).
+  - **Every allow rule goes in `permissions.toml`, even a one-off** (use `args = [""]` for the bare command or an exact string such as `"-p"`).
+    The `.tmpl`'s allow list has no static lines, because a static rule would skip the hook's `deny_flags`, `deny_arg_patterns` and `env_allow` checks; `tests/test_permission_config.py` enforces this.
+  - Give each table the flags that run programs, write files, or send credentials elsewhere as `deny_flags` (or `deny_arg_patterns` for exact single-dash words), and set `trusted_roots_only` for tools that load code from the working directory, like `cargo` and `rustup`.
   - **Verify before apply:** `chezmoi execute-template < home/dot_claude/settings.json.tmpl | jq .` must be valid JSON and a **superset** of the prior allowlist (diff the sorted `.permissions.allow` — never silently drop entries).
-- **Code-executing commands are NOT allowlisted.** `cargo test/clippy/build/run` (inside trusted dev roots) and read-only `python -c` one-liners are auto-approved at runtime by the `PreToolUse` hook `home/dot_claude/hooks/executable_permission-prefilter.py`. Trusted roots and the python safety denylist are constants at the top of that file — tune behavior there, not in the allowlist.
+- **Code-executing commands are NOT allowlisted.** `cargo test/clippy/build/run/check` inside a trusted dev root is auto-approved at runtime by the `PreToolUse` hook `home/dot_claude/hooks/executable_permission-prefilter.py`.
+  The trusted roots and approved git remotes live in `permissions.toml` under `[permissions.hook]` — tune behavior there, not in the hook or the allowlist.
+  `python3 -c` always prompts (the fast-path was removed; rebuilding it is issue #135).
+  `curl` is denied everywhere except inside the `curl-runner` agent.
+- **The prefilter is the only `PreToolUse` Bash hook.** It runs `rtk hook claude` itself and merges the answer, because parallel hooks' `updatedInput` values are not combined and rtk's rewrite could drop the flags the prefilter adds.
+  If `rtk init` re-adds its own `rtk hook claude` entry to the live `settings.json`, drop it rather than capturing it.
 
 ## Claude config sync (`/chezmoi-sync`)
 
@@ -63,7 +70,7 @@ Reconciling drift:
 2. **Drift-check before applying.** Run `chezmoi apply --dry-run` (or `chezmoi diff`) and read the diff.
    The point is to catch a live target that was **manually modified out-of-band** — a `chezmoi apply` replaces the whole target file, so any such drift is silently overwritten.
    Concretely compare the live file against the rendered source and list what apply would **lose** vs **add**.
-3. **Reconcile drift, don't clobber it.** If the live file holds something not in the source that should survive (a tool that writes straight to the live file is the usual cause — e.g. `rtk hook claude` installs its hook into `~/.claude/settings.json`), capture it into the source first (`chezmoi add`, or add the block to the source by hand) so apply preserves it and it reproduces on other machines.
+3. **Reconcile drift, don't clobber it.** If the live file holds something not in the source that should survive (a tool that writes straight to the live file is the usual cause — e.g. a plugin install), capture it into the source first (`chezmoi add`, or add the block to the source by hand) so apply preserves it and it reproduces on other machines.
    Only discard live drift once you've confirmed it's unwanted (0 entries lost).
 4. **Apply only what changed.** If `chezmoi git pull` brought in nothing and you made no source edits, there's nothing to apply.
 5. **If `chezmoi apply` aborts** with "has changed since chezmoi last wrote it", that's the drift guard refusing to overwrite a manually-edited target.
