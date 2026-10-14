@@ -9,12 +9,12 @@ alias ~='cd ~'
 # ── Listing ───────────────────────────────────────────────────────────────────
 # Use eza if available (installed via Homebrew), otherwise fall back to ls.
 if command -v eza &>/dev/null; then
-    alias ls='eza --icons'
-    alias l='eza --icons -lh'
-    alias ll='eza --icons -lh'
-    alias la='eza --icons -lah'
-    alias lt='eza --icons --tree --level=2'
-    alias llt='eza --icons -lh --tree --level=2'
+    alias ls='eza --icons=auto'
+    alias l='eza --icons=auto -lh'
+    alias ll='eza --icons=auto -lh'
+    alias la='eza --icons=auto -lah'
+    alias lt='eza --icons=auto --tree --level=2'
+    alias llt='eza --icons=auto -lh --tree --level=2'
 else
     alias ll='ls -lh'
     alias la='ls -lah'
