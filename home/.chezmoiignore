@@ -19,11 +19,20 @@
 # template rather than every workspace. The assignments deliberately carry
 # no left-trim marker: one there swallows the newline ending this comment
 # and emits the first path onto the comment line, silently un-ignoring it.
+#
+# Even where the gate passes, the kubeconfig is skipped while the vault is
+# locked (no BW_SESSION): the template's `bitwarden` call would otherwise
+# abort every `chezmoi status/diff/apply`, not just this one file. Ignoring
+# it leaves the live kubeconfig untouched, where rendering it empty would
+# make chezmoi delete it. The break-glass helper renders no secrets, so it
+# stays on the gate alone.
 {{ $vault := or (eq .secrets "bitwarden") (eq .secrets "both") -}}
 {{ $trusted := or (and (eq .profile "personal") (ne .machine "server") (ne .machine "ephemeral")) (env "WORKSPACE_CLUSTER_ADMIN") -}}
 {{ if not (and $vault $trusted) -}}
 .kube/homelab.yaml
 .local/bin/mcp-breakglass
+{{ else if not (env "BW_SESSION") -}}
+.kube/homelab.yaml
 {{ end -}}
 
 # ─── Home-directory audit (dotfiles #28) ──────────────────────────────────
