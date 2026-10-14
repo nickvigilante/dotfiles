@@ -474,7 +474,15 @@ trusted_roots_only = true
 args = ["show", "target list", "toolchain list", "component list *", "check"]
 
 [permissions.commands.rtk]
-args = ["gain *", "discover", "cc-economics *", "session *", "config show", "--version", "--help"]
+args = [
+  "gain *",
+  "discover",
+  "cc-economics *",
+  "session *",
+  "config show",
+  "--version",
+  "--help",
+]
 
 [permissions.commands.sw_vers]
 args = [""]
@@ -519,7 +527,13 @@ args = ["*"]
 # it the same repo-local config check as git itself.
 [permissions.commands.gitleaks]
 args = ["version", "git *"]
-deny_flags = ["-r", "--report-path", "--log-opts", "--diagnostics", "--diagnostics-dir"]
+deny_flags = [
+  "-r",
+  "--report-path",
+  "--log-opts",
+  "--diagnostics",
+  "--diagnostics-dir",
+]
 
 [permissions.commands.ffmpeg]
 args = ["-version"]
