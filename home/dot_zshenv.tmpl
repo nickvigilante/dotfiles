@@ -22,6 +22,12 @@ path=($user_path $path)
 export VIRTUAL_ENV="$HOME/venv"
 export UV_PYTHON_PREFERENCE="only-managed"
 
+# rtk warns "No hook installed — run rtk init -g" because its Claude Code hook
+# isn't in settings.json: permission-prefilter.py runs `rtk hook claude`
+# itself, since two parallel hooks could drop the prefilter's safety flags.
+# Following the warning would bring that back, so silence it.
+export RTK_SUPPRESS_HOOK_WARNING=1
+
 # ── Terminal font ──────────────────────────────────────────────────────────────
 # Every machine installs a Nerd Font (the Brewfile cask on macOS, the
 # run_once_04-install-fonts script on Linux), so tell tools that draw Nerd Font
