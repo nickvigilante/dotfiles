@@ -221,6 +221,9 @@ The `.secrets` data field controls which managers are active on this machine:
 **Bitwarden** — once per machine: `bw login`.
 Then use `bw-apply` instead of bare `chezmoi apply` whenever `~/.env` may need re-rendering.
 `bw-apply` (defined in `~/.config/shell/functions.zsh.tmpl`) unlocks Bitwarden, sets `BW_SESSION`, and runs `chezmoi apply`.
+A bare `chezmoi apply` goes through the same wrapper and offers to unlock first.
+If you decline (or pass `--skip-secrets`), it applies everything except `~/.kube/homelab.yaml`, which is left as it is.
+While the vault is locked, `.chezmoiignore` skips that kubeconfig for every chezmoi command, so `chezmoi status` and `chezmoi diff` work without unlocking.
 It's a no-op for the unlock step on machines whose `.secrets` doesn't include `bitwarden`.
 
 ### Ephemeral 1Password (service account)
