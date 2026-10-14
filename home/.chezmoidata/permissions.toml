@@ -4,7 +4,9 @@
 # expanded across its heads: the vanilla form, the rtk-wrapped form (when rtk wraps
 # it, per rtk_wraps), plus any extra_heads (git also gets `chezmoi git`). Add a
 # read-only subcommand ONCE here and every wrapper form is granted in lockstep --
-# this is what keeps rtk at 100% permission parity.
+# this is what keeps rtk at 100% permission parity. Every Bash allow rule lives
+# here, never as a static line in the template, so the hook's runtime checks
+# below cover all of them.
 #
 # A space before `*` is required for Claude Code prefix matching. A bare entry (no
 # trailing ` *`) matches that exact invocation only; an empty string matches the
@@ -17,6 +19,11 @@
 #   ask_flags   flags that force a manual approval instead
 #   env_allow   NAME = "regex" for allowed VAR= prefixes; any other prefix blocks
 #   deny_args   static deny rules, generated for every head form like args
+#   deny_arg_patterns  regexes; an argument matching one blocks the command
+#               (for exact single-dash words like ffprobe's `-o`, which a
+#               deny_flags entry would also match inside `-of`)
+#   trusted_roots_only  ask for the allowlisted subcommands outside
+#               [permissions.hook] trusted_dev_roots
 #   rtk_only    generate only the `rtk <cmd>` head (no plain command exists)
 #
 # A head must NEVER contain a wildcard. A head's text sits BEFORE the subcommand,
@@ -29,7 +36,8 @@
 # hazard. Wildcards belong only AFTER the subcommand, in args.
 
 [permissions]
-# Base commands whose output rtk rewrites via its hook (source: `rtk --help`).
+# Base commands whose output rtk rewrites via its hook (source: `rtk --help`,
+# and `rtk rewrite "<cmd> ..."` for tools it filters without a subcommand).
 # Membership here grants a command its `rtk <cmd> ...` permission twin.
 rtk_wraps = [
   "git",
@@ -81,6 +89,10 @@ rtk_wraps = [
   "golangci-lint",
   "gradlew",
   "mvn",
+  "helm",
+  "jq",
+  "stat",
+  "shellcheck",
 ]
 
 # Settings for the permission-prefilter hook.
@@ -165,8 +177,13 @@ args = ["exec astro check *", "list *", "why *", "outdated *", "audit *"]
 [permissions.commands.npm]
 args = ["list *", "outdated *", "info *"]
 
+# cargo reads .cargo/config.toml and rust-toolchain.toml from the working
+# directory, and either can name a program to run (build.rustc-wrapper, a
+# toolchain path), hence trusted_roots_only.
 [permissions.commands.cargo]
 args = ["tree *", "metadata *", "search *"]
+deny_flags = ["--config", "-Z"]
+trusted_roots_only = true
 env_allow = { RUST_BACKTRACE = "0|1|full", RUST_LOG = "[A-Za-z0-9_=,:.-]+", CARGO_TERM_COLOR = "always|never|auto", NO_COLOR = "1" }
 
 # Read-only tools. rtk rewrites the plain forms (`cat`/`head` become `rtk read`),
@@ -241,7 +258,22 @@ deny_flags = [
 ]
 env_allow = { NO_COLOR = "1" }
 
+# A kubeconfig or kuberc can name an exec credential plugin or override
+# commands, so only the defaults are allowed; KUBECONFIG= and KUBERC= are
+# blocked because env_allow lists neither. --server (-s) and --proxy-url send
+# the default credentials to another host; --cache-dir and --profile write
+# files.
 [permissions.commands.kubectl]
+deny_flags = [
+  "--kubeconfig",
+  "--kuberc",
+  "--server",
+  "--proxy-url",
+  "--cache-dir",
+  "--profile",
+  "--profile-output",
+]
+deny_arg_patterns = ['^-s']
 args = [
   "version*",
   "cluster-info",
@@ -383,3 +415,170 @@ args = [
   "describe helmcharts *",
   "describe helmchartconfigs *",
 ]
+
+# --kubeconfig, --kube-apiserver and the KUBECONFIG=/HELM_* environment as for
+# kubectl; --post-renderer runs a program; --output-dir and the cache options
+# write files.
+[permissions.commands.helm]
+deny_flags = [
+  "--kubeconfig",
+  "--kube-apiserver",
+  "--post-renderer",
+  "--output-dir",
+  "--content-cache",
+  "--repository-cache",
+]
+args = [
+  "version*",
+  "env",
+  "list*",
+  "ls*",
+  "status *",
+  "history *",
+  "get hooks *",
+  "get notes *",
+  "get metadata *",
+  "repo list*",
+  "search *",
+  "dependency list *",
+  "lint *",
+  "template *",
+  "plugin list",
+]
+
+# A formula or cask given as a path or URL is Ruby that brew would evaluate
+# (current Homebrew refuses paths outside a tap, but HOMEBREW_DEVELOPER and
+# older versions do not), and --eval-all evaluates every tapped formula.
+[permissions.commands.brew]
+deny_flags = ["--eval-all"]
+deny_arg_patterns = ['(^|=)[./~]', '\.rb$', '://', '(^|/)\.\.(/|$)']
+args = [
+  "info *",
+  "search *",
+  "outdated",
+  "deps *",
+  "uses *",
+  "leaves",
+  "desc *",
+  "doctor",
+  "tap-info *",
+  "list",
+  "list *",
+  "tap",
+]
+
+# `rustup show` runs the active toolchain's rustc, which a rust-toolchain.toml
+# can point at any directory.
+[permissions.commands.rustup]
+trusted_roots_only = true
+args = ["show", "target list", "toolchain list", "component list *", "check"]
+
+# `rtk gain --reset` wipes the savings history. `rtk cc-economics` is not
+# listed: it runs ccusage through npx, which fetches code from npm.
+[permissions.commands.rtk]
+deny_flags = ["--reset"]
+args = ["gain *", "discover", "session *", "config show", "--version", "--help"]
+
+[permissions.commands.sw_vers]
+args = [""]
+
+[permissions.commands.defaults]
+args = ["read *"]
+
+[permissions.commands.system_profiler]
+args = ["*"]
+
+[permissions.commands.mdls]
+args = ["*"]
+# -plist writes its output to a file.
+deny_flags = ["-plist", "-p"]
+
+[permissions.commands.plutil]
+args = ["-p *"]
+
+[permissions.commands.diskutil]
+args = ["info *", "list"]
+
+[permissions.commands.pkgutil]
+args = ["--pkgs *", "--pkg-info *"]
+
+[permissions.commands.xcode-select]
+args = ["-p"]
+
+[permissions.commands.launchctl]
+args = ["list *"]
+
+[permissions.commands.softwareupdate]
+args = ["-l"]
+
+[permissions.commands.duti]
+args = ["-x *", "-l *"]
+
+[permissions.commands.shellcheck]
+args = ["*"]
+
+# The report and diagnostics flags write files and --log-opts passes options
+# to `git log`. `gitleaks git` runs git in the scanned repo, so the hook gives
+# it the same repo-local config check as git itself.
+[permissions.commands.gitleaks]
+args = ["version", "git *"]
+deny_flags = [
+  "-r",
+  "--report-path",
+  "--log-opts",
+  "--diagnostics",
+  "--diagnostics-dir",
+]
+
+[permissions.commands.ffmpeg]
+args = ["-version"]
+
+# -o and -report write files; -f picks an input device such as lavfi, whose
+# filters can write files, or a camera.
+[permissions.commands.ffprobe]
+args = ["*"]
+deny_arg_patterns = ['^-(o|report|f|y)$']
+
+[permissions.commands.cf-terraforming]
+args = ["version"]
+
+# `env` and `$ENV` print the environment (BW_SESSION and other secrets).
+# -f, -L and import/include load jq code from files, which could do the same.
+[permissions.commands.jq]
+args = ["*"]
+deny_flags = ["-f", "--from-file", "-L", "--library-path"]
+deny_arg_patterns = [
+  '(?<![\w.$])env\b',
+  '\$\s*ENV\b',
+  '(?<![\w.$])(import|include)\b',
+]
+
+[permissions.commands.stat]
+args = ["*"]
+
+[permissions.commands.file]
+args = ["*"]
+# -C compiles a magic file and writes the result next to it.
+deny_flags = ["-C", "--compile"]
+
+[permissions.commands.which]
+args = ["*"]
+
+[permissions.commands.tail]
+args = ["*"]
+
+[permissions.commands.date]
+args = ["*"]
+env_allow = { TZ = "[A-Za-z0-9_/+:-]+" }
+
+[permissions.commands.echo]
+args = ['"exit $?"', "exit $?", "$?"]
+
+[permissions.commands.pwd]
+args = [""]
+
+[permissions.commands.true]
+args = [""]
+
+[permissions.commands.":"]
+args = [""]

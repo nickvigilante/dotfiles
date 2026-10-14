@@ -334,6 +334,57 @@ class CurlMentionedNotRun(unittest.TestCase):
                 self.assertEqual(permission(command), "deny")
 
 
+class DenyArgPatterns(unittest.TestCase):
+    POLICY = {"permissions": {"commands": {"probe": {"deny_arg_patterns": [r"\bsecret\b"]}}}}
+
+    def test_matching_argument_denies_in_any_segment(self):
+        for command in ["probe secret", "rtk probe -x 'a secret'", "ls | probe secret",
+                        "probe secret; ls"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, policy=self.POLICY), "deny")
+        self.assertIsNone(permission("probe secrets", policy=self.POLICY))
+
+
+class CargoOutsideTrustedRoots(unittest.TestCase):
+    POLICY = {"permissions": {"hook": {"trusted_dev_roots": [ROOT]},
+                              "commands": {"cargo": {"args": ["tree *", "metadata *"],
+                                                     "trusted_roots_only": True},
+                                           "rustup": {"args": ["show"],
+                                                      "trusted_roots_only": True}}}}
+
+    def test_allowlisted_subcommand_asks_outside_roots(self):
+        for command in ["cargo tree", "cargo +nightly --color never metadata"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, UNTRUSTED, policy=self.POLICY), "ask")
+                self.assertIsNone(permission(command, TRUSTED, policy=self.POLICY))
+
+    def test_other_subcommands_untouched(self):
+        self.assertIsNone(permission("cargo publish", UNTRUSTED, policy=self.POLICY))
+
+    def test_unclear_subcommand_asks(self):
+        # An option before the subcommand may take a value the parser would
+        # mistake for the subcommand, so anything but a plain word asks.
+        for command in ["cargo -C /x tree", "cargo --frozen tree", "cargo --version",
+                        "cargo", "rtk cargo --locked metadata"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, UNTRUSTED, policy=self.POLICY), "ask")
+
+    def test_unparseable_command_asks(self):
+        for command in ["rustup show; ls", "ls && cargo tree"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, UNTRUSTED, policy=self.POLICY), "ask")
+
+
+class MostRestrictiveSegmentWins(unittest.TestCase):
+    POLICY = {"permissions": {"commands": {
+        "probe": {"ask_flags": ["--risky"]},
+        "jq": {"deny_arg_patterns": [r"\benv\b"]},
+    }}}
+
+    def test_deny_in_a_later_segment_beats_an_earlier_ask(self):
+        self.assertEqual(permission("probe --risky | jq -n env", policy=self.POLICY), "deny")
+
+
 class MissingPolicy(unittest.TestCase):
     def test_empty_policy_never_allows_but_still_routes_curl(self):
         self.assertIsNone(permission("cargo test", policy={}))

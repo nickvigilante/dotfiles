@@ -12,6 +12,7 @@ Per-command keys read from permissions.commands.<name>:
     deny_flags  flags that block the command outright
     ask_flags   flags that force a manual approval
     env_allow   NAME -> regex; any other VAR= prefix blocks the command
+    deny_arg_patterns  regexes; an argument matching one blocks the command
 """
 
 from __future__ import annotations
@@ -73,6 +74,8 @@ def decide(
         verdict = Decision()
         for piece in [command, *_PIECE_SEPARATORS.split(command)]:
             head, piece_args = _rough_split(piece)
+            if head not in _commands(policy) and piece.split()[:1] == ["rtk"]:
+                head, piece_args = "rtk", [head, *piece_args]
             if head not in _guarded_heads(policy):
                 continue
             # A rough whitespace split can still spot a forbidden flag, and
@@ -82,6 +85,9 @@ def decide(
             flag = _has_flag(piece_args, table.get("deny_flags", []))
             if flag:
                 return Decision("deny", "%s %s is blocked." % (head, flag))
+            arg = _matching_arg(piece_args, table)
+            if arg is not None:
+                return Decision("deny", _DENIED_ARG % (head, arg))
             verdict = verdict if verdict.permission else Decision(
                 "ask",
                 "Could not parse this %s command safely, so its flags "
@@ -89,10 +95,15 @@ def decide(
             )
         return verdict
 
+    verdict = Decision()
     for segment in segments:
         decision = _check_segment(segment, cwd, policy)
-        if decision.permission:
+        if decision.permission == "deny":
             return decision
+        if decision.permission and not verdict.permission:
+            verdict = decision
+    if verdict.permission:
+        return verdict
 
     if heads[0] == "cargo":
         return _decide_cargo(segments, cwd, policy)
@@ -178,7 +189,8 @@ def _commands(policy: Dict) -> Dict:
 def _guarded_heads(policy: Dict) -> set:
     guarded = {"cargo", "chezmoi", "git"}
     for name, table in _commands(policy).items():
-        if table.get("deny_flags") or table.get("ask_flags"):
+        if any(table.get(k) for k in ("deny_flags", "ask_flags", "deny_arg_patterns",
+                                      "trusted_roots_only")):
             guarded.add(name)
     return guarded
 
@@ -205,9 +217,22 @@ def _has_flag(args: List[str], flags: List[str]) -> Optional[str]:
     return None
 
 
+_DENIED_ARG = "%s %r is blocked: it can run code, write files, or read the environment."
+
+
+def _matching_arg(args: List[str], table: Dict) -> Optional[str]:
+    for arg in args:
+        if any(re.search(p, arg) for p in table.get("deny_arg_patterns", [])):
+            return arg
+    return None
+
+
 def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
-    head, args, _ = _normalize(segment.argv)
+    head, args, index = _normalize(segment.argv)
     table = _commands(policy).get(head)
+    if table is None and index and segment.argv[index - 1] == "rtk" and head:
+        # rtk's own subcommands (`rtk gain`) live in the `rtk` table.
+        head, args, table = "rtk", [head, *args], _commands(policy).get("rtk")
     if table is None:
         return Decision()
     env_allow = table.get("env_allow", {})
@@ -224,11 +249,20 @@ def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
             "%s %s is blocked: it can run programs, write files, or read "
             "files it should not." % (head, flag),
         )
+    arg = _matching_arg(args, table)
+    if arg is not None:
+        return Decision("deny", _DENIED_ARG % (head, arg))
     flag = _has_flag(args, table.get("ask_flags", []))
     if flag:
         return Decision("ask", "%s %s needs a manual approval." % (head, flag))
     if head == "chezmoi":
         return _check_chezmoi_source(args, cwd, policy)
+    if table.get("trusted_roots_only"):
+        return _check_trusted_root(head, args, table, cwd, policy)
+    if head == "git":
+        return _check_git_repo_state(segment, args, table, cwd, policy)
+    if head == "gitleaks":
+        return _check_gitleaks_repo(args, cwd)
     return Decision()
 
 
@@ -390,6 +424,26 @@ def _trusted(cwd: str, policy: Dict) -> bool:
     return False
 
 
+def _check_trusted_root(head: str, args: List[str], table: Dict, cwd: str,
+                        policy: Dict) -> Decision:
+    """Ask for an allowlisted subcommand outside the trusted roots, where the
+    static allow rule would run it under a stranger's toolchain config. An
+    option before the subcommand may take a value that looks like one, so
+    only a plain word that is not allowlisted is left alone."""
+    allowlisted = {a.split()[0] for a in table.get("args", []) if a.strip()}
+    rest = args[1:] if args and args[0].startswith("+") else args
+    if rest and not rest[0].startswith("-") and rest[0] not in allowlisted:
+        return Decision()
+    if _trusted(cwd, policy):
+        return Decision()
+    return Decision(
+        "ask",
+        "%s reads toolchain config from this directory (.cargo/config.toml, "
+        "rust-toolchain.toml), which can run programs; it is auto-approved only "
+        "in a trusted dev root." % head,
+    )
+
+
 def _decide_cargo(segments: List[Segment], cwd: str, policy: Dict) -> Decision:
     _, args, _ = _normalize(segments[0].argv)
     if _through_xargs(segments[0].argv) or not _cargo_args_ok(args):
@@ -423,50 +477,186 @@ _REFSPEC = re.compile(r"%s(?::%s)?" % (_REF, _REF))
 _BRANCH = re.compile(_REF)
 
 
-def _git_lines(cwd: str, *args: str) -> Optional[List[str]]:
-    """stdout lines of a read-only `git -C cwd ...`, or None if it fails."""
+def _git_run(cwd: str, *args: str):
+    """(returncode, stdout, stderr) of a read-only `git -C cwd ...`, or None
+    if git could not run."""
     try:
+        # LC_ALL=C: _repo_state_is_clean matches git's English error text.
         done = subprocess.run(
             ["git", "-C", cwd, *args],
             capture_output=True, text=True, timeout=5,
-            env=dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0"),
+            env=dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", LC_ALL="C"),
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return done.stdout.splitlines() if done.returncode == 0 else None
+    return done.returncode, done.stdout, done.stderr
 
 
-# Repo-local settings that make git run a program or talk to another host while
-# fetching or pulling. Whoever can write .git/config or .git/hooks controls
-# them, and approving a command on top of them would run that code unprompted.
-_RISKY_LOCAL_CONFIG = re.compile(
-    r"core\.(sshcommand|gitproxy|hookspath|fsmonitor|askpass|attributesfile"
-    r"|alternaterefscommand)"
+def _git_lines(cwd: str, *args: str) -> Optional[List[str]]:
+    """stdout lines of a read-only `git -C cwd ...`, or None if it fails."""
+    done = _git_run(cwd, *args)
+    return done[1].splitlines() if done and done[0] == 0 else None
+
+
+# Repo-local settings that make git run a program or talk to another host.
+# Whoever can write .git/config or .git/hooks controls them, and approving a
+# command on top of them would run that code unprompted. core.hooksPath is
+# flagged only for fetch/pull; read-only commands just follow it to the hooks
+# they could fire.
+_RISKY_CONFIG = (
+    r"core\.(sshcommand|gitproxy|fsmonitor|askpass|attributesfile"
+    r"|alternaterefscommand|pager)"
     r"|credential\..*|protocol\..*|include\..*|includeif\..*|filter\..*"
     r"|remote\..*\.(uploadpack|receivepack|vcs|proxy|proxyauthmethod)"
-    r"|http\..*(proxy|proxyauthmethod|extraheader)",
-    re.IGNORECASE,
+    r"|http\..*|url\..*"
+    r"|diff\.external|diff\..*\.(command|textconv)|pager\..*|gpg\..*"
 )
+_RISKY_LOCAL_CONFIG = re.compile(_RISKY_CONFIG, re.IGNORECASE)
+_RISKY_SYNC_CONFIG = re.compile(_RISKY_CONFIG + r"|core\.hookspath", re.IGNORECASE)
 _FETCH_PULL_HOOKS = (
     "reference-transaction", "post-merge", "post-checkout", "pre-auto-gc",
     "fsmonitor-watchman", "post-index-change", "post-rewrite",
 )
+# `git status` and `git diff` refresh the index, which fires this hook.
+_READ_HOOKS = ("post-index-change",)
+_MAX_SUBMODULES = 50
+_MAX_SUBMODULE_DEPTH = 3
+_GITLINK = "160000"
 
 
-def _repo_state_is_clean(cwd: str) -> bool:
-    """False if repo-local config or a hook could run code during fetch/pull."""
-    lines = _git_lines(cwd, "config", "--show-scope", "--list", "--name-only")
+def _config_is_risky(lines: List[str], risky) -> bool:
+    for line in lines:
+        scope, _, key = line.rpartition("\t")
+        if scope in ("", "local", "worktree", "command") and risky.fullmatch(key):
+            return True
+    return False
+
+
+def _submodules_are_clean(cwd: str, git_opts, sync: bool, depth: int) -> bool:
+    """`git status` runs git inside each populated submodule, under that
+    submodule's own config and hooks, wherever its git dir lives."""
+    done = _git_run(cwd, *git_opts, "ls-files", "--stage", "-z", "--full-name", "--", ":/")
+    if done is None or done[0] != 0:
+        return False
+    paths = []
+    for entry in done[1].split("\0"):
+        meta, _, path = entry.partition("\t")
+        if meta.split(" ", 1)[0] == _GITLINK:
+            paths.append(path)
+    if not paths:
+        return True
+    if depth >= _MAX_SUBMODULE_DEPTH or len(paths) > _MAX_SUBMODULES:
+        return False
+    top = _git_lines(cwd, *git_opts, "rev-parse", "--show-toplevel")
+    if not top:
+        return False
+    for path in paths:
+        sub = os.path.join(top[0], path)
+        if os.path.lexists(os.path.join(sub, ".git")) and not _repo_state_is_clean(
+            sub, (), sync, depth + 1
+        ):
+            return False
+    return True
+
+
+def _repo_state_is_clean(cwd: str, git_opts=(), sync: bool = True, depth: int = 0) -> bool:
+    """False if repo-local config or a hook could run code during the git
+    command, or if any probe fails. `git_opts` are its location options
+    (-C, --git-dir, --work-tree), so the check looks at the repo the command
+    will use."""
+    lines = _git_lines(cwd, *git_opts, "config", "--show-scope", "--list", "--name-only")
     if lines is None:
         return False
-    for line in lines:
-        scope, _, key = line.partition("\t")
-        if scope in ("local", "worktree", "command") and _RISKY_LOCAL_CONFIG.fullmatch(key):
-            return False
-    hooks = _git_lines(cwd, "rev-parse", "--git-path", "hooks")
-    if not hooks:
+    if _config_is_risky(lines, _RISKY_SYNC_CONFIG if sync else _RISKY_LOCAL_CONFIG):
         return False
-    hooks_dir = os.path.join(cwd, hooks[0])
-    return not any(os.path.exists(os.path.join(hooks_dir, h)) for h in _FETCH_PULL_HOOKS)
+    has_repo_config = any(
+        line.partition("\t")[0] in ("local", "worktree") for line in lines
+    )
+    done = _git_run(cwd, *git_opts, "rev-parse", "--path-format=absolute",
+                    "--git-path", "hooks", "--is-bare-repository")
+    if done is None:
+        return False
+    code, out, stderr = done
+    if code != 0:
+        # Outside a repository git reads no repo-local config or hooks.
+        return not has_repo_config and "not a git repository" in stderr
+    paths = out.splitlines()
+    if len(paths) != 2:
+        return False
+    hooks_dir, bare = paths
+    hooks = _FETCH_PULL_HOOKS if sync else _READ_HOOKS
+    if any(os.path.lexists(os.path.join(hooks_dir, h)) for h in hooks):
+        return False
+    if bare == "true":
+        return True
+    return _submodules_are_clean(cwd, git_opts, sync, depth)
+
+
+_GIT_LOCATION_OPTS = {"-C", "--git-dir", "--work-tree"}
+_GIT_VALUE_OPTS = _GIT_LOCATION_OPTS | {
+    "-c", "--config-env", "--namespace", "--super-prefix", "--list-cmds", "--attr-source",
+}
+_GIT_BOOL_OPTS = {
+    "-p", "--paginate", "-P", "--no-pager", "--no-replace-objects", "--no-lazy-fetch",
+    "--no-optional-locks", "--no-advice", "--bare", "--literal-pathspecs",
+    "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs", "--version", "-v",
+    "--help", "-h", "--html-path", "--man-path", "--info-path", "--exec-path",
+}
+
+
+def _git_globals(args: List[str]):
+    """Parse git's global options: (location options, subcommand, problem).
+    `problem` is "deny" for a `-c` / --config-env / --exec-path=DIR that can
+    run a program, "ask" for an option this parser does not model, else
+    None."""
+    location, problem, i = [], None, 0
+    while i < len(args):
+        arg = args[i]
+        if not arg.startswith("-") or arg == "-":
+            return location, arg, problem
+        name, has_value, value = arg.partition("=")
+        if name in _GIT_VALUE_OPTS and not has_value:
+            if i + 1 >= len(args):
+                return location, None, "ask"
+            value = args[i + 1]
+            i += 1
+        if name in _GIT_LOCATION_OPTS:
+            location += [name, value] if name == "-C" else ["%s=%s" % (name, value)]
+        elif name == "-c":
+            if _RISKY_SYNC_CONFIG.fullmatch(value.partition("=")[0]):
+                problem = "deny"
+        elif name == "--config-env" or (name == "--exec-path" and has_value):
+            problem = "deny"
+        elif name not in _GIT_VALUE_OPTS and (has_value or name not in _GIT_BOOL_OPTS):
+            problem = problem or "ask"
+        i += 1
+    return location, None, problem
+
+
+def _check_git_repo_state(segment: Segment, args: List[str], table: Dict,
+                          cwd: str, policy: Dict) -> Decision:
+    """Deny a `-c` that runs a program, and ask before an allowlisted git
+    subcommand runs in a repo whose local config or hooks would."""
+    location, sub, problem = _git_globals(args)
+    if problem == "deny":
+        return Decision(
+            "deny", "git -c, --config-env and --exec-path can run programs; they are blocked "
+            "like the matching GIT_* environment overrides.")
+    if problem == "ask":
+        return Decision("ask", "git global options this hook cannot check; review them.")
+    allowlisted = {a.split()[0] for a in table.get("args", []) if a.strip()}
+    if sub not in allowlisted and sub not in _SYNC_FLAGS:
+        return Decision()
+    base = cwd
+    if segment.argv[_normalize(segment.argv)[2]] == "chezmoi":
+        base = policy.get("chezmoi_working_tree")
+    if not base or not _repo_state_is_clean(base, location, sub in _SYNC_FLAGS):
+        return Decision(
+            "ask",
+            "This repository's local git config or hooks can run a program during "
+            "git %s, or could not be checked; review them before running." % sub,
+        )
+    return Decision()
 
 
 def _approved_git_url(policy: Dict):
@@ -536,9 +726,8 @@ def _decide_git_sync(command: str, segments: List[Segment], cwd: str, policy: Di
         return Decision()
     sub, rest = args[0], args[1:]
     targets = _sync_targets(sub, rest, cwd)
+    # _check_segment has already asked if the repo's config or hooks are risky.
     if not targets or not _remotes_approved(targets, cwd, policy):
-        return Decision()
-    if not _repo_state_is_clean(cwd):
         return Decision()
     extra = "".join(" " + f for f in _SYNC_FORCED[sub] if f not in rest)
     updated = command
@@ -548,6 +737,25 @@ def _decide_git_sync(command: str, segments: List[Segment], cwd: str, policy: Di
     return Decision(
         "allow", "git %s from an approved remote" % sub, updated if extra else None
     )
+
+
+def _check_gitleaks_repo(args: List[str], cwd: str) -> Decision:
+    """`gitleaks git [path]` runs `git log -p` in the repo it scans. Any
+    argument naming a directory might be that path, so check them all."""
+    if not args or args[0] != "git":
+        return Decision()
+    dirs = [cwd] + [
+        os.path.join(cwd, a.partition("=")[2] if a.startswith("-") else a)
+        for a in args[1:]
+    ]
+    for path in dirs:
+        if os.path.isdir(path) and not _repo_state_is_clean(path, sync=False):
+            return Decision(
+                "ask",
+                "This repository's local git config or hooks can run a program "
+                "when gitleaks runs git log; review it before running.",
+            )
+    return Decision()
 
 
 # --- chezmoi --------------------------------------------------------------------
