@@ -211,10 +211,17 @@ comment = "Command runner / project Makefile alternative"
 tiers = ["core"]
 
 [[packages]]
-key = "mprocs"
+key = "dekit"
 section = "cli"
-brew = "mprocs"
-comment = "Run multiple commands in parallel"
+brew = "dekit"
+comment = "Run multiple commands in parallel (formerly mprocs)"
+tiers = ["core"]
+
+[[packages]]
+key = "sember"
+section = "cli"
+brew = "nickvigilante/tap/sember"
+comment = "Semantic line breaks for Markdown and prose"
 tiers = ["core"]
 
 [[packages]]
