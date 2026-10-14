@@ -166,6 +166,37 @@ class RenderedPolicy(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(self.permission(command), "deny")
 
+    def test_shell_expansion_never_slips_past(self):
+        # Expansions are outside what scan() models, so the hook sees only a
+        # rough split; it must deny or ask, never stay silent.
+        for command in [
+            "kubectl get pods --kube$(echo config) /tmp/k", 'kubectl get pods --kube"config" k',
+            'kubectl get pods "--kubeconfig" k', "kubectl get pods --kube\\config k",
+            "kubectl get pods --{kubeconfig,x} k", "kubectl get pods $FLAG",
+            'brew info "$HOME"/x.rb', "brew info ${PWD}/x", "brew info $(pwd)/x",
+            "brew info *.rb", "brew info x*", "jq -n $'env'", "jq -n `echo env`",
+        ]:
+            with self.subTest(command=command):
+                self.assertIn(self.permission(command), ("deny", "ask"))
+
+    def test_brew_attached_and_traversal_forms_denied(self):
+        for command in ["brew info --formula=./x.rb", "brew info --cask=/tmp/x",
+                        "brew info --cask=~/x", "brew deps x/../../tmp/evil",
+                        "HOMEBREW_NO_INSTALL_FROM_API=1 brew info x"]:
+            with self.subTest(command=command):
+                self.assertEqual(self.permission(command), "deny")
+
+    def test_rtk_meta_commands(self):
+        self.assertEqual(self.permission("rtk gain --reset --yes"), "deny")
+        self.assertEqual(self.permission("rtk gain --reset; ls"), "deny")
+        self.assertIsNone(self.permission("rtk gain --history"))
+        self.assertIsNone(self.permission("rtk discover"))
+        # cc-economics fetches ccusage through npx, so it is not allowlisted.
+        self.assertNotIn("Bash(rtk cc-economics *)", self.allow_rules())
+
+    def allow_rules(self):
+        return render("home/dot_claude/settings.json.tmpl")["permissions"]["allow"]
+
     def test_read_forms_still_allowed(self):
         # --rawfile reads a file as `jq . FILE` or `rtk read FILE` already can.
         for command in [

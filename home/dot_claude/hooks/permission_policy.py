@@ -74,6 +74,8 @@ def decide(
         verdict = Decision()
         for piece in [command, *_PIECE_SEPARATORS.split(command)]:
             head, piece_args = _rough_split(piece)
+            if head not in _commands(policy) and piece.split()[:1] == ["rtk"]:
+                head, piece_args = "rtk", [head, *piece_args]
             if head not in _guarded_heads(policy):
                 continue
             # A rough whitespace split can still spot a forbidden flag, and
@@ -226,8 +228,11 @@ def _matching_arg(args: List[str], table: Dict) -> Optional[str]:
 
 
 def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
-    head, args, _ = _normalize(segment.argv)
+    head, args, index = _normalize(segment.argv)
     table = _commands(policy).get(head)
+    if table is None and index and segment.argv[index - 1] == "rtk" and head:
+        # rtk's own subcommands (`rtk gain`) live in the `rtk` table.
+        head, args, table = "rtk", [head, *args], _commands(policy).get("rtk")
     if table is None:
         return Decision()
     env_allow = table.get("env_allow", {})

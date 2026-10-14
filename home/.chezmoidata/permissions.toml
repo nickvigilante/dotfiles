@@ -451,7 +451,7 @@ args = [
 # older versions do not), and --eval-all evaluates every tapped formula.
 [permissions.commands.brew]
 deny_flags = ["--eval-all"]
-deny_arg_patterns = ['^[./~]', '\.rb$', '://']
+deny_arg_patterns = ['(^|=)[./~]', '\.rb$', '://', '(^|/)\.\.(/|$)']
 args = [
   "info *",
   "search *",
@@ -473,16 +473,11 @@ args = [
 trusted_roots_only = true
 args = ["show", "target list", "toolchain list", "component list *", "check"]
 
+# `rtk gain --reset` wipes the savings history. `rtk cc-economics` is not
+# listed: it runs ccusage through npx, which fetches code from npm.
 [permissions.commands.rtk]
-args = [
-  "gain *",
-  "discover",
-  "cc-economics *",
-  "session *",
-  "config show",
-  "--version",
-  "--help",
-]
+deny_flags = ["--reset"]
+args = ["gain *", "discover", "session *", "config show", "--version", "--help"]
 
 [permissions.commands.sw_vers]
 args = [""]

@@ -316,6 +316,12 @@ class ReadOnlyGitRepoState(unittest.TestCase):
         self.assertEqual(
             self.permission("gitleaks git --no-banner r", cwd=self._dir.name, policy=policy), "ask")
         self.assertIsNone(self.permission("gitleaks version", policy=policy))
+        trusted = os.path.join(self._dir.name, "clean")
+        make_repo(trusted)
+        for command in ["gitleaks git %s" % self.repo, "gitleaks git --source %s" % self.repo,
+                        "gitleaks git --source=%s -v" % self.repo]:
+            with self.subTest(command=command):
+                self.assertEqual(self.permission(command, cwd=trusted, policy=policy), "ask")
 
     def add_submodule(self, absorbed):
         sub = make_repo(os.path.join(self._dir.name, "sub%d" % absorbed))
