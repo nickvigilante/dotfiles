@@ -334,6 +334,31 @@ class CurlMentionedNotRun(unittest.TestCase):
                 self.assertEqual(permission(command), "deny")
 
 
+class DenyArgPatterns(unittest.TestCase):
+    POLICY = {"permissions": {"commands": {"probe": {"deny_arg_patterns": [r"\bsecret\b"]}}}}
+
+    def test_matching_argument_denies_in_any_segment(self):
+        for command in ["probe secret", "rtk probe -x 'a secret'", "ls | probe secret",
+                        "probe secret; ls"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, policy=self.POLICY), "deny")
+        self.assertIsNone(permission("probe secrets", policy=self.POLICY))
+
+
+class CargoOutsideTrustedRoots(unittest.TestCase):
+    POLICY = {"permissions": {"hook": {"trusted_dev_roots": [ROOT]},
+                              "commands": {"cargo": {"args": ["tree *", "metadata *"]}}}}
+
+    def test_allowlisted_subcommand_asks_outside_roots(self):
+        for command in ["cargo tree", "cargo +nightly --color never metadata"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, UNTRUSTED, policy=self.POLICY), "ask")
+                self.assertIsNone(permission(command, TRUSTED, policy=self.POLICY))
+
+    def test_other_subcommands_untouched(self):
+        self.assertIsNone(permission("cargo publish", UNTRUSTED, policy=self.POLICY))
+
+
 class MissingPolicy(unittest.TestCase):
     def test_empty_policy_never_allows_but_still_routes_curl(self):
         self.assertIsNone(permission("cargo test", policy={}))

@@ -12,6 +12,7 @@ Per-command keys read from permissions.commands.<name>:
     deny_flags  flags that block the command outright
     ask_flags   flags that force a manual approval
     env_allow   NAME -> regex; any other VAR= prefix blocks the command
+    deny_arg_patterns  regexes; an argument matching one blocks the command
 """
 
 from __future__ import annotations
@@ -82,6 +83,9 @@ def decide(
             flag = _has_flag(piece_args, table.get("deny_flags", []))
             if flag:
                 return Decision("deny", "%s %s is blocked." % (head, flag))
+            arg = _matching_arg(piece_args, table)
+            if arg is not None:
+                return Decision("deny", _DENIED_ARG % (head, arg))
             verdict = verdict if verdict.permission else Decision(
                 "ask",
                 "Could not parse this %s command safely, so its flags "
@@ -178,7 +182,7 @@ def _commands(policy: Dict) -> Dict:
 def _guarded_heads(policy: Dict) -> set:
     guarded = {"cargo", "chezmoi", "git"}
     for name, table in _commands(policy).items():
-        if table.get("deny_flags") or table.get("ask_flags"):
+        if table.get("deny_flags") or table.get("ask_flags") or table.get("deny_arg_patterns"):
             guarded.add(name)
     return guarded
 
@@ -205,6 +209,16 @@ def _has_flag(args: List[str], flags: List[str]) -> Optional[str]:
     return None
 
 
+_DENIED_ARG = "%s %r is blocked: it can read the environment or load code from files."
+
+
+def _matching_arg(args: List[str], table: Dict) -> Optional[str]:
+    for arg in args:
+        if any(re.search(p, arg) for p in table.get("deny_arg_patterns", [])):
+            return arg
+    return None
+
+
 def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
     head, args, _ = _normalize(segment.argv)
     table = _commands(policy).get(head)
@@ -224,11 +238,16 @@ def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
             "%s %s is blocked: it can run programs, write files, or read "
             "files it should not." % (head, flag),
         )
+    arg = _matching_arg(args, table)
+    if arg is not None:
+        return Decision("deny", _DENIED_ARG % (head, arg))
     flag = _has_flag(args, table.get("ask_flags", []))
     if flag:
         return Decision("ask", "%s %s needs a manual approval." % (head, flag))
     if head == "chezmoi":
         return _check_chezmoi_source(args, cwd, policy)
+    if head == "cargo":
+        return _check_cargo_root(args, table, cwd, policy)
     return Decision()
 
 
@@ -388,6 +407,31 @@ def _trusted(cwd: str, policy: Dict) -> bool:
         if real == root or real.startswith(root + os.sep):
             return True
     return False
+
+
+def _cargo_subcommand(args: List[str]) -> Optional[str]:
+    if args and args[0].startswith("+"):
+        args = args[1:]
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if not arg.startswith("-"):
+            return arg
+        i += 2 if arg in _CARGO_VALUE else 1
+    return None
+
+
+def _check_cargo_root(args: List[str], table: Dict, cwd: str, policy: Dict) -> Decision:
+    """Ask for an allowlisted cargo subcommand outside the trusted roots: the
+    static allow rule would otherwise run it under a stranger's cargo config."""
+    allowlisted = {a.split()[0] for a in table.get("args", []) if a.strip()}
+    if _cargo_subcommand(args) not in allowlisted or _trusted(cwd, policy):
+        return Decision()
+    return Decision(
+        "ask",
+        "cargo reads .cargo/config.toml and rust-toolchain.toml here, which can "
+        "run programs; it is auto-approved only in a trusted dev root.",
+    )
 
 
 def _decide_cargo(segments: List[Segment], cwd: str, policy: Dict) -> Decision:

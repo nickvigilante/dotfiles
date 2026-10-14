@@ -19,6 +19,7 @@
 #   ask_flags   flags that force a manual approval instead
 #   env_allow   NAME = "regex" for allowed VAR= prefixes; any other prefix blocks
 #   deny_args   static deny rules, generated for every head form like args
+#   deny_arg_patterns  regexes; an argument matching one blocks the command
 #   rtk_only    generate only the `rtk <cmd>` head (no plain command exists)
 #
 # A head must NEVER contain a wildcard. A head's text sits BEFORE the subcommand,
@@ -172,8 +173,12 @@ args = ["exec astro check *", "list *", "why *", "outdated *", "audit *"]
 [permissions.commands.npm]
 args = ["list *", "outdated *", "info *"]
 
+# cargo reads .cargo/config.toml and rust-toolchain.toml from the working
+# directory, and either can name a program to run (build.rustc-wrapper, a
+# toolchain path), so the hook asks for these outside trusted_dev_roots.
 [permissions.commands.cargo]
 args = ["tree *", "metadata *", "search *"]
+deny_flags = ["--config", "-Z"]
 env_allow = { RUST_BACKTRACE = "0|1|full", RUST_LOG = "[A-Za-z0-9_=,:.-]+", CARGO_TERM_COLOR = "always|never|auto", NO_COLOR = "1" }
 
 # Read-only tools. rtk rewrites the plain forms (`cat`/`head` become `rtk read`),
@@ -248,7 +253,10 @@ deny_flags = [
 ]
 env_allow = { NO_COLOR = "1" }
 
+# A kubeconfig can name an exec credential plugin, so only the default one is
+# allowed; KUBECONFIG= is blocked because env_allow does not list it.
 [permissions.commands.kubectl]
+deny_flags = ["--kubeconfig"]
 args = [
   "version*",
   "cluster-info",
@@ -391,7 +399,9 @@ args = [
   "describe helmchartconfigs *",
 ]
 
+# --kubeconfig and KUBECONFIG= as for kubectl; --post-renderer runs a program.
 [permissions.commands.helm]
+deny_flags = ["--kubeconfig", "--post-renderer"]
 args = [
   "version*",
   "env",
@@ -480,8 +490,16 @@ args = ["*"]
 [permissions.commands.cf-terraforming]
 args = ["version"]
 
+# `env` and `$ENV` print the environment (BW_SESSION and other secrets).
+# -f, -L and import/include load jq code from files, which could do the same.
 [permissions.commands.jq]
 args = ["*"]
+deny_flags = ["-f", "--from-file", "-L", "--library-path"]
+deny_arg_patterns = [
+  '(?<![\w.$])env\b',
+  '\$\s*ENV\b',
+  '(?<![\w.$])(import|include)\b',
+]
 
 [permissions.commands.stat]
 args = ["*"]

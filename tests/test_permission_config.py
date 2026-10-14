@@ -1,6 +1,7 @@
 """Render the real permission config with chezmoi and check its invariants
 and key decisions. Skipped when chezmoi is not installed."""
 
+import copy
 import json
 import os
 import shutil
@@ -105,6 +106,41 @@ class RenderedPolicy(unittest.TestCase):
                         "chezmoi diff --source .worktrees/x", "RUST_LOG=debug cargo tree"]:
             with self.subTest(command=command):
                 self.assertNotEqual(self.permission(command), "deny")
+
+    def test_code_running_flags_denied(self):
+        for command in [
+            "cargo tree --config build.rustc=/tmp/evil",
+            "rtk cargo metadata --config=x.toml",
+            "cargo tree -Zunstable-options",
+            "kubectl --kubeconfig /tmp/k get pods",
+            "rtk kubectl get pods --kubeconfig=/tmp/k",
+            "KUBECONFIG=/tmp/k kubectl get pods",
+            "helm list --kubeconfig /tmp/k",
+            "KUBECONFIG=/tmp/k helm status x",
+            "helm template x --post-renderer /tmp/evil",
+            "jq -n env", "rtk jq -n '$ENV.BW_SESSION'", "jq -n 'env.HOME'",
+            "jq -n '$ENV'", "ls | jq -n env", "jq -f prog.jq", "jq --from-file=p x",
+            "jq -L . 'import \"x\" as x; x::f'", "jq -n 'include \"x\"; 1'",
+            "jq -n env; ls",
+        ]:
+            with self.subTest(command=command):
+                self.assertEqual(self.permission(command), "deny")
+
+    def test_cargo_reads_outside_trusted_roots_ask(self):
+        # CI checks the repo out outside the configured roots, so trust it here.
+        policy = copy.deepcopy(self.policy)
+        policy["permissions"]["hook"]["trusted_dev_roots"] = [ROOT]
+        for command in ["cargo tree", "rtk cargo metadata --format-version 1",
+                        "cargo +stable search serde"]:
+            with self.subTest(command=command):
+                self.assertEqual(decide(command, "/tmp", None, policy).permission, "ask")
+                self.assertIsNone(decide(command, ROOT, None, policy).permission)
+
+    def test_ordinary_jq_kubectl_helm_not_denied(self):
+        for command in ["jq -r .name package.json", "jq '.env' x.json", "jq '.[] | .environment'",
+                        "kubectl get pods -A", "helm list -A", "helm template x ./chart"]:
+            with self.subTest(command=command):
+                self.assertIsNone(self.permission(command))
 
     def test_working_tree_is_the_repo(self):
         self.assertEqual(os.path.realpath(self.policy["chezmoi_working_tree"]),
