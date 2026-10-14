@@ -134,9 +134,9 @@ _bw_ensure_session() {
 
 # Wrap `chezmoi apply` to prompt for Bitwarden state before applying.
 # Supports --skip-secrets to bypass prompts and apply without vault access.
-# If the user declines to unlock/log-in, applies with secrets=none so
-# vault-gated files (e.g. ~/.kube/homelab.yaml) are skipped rather than
-# causing a hard failure.  All other chezmoi subcommands pass through unchanged.
+# Declining to unlock is safe: with BW_SESSION empty, .chezmoiignore skips only
+# the vault-rendered ~/.kube/homelab.yaml (leaving the live copy in place) and
+# everything else applies normally.  Other subcommands pass through unchanged.
 chezmoi() {
     if [[ "${1}" != "apply" ]]; then
         command chezmoi "$@"
@@ -163,7 +163,7 @@ chezmoi() {
 
     if [[ "$_skip" == true ]]; then
         echo "Applying without Bitwarden — vault-dependent files will not be updated."
-        command chezmoi apply --override-data '{"secrets":"none"}' "${_passthrough[@]}"
+        BW_SESSION= command chezmoi apply "${_passthrough[@]}"
     else
         command chezmoi apply "${_passthrough[@]}"
     fi
