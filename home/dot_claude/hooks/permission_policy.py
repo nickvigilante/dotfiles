@@ -23,7 +23,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from shellscan import Segment, scan
+from shellscan import Piece, Segment, scan, split_list
 
 CURL_AGENT = "curl-runner"
 ROUTE_TO_CURL_AGENT = (
@@ -56,7 +56,7 @@ class Decision:
 def decide(
     command: str, cwd: str, agent_type: Optional[str], policy: Dict
 ) -> Decision:
-    segments = scan(command)
+    segments = _scan(command, policy)
     crude, rough_args = _rough_split(command)
     heads = [_normalize(s.argv)[0] for s in segments] if segments else []
     is_curl = os.path.basename(crude) == "curl" or any(
@@ -68,6 +68,35 @@ def decide(
     if is_curl or (segments is None and _CURL_WORD.search(command)):
         return Decision("deny", ROUTE_TO_CURL_AGENT)
 
+    if segments is None:
+        pieces = split_list(command)
+        if pieces is not None:
+            return _decide_list(command, pieces, cwd, policy)
+    return _decide_one(command, segments, cwd, policy)
+
+
+def _scan(command: str, policy: Dict) -> Optional[List[Segment]]:
+    """scan(), treating a glob as unparseable in a command name, or in the
+    arguments of a guarded command whose table does not set `glob_args`: its
+    checks read paths and option values that the glob would change."""
+    segments = scan(command)
+    for segment in segments or []:
+        globs = [i for i, w in enumerate(segment.words) if w.glob]
+        if not globs:
+            continue
+        head, _, index = _normalize(segment.argv)
+        table = _commands(policy).get(head) or {}
+        if globs[0] <= index or (
+            head in _guarded_heads(policy) and not table.get("glob_args")
+        ):
+            return None
+    return segments
+
+
+def _decide_one(command: str, segments: Optional[List[Segment]], cwd: str,
+                policy: Dict) -> Decision:
+    """The decision for one pipeline, or for a command scan() rejected."""
+    heads = [_normalize(s.argv)[0] for s in segments] if segments else []
     if segments is None:
         # Check every piece, not just the first: a guarded command later in
         # the pipeline would otherwise be approved by the static allowlist.
@@ -266,6 +295,191 @@ def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
     return Decision()
 
 
+# --- command lists --------------------------------------------------------------
+
+# Builtins that change the shell itself: its directory, variables (PATH,
+# GIT_DIR), aliases, functions, options or command lookup. After one of these
+# a later piece may run somewhere, or as something, the hook did not check.
+# zsh runs the last command of a pipeline in the current shell, so `x | read
+# PATH` counts too; every segment is checked.
+_STATE_BUILTINS = frozenset({
+    ".", "source", "eval", "exec", "cd", "pushd", "popd", "dirs", "export",
+    "unset", "set", "setopt", "unsetopt", "shopt", "emulate", "alias", "unalias",
+    "typeset", "declare", "local", "readonly", "integer", "float", "functions",
+    "hash", "rehash", "enable", "disable", "trap", "autoload", "zmodload", "ulimit",
+    "umask", "read", "getopts", "let", "mapfile", "readarray", "vared", "zstyle",
+    "zparseopts", "fc", "r",
+})
+
+
+def _is_state_builtin(segment: Segment) -> bool:
+    """True for a shell builtin from _STATE_BUILTINS, but not for an rtk
+    subcommand of the same name such as `rtk read`."""
+    head, _, index = _normalize(segment.argv)
+    if segment.argv[0] in _STATE_BUILTINS:
+        return True
+    return head in _STATE_BUILTINS and "rtk" not in segment.argv[:index]
+
+
+def _decide_list(command: str, pieces: List[Piece], cwd: str, policy: Dict) -> Decision:
+    """Decide each piece of a `&&` / `||` / `;` list on its own, following
+    each `cd` so every piece is checked where it will run.
+
+    A guarded piece asks if an earlier piece changed the shell in a way the
+    hook cannot follow. The list is allowed only if some piece earned an
+    allow (a git fetch/pull or cargo fast path) and every other piece is a
+    tracked cd or matches the static allowlist, so the allow never covers a
+    command Claude Code would have prompted for."""
+    here, known, settles = cwd, True, False
+    ask, reasons, edits = None, [], []
+    allowed, all_vetted = False, True
+    for piece in pieces:
+        text = command[piece.start : piece.end]
+        if settles and piece.before != "&&":
+            # The `&&` chain that held a cd has ended; it may not have run.
+            known, settles = False, False
+        segments = _scan(text, policy)
+        target = _cd_target(segments, here)
+        if target is not None:
+            here = target
+            if "||" in (piece.before, piece.after):
+                known = False
+            elif piece.before == "&&":
+                settles = True
+            continue
+        if not known and _mentions_guarded(text, policy):
+            ask = ask or Decision(
+                "ask",
+                "An earlier command in this list changes the directory or the shell, "
+                "so this command cannot be checked where it runs.",
+            )
+            continue
+        decision = _decide_one(text, segments, here, policy)
+        if decision.permission == "deny":
+            return decision
+        if decision.permission == "ask":
+            ask = ask or decision
+        if decision.reason:
+            reasons.append(decision.reason)
+        if decision.updated_command is not None:
+            edits.append((piece.start, piece.end, decision.updated_command))
+        if decision.permission == "allow":
+            allowed = True
+        elif not _vetted(segments, policy):
+            all_vetted = False
+        if segments is None or _changes_shell(segments, here):
+            known = False
+
+    updated = None
+    if edits:
+        updated = command
+        for start, end, text in reversed(edits):
+            updated = updated[:start] + text + updated[end:]
+    if ask:
+        return Decision("ask", ask.reason, updated)
+    permission = "allow" if allowed and all_vetted else None
+    return Decision(permission, "; ".join(reasons), updated)
+
+
+_DOT_RELATIVE = re.compile(r"\.\.?(?:/|$)")
+
+
+def _cd_target(segments: Optional[List[Segment]], cwd: str) -> Optional[str]:
+    """The directory a plain `cd dir` will move to, if it will succeed, else
+    None. Both shells look a relative name up in CDPATH unless it starts
+    with `./` or `../`, so other relative names count only without one."""
+    if not segments or len(segments) != 1:
+        return None
+    segment = segments[0]
+    # A stderr redirect only hides cd's error, and a missing dir returns None.
+    if segment.env or len(segment.words) != 2:
+        return None
+    cd, path = segment.words
+    if cd.value != "cd" or path.glob or path.value.startswith("-"):
+        return None
+    relative = not path.value.startswith("/")
+    if relative and not _DOT_RELATIVE.match(path.value) and os.environ.get("CDPATH"):
+        return None
+    path = os.path.normpath(os.path.join(cwd, path.value))
+    if not os.path.isdir(path) or not os.access(path, os.X_OK):
+        return None
+    return path
+
+
+def _changes_shell(segments: List[Segment], cwd: str) -> bool:
+    for segment in segments:
+        head, args, _ = _normalize(segment.argv)
+        if _is_state_builtin(segment):
+            return True
+        if head in ("printf", "print") and any(a.startswith("-v") for a in args):
+            return True
+        # zsh's AUTO_CD runs `cd` for a command that is only a directory.
+        if not args and os.path.isdir(os.path.join(cwd, head)):
+            return True
+    return False
+
+
+def _mentions_guarded(text: str, policy: Dict) -> bool:
+    for part in [text, *_PIECE_SEPARATORS.split(text)]:
+        head, _ = _rough_split(part)
+        if head not in _commands(policy) and part.split()[:1] == ["rtk"]:
+            head = "rtk"
+        if head in _guarded_heads(policy):
+            return True
+    return False
+
+
+def _vetted(segments: Optional[List[Segment]], policy: Dict) -> bool:
+    """True if every segment matches a static allow rule (later segments may
+    instead be read-only filters) and nothing feeds them a heredoc."""
+    if not segments:
+        return False
+    for position, segment in enumerate(segments):
+        if segment.heredoc:
+            return False
+        if not _statically_allowed(segment, policy) and not (
+            position and _filter_ok(segment)
+        ):
+            return False
+    return True
+
+
+def _rule_matches(rule: str, text: str) -> bool:
+    """`*` matches anything; a trailing ` *` also matches no arguments."""
+    if rule.endswith(" *") and text == rule[:-2]:
+        return True
+    return re.fullmatch(re.escape(rule).replace(r"\*", ".*"), text, re.DOTALL) is not None
+
+
+def _statically_allowed(segment: Segment, policy: Dict) -> bool:
+    """True if Claude Code's generated allow rules (settings.json.tmpl) match
+    this segment and its deny rules do not."""
+    head, args, index = _normalize(segment.argv)
+    if _is_state_builtin(segment) or _through_xargs(segment.argv):
+        return False
+    tables = _commands(policy)
+    table = tables.get(head)
+    via_rtk = "rtk" in segment.argv[:index]
+    if table is None and via_rtk and head:
+        head, table = "rtk", tables.get("rtk")
+        via_rtk = False
+    if table is None:
+        return False
+    if any(name not in table.get("env_allow", {}) for name, _ in segment.env):
+        return False
+    rest = segment.argv[index:] if head != "rtk" else ["rtk", *segment.argv[index:]]
+    text = " ".join((["rtk"] if via_rtk else []) + rest)
+    wrapped = head in policy.get("permissions", {}).get("rtk_wraps", [])
+    heads = [] if table.get("rtk_only") else [head]
+    heads += ["rtk " + head] if wrapped else []
+    heads += table.get("extra_heads", [])
+    allow = [h + (" " + a if a else "") for h in heads for a in table.get("args", [])]
+    deny = [h + " " + a for h in heads for a in table.get("deny_args", [])]
+    return any(_rule_matches(r, text) for r in allow) and not any(
+        _rule_matches(r, text) for r in deny
+    )
+
+
 def _opts_ok(args, bool_flags, value_flags, max_positionals) -> bool:
     """True if every arg is an allowed flag, a flag value matching its
     regex, or one of at most `max_positionals` positional arguments."""
@@ -446,7 +660,7 @@ def _check_trusted_root(head: str, args: List[str], table: Dict, cwd: str,
 
 def _decide_cargo(segments: List[Segment], cwd: str, policy: Dict) -> Decision:
     _, args, _ = _normalize(segments[0].argv)
-    if _through_xargs(segments[0].argv) or not _cargo_args_ok(args):
+    if segments[0].heredoc or _through_xargs(segments[0].argv) or not _cargo_args_ok(args):
         return Decision()
     if not all(_filter_ok(s) for s in segments[1:]):
         return Decision()
@@ -876,6 +1090,8 @@ def _decide_curl_agent(segments, heads, crude) -> Decision:
         )
     first = segments[0]
     _, args, _ = _normalize(first.argv)
-    if first.env or _through_xargs(first.argv) or not _curl_ok(args):
+    if first.env or _through_xargs(first.argv) or any(w.glob for w in first.words):
+        return Decision()
+    if not _curl_ok(args):
         return Decision()
     return Decision("allow", "local read-only curl request in curl-runner")

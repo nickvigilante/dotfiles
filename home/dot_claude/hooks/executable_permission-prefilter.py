@@ -7,6 +7,8 @@ hook checks what prefixes can't, using permission_policy.decide():
   - deny forbidden flags (deny_flags) and environment overrides (env_allow)
     on allowlisted commands, in every form: plain, `rtk`, `chezmoi git`
   - ask when a guarded command can't be parsed safely
+  - split `&&` / `||` / `;` lists and decide each piece where it runs,
+    following `cd`; ask for a guarded piece after one that changes the shell
   - ask before an allowlisted git command runs in a repo whose local config
     or hooks would run a program, and before allowlisted cargo reads run
     outside a trusted dev root
