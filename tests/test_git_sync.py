@@ -212,6 +212,40 @@ class GitSync(unittest.TestCase):
                 f.write("#!/bin/sh\n")
         self.assertEqual(self.decide("git fetch", repo).permission, "allow")
 
+    def test_chained_with_allowlisted_commands_is_allowed(self):
+        repo = self.repo(origin="https://github.com/coder/coder.git")
+        decision = self.decide("git fetch -q && git log --oneline -3 origin/main", repo)
+        self.assertEqual(decision.permission, "allow")
+        self.assertEqual(decision.updated_command,
+                         "git fetch --no-recurse-submodules -q && git log --oneline -3 origin/main")
+        decision = self.decide("git pull --ff-only; git fetch | tail -1", repo)
+        self.assertEqual(decision.permission, "allow")
+        self.assertEqual(decision.updated_command,
+                         "git pull --no-rebase --no-recurse-submodules --ff-only; "
+                         "git fetch --no-recurse-submodules | tail -1")
+
+    def test_cd_into_the_repo_first(self):
+        repo = self.repo(origin="git@github.com:nickvigilante/dotfiles.git")
+        command = "cd %s && git fetch -q origin main && git status" % repo
+        self.assertEqual(self.decide(command, self._dir.name).permission, "allow")
+        unapproved = self.repo(origin="https://github.com/evil/x")
+        self.assertIsNone(self.decide("cd %s && git fetch" % unapproved, repo).permission)
+
+    def test_chained_with_anything_else_is_not_allowed(self):
+        repo = self.repo(origin="https://github.com/coder/coder.git")
+        for command in [
+            "git fetch && git push",
+            "git fetch && sh",
+            "git fetch; ls",
+            "git fetch && git status > out",
+            "git fetch && git log $(x)",
+            "export GIT_DIR=/tmp/x; git fetch",
+            "git fetch && git commit -F - <<'EOF'\nmsg\nEOF",
+        ]:
+            with self.subTest(command=command):
+                self.assertNotEqual(self.decide(command, repo).permission, "allow")
+        self.assertEqual(self.decide("git fetch && git log --output=f", repo).permission, "deny")
+
     def test_needs_configured_owners(self):
         repo = self.repo(origin="https://github.com/coder/coder.git")
         for hook in [{}, {"approved_git_hosts": ["github.com"]},
@@ -365,13 +399,18 @@ class ReadOnlyGitRepoState(unittest.TestCase):
         self.assertEqual(self.permission("git log", cwd=bare), "ask")
 
     def test_unknown_or_unmodelled_forms_ask(self):
-        for command in ["git --bogus x status", "git -Cr status", "git -- status",
-                        "cd r && git status"]:
+        for command in ["git --bogus x status", "git -Cr status", "git -- status"]:
             with self.subTest(command=command):
                 self.assertEqual(self.permission(command, cwd=self._dir.name), "ask")
         for command in ["git --no-pager status", "git -P log", "git --version"]:
             with self.subTest(command=command):
                 self.assertIsNone(self.permission(command))
+
+    def test_cd_moves_the_check_to_the_new_directory(self):
+        self.assertIsNone(self.permission("cd r && git status", cwd=self._dir.name))
+        self.config("core.pager", "./evil")
+        self.assertEqual(self.permission("cd r && git status", cwd=self._dir.name), "ask")
+        self.assertEqual(self.permission("cd %s; git log" % self.repo, cwd="/"), "ask")
 
     def test_dash_c_chain(self):
         os.makedirs(os.path.join(self.repo, "a"))

@@ -25,6 +25,9 @@
 #   trusted_roots_only  ask for the allowlisted subcommands outside
 #               [permissions.hook] trusted_dev_roots
 #   rtk_only    generate only the `rtk <cmd>` head (no plain command exists)
+#   glob_args   accept `*`/`?` globs in this guarded command's arguments
+#               (only ones that start with a literal, so no match can be
+#               an option); without it, a glob makes the hook ask
 #
 # A head must NEVER contain a wildcard. A head's text sits BEFORE the subcommand,
 # and Claude Code matches these patterns as plain strings with no tokenisation, so
@@ -204,6 +207,7 @@ args = ["*"]
 
 [permissions.commands.rg]
 args = ["*"]
+glob_args = true
 deny_flags = ["--pre", "--pre-glob", "--hostname-bin"]
 
 [permissions.commands.head]
