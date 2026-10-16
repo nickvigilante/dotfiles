@@ -232,6 +232,69 @@ class RenderedPolicy(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIsNone(self.permission(command))
 
+    def test_destructive_forms_ask(self):
+        for command in [
+            "git push --force origin x",
+            "git push -fu origin x",
+            "git push origin +main",
+            "git push origin :old-branch",
+            "git push --force-with-lease",
+            "rtk git push -f",
+            "chezmoi git push --force",
+            "git -C /tmp reset --hard",
+            "git reset --hard HEAD~1",
+            "git clean -fdx",
+            "git checkout -- README.md",
+            "git checkout .",
+            "git restore README.md",
+            "git restore --staged --worktree README.md",
+            "git stash drop",
+            "git worktree remove --force .worktrees/x",
+            "git fetch -q && git reset --hard origin/main",
+            "gh pr merge 12 --squash",
+            "gh repo delete nickvigilante/x --yes",
+            "gh api -X DELETE repos/x/y",
+            "gh api --method=DELETE repos/x/y",
+            "chezmoi apply",
+            "chezmoi -v apply ~/.zshrc",
+            "chezmoi update",
+            "chezmoi forget ~/.zshrc",
+            "rm -rf /tmp/x",
+            "rm -r build",
+            "rm --force f",
+            "rm -rf $T",
+            "FOO=1 rm -rf x",
+            "find . -name x -delete",
+            "find . -name x -exec rm {} \\;",
+        ]:
+            with self.subTest(command=command):
+                self.assertEqual(self.permission(command), "ask")
+
+    def test_everyday_forms_do_not_ask(self):
+        for command in [
+            "git push -u origin feature",
+            "git reset --soft origin/main",
+            "git reset HEAD README.md",
+            "git clean -nd",
+            "git checkout -b new-branch",
+            "git restore --staged README.md",
+            "git stash",
+            "git worktree remove .worktrees/x",
+            "git log -S clean --oneline",
+            "gh pr view 12",
+            'gh pr create --title x --body "$(cat body.md)"',
+            "gh api repos/x/y",
+            "chezmoi apply --dry-run",
+            "chezmoi apply -nv",
+            "rm f",
+            "rm build/*.o",
+            'rm "$f"',
+            "LC_ALL=C find . -name x",
+            "find . -name '*.py'",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNone(self.permission(command))
+
     def test_working_tree_is_the_repo(self):
         self.assertEqual(os.path.realpath(self.policy["chezmoi_working_tree"]),
                          os.path.realpath(ROOT))
