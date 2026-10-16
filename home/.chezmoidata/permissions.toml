@@ -17,6 +17,10 @@
 #   deny_flags  flags that block the command (`--flag`, `--flag=value`, and a
 #               one-letter flag inside a cluster such as `-ao`)
 #   ask_flags   flags that force a manual approval instead
+#   ask_args    "subcommand condition..." entries that force a manual approval
+#               for commands that destroy work; a condition is a flag that
+#               must be present, a word or glob (`+*`) that must match an
+#               argument, or `!flag` that must be absent (so dry runs pass)
 #   env_allow   NAME = "regex" for allowed VAR= prefixes; any other prefix blocks
 #   deny_args   static deny rules, generated for every head form like args
 #   deny_arg_patterns  regexes; an argument matching one blocks the command
@@ -127,6 +131,40 @@ deny_flags = [
 ]
 env_allow = { NO_COLOR = "1", GIT_PAGER = "cat" }
 deny_args = ["branch -d *", "branch -D *", "branch --delete *"]
+# Prompt before anything that rewrites the remote or throws away local work.
+ask_args = [
+  "push --force",
+  "push -f",
+  "push --force-with-lease",
+  "push --mirror",
+  "push --delete",
+  "push -d",
+  "push --prune",
+  "push +*",
+  "push :*",
+  "reset --hard",
+  "reset --merge",
+  "clean !-n !--dry-run",
+  "checkout --",
+  "checkout .",
+  "checkout -f",
+  "checkout --force",
+  "switch -f",
+  "switch --force",
+  "switch --discard-changes",
+  "restore !--staged !-S",
+  "restore --worktree",
+  "restore -W",
+  "stash drop",
+  "stash clear",
+  "worktree remove --force",
+  "worktree remove -f",
+  "update-ref -d",
+  "reflog expire",
+  "reflog delete",
+  "filter-branch",
+  "filter-repo",
+]
 args = [
   "log *",
   "diff *",
@@ -154,6 +192,19 @@ args = [
 ]
 
 [permissions.commands.gh]
+ask_args = [
+  "pr merge",
+  "pr close",
+  "repo delete",
+  "repo archive",
+  "release delete",
+  "issue delete",
+  "secret delete",
+  "variable delete",
+  "api DELETE",
+  "api *=DELETE",
+  "api -XDELETE",
+]
 args = [
   "pr list *",
   "pr view *",
@@ -229,6 +280,17 @@ args = ["", "*"]
 args = ["", "*"]
 
 [permissions.commands.chezmoi]
+# apply/update rewrite live dotfiles; dry runs (-n) stay prompt-free.
+ask_args = [
+  "apply !-n !--dry-run",
+  "update !-n !--dry-run",
+  "init --apply",
+  "forget",
+  "remove",
+  "rm",
+  "destroy",
+  "purge",
+]
 args = [
   "diff *",
   "status *",
@@ -586,3 +648,22 @@ args = [""]
 
 [permissions.commands.":"]
 args = [""]
+
+# No allow rules: these tables only make the hook prompt for destructive forms.
+[permissions.commands.rm]
+args = []
+ask_flags = ["-r", "-R", "-f", "--recursive", "--force"]
+
+[permissions.commands.find]
+args = []
+ask_flags = [
+  "-delete",
+  "-exec",
+  "-execdir",
+  "-ok",
+  "-okdir",
+  "-fprint",
+  "-fprint0",
+  "-fprintf",
+  "-fls",
+]

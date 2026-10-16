@@ -13,10 +13,13 @@ Per-command keys read from permissions.commands.<name>:
     ask_flags   flags that force a manual approval
     env_allow   NAME -> regex; any other VAR= prefix blocks the command
     deny_arg_patterns  regexes; an argument matching one blocks the command
+    ask_args    `subcommand [condition ...]` entries that force a manual
+                approval; see _asked_arg()
 """
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
 import subprocess
@@ -88,6 +91,7 @@ def _scan(command: str, policy: Dict) -> Optional[List[Segment]]:
         table = _commands(policy).get(head) or {}
         if globs[0] <= index or (
             head in _guarded_heads(policy) and not table.get("glob_args")
+            and not _ask_only(head, table)
         ):
             return None
     return segments
@@ -111,6 +115,12 @@ def _decide_one(command: str, segments: Optional[List[Segment]], cwd: str,
             # erring toward deny is safe; otherwise ask, since hidden syntax
             # could smuggle one past the check.
             table = _commands(policy).get(head, {})
+            if _ask_only(head, table):
+                entry = _has_flag(piece_args, table.get("ask_flags", [])) or _asked_arg(
+                    head, piece_args, table)
+                if entry and not verdict.permission:
+                    verdict = Decision("ask", "%s %s needs a manual approval." % (head, entry))
+                continue
             flag = _has_flag(piece_args, table.get("deny_flags", []))
             if flag:
                 return Decision("deny", "%s %s is blocked." % (head, flag))
@@ -218,10 +228,21 @@ def _commands(policy: Dict) -> Dict:
 def _guarded_heads(policy: Dict) -> set:
     guarded = {"cargo", "chezmoi", "git"}
     for name, table in _commands(policy).items():
-        if any(table.get(k) for k in ("deny_flags", "ask_flags", "deny_arg_patterns",
-                                      "trusted_roots_only")):
+        if any(table.get(k) for k in ("deny_flags", "ask_flags", "ask_args",
+                                      "deny_arg_patterns", "trusted_roots_only")):
             guarded.add(name)
     return guarded
+
+
+def _ask_only(head: str, table: Dict) -> bool:
+    """True for a table whose only hook keys add prompts (ask_flags,
+    ask_args), such as rm's. Its prompts back up the classifier for visible
+    destructive forms; unlike deny_flags they are not a parse boundary, so an
+    unparseable or globbed command asks only when a matching form shows."""
+    if head in ("cargo", "chezmoi", "git"):
+        return False
+    return not any(table.get(k) for k in ("deny_flags", "deny_arg_patterns",
+                                          "trusted_roots_only"))
 
 
 def _has_flag(args: List[str], flags: List[str]) -> Optional[str]:
@@ -264,8 +285,12 @@ def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
         head, args, table = "rtk", [head, *args], _commands(policy).get("rtk")
     if table is None:
         return Decision()
+    # env_allow protects the static allow rules and the fast paths; a table
+    # with neither, such as rm's, only adds prompts and leaves VAR= prefixes
+    # to the normal flow.
     env_allow = table.get("env_allow", {})
-    for name, value in segment.env:
+    checks_env = table.get("args") or not _ask_only(head, table)
+    for name, value in segment.env if checks_env else []:
         pattern = env_allow.get(name)
         if pattern is None or not re.fullmatch(pattern, value):
             return Decision(
@@ -284,6 +309,10 @@ def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
     flag = _has_flag(args, table.get("ask_flags", []))
     if flag:
         return Decision("ask", "%s %s needs a manual approval." % (head, flag))
+    entry = _asked_arg(head, args, table)
+    if entry:
+        return Decision("ask", "%s %s can destroy work; it needs a manual approval."
+                        % (head, entry))
     if head == "chezmoi":
         return _check_chezmoi_source(args, cwd, policy)
     if table.get("trusted_roots_only"):
@@ -424,7 +453,7 @@ def _mentions_guarded(text: str, policy: Dict) -> bool:
         head, _ = _rough_split(part)
         if head not in _commands(policy) and part.split()[:1] == ["rtk"]:
             head = "rtk"
-        if head in _guarded_heads(policy):
+        if head in _guarded_heads(policy) and not _ask_only(head, _commands(policy).get(head, {})):
             return True
     return False
 
@@ -478,6 +507,45 @@ def _statically_allowed(segment: Segment, policy: Dict) -> bool:
     return any(_rule_matches(r, text) for r in allow) and not any(
         _rule_matches(r, text) for r in deny
     )
+
+
+def _asked_arg(head: str, args: List[str], table: Dict) -> Optional[str]:
+    """The first `ask_args` entry this command matches, or None.
+
+    An entry is a subcommand followed by conditions, all of which must hold:
+    `-x` / `--flag` present (as _has_flag matches it, so `-x` also matches
+    inside `-xv`), a plain word or glob such as `+*` matching an argument,
+    or `!-n` / `!word` absent. For git the subcommand is the first word after
+    git's global options and the conditions apply to what follows it; for
+    other commands the subcommand may be any argument, which can only ask
+    more often."""
+    entries = table.get("ask_args", [])
+    if not entries:
+        return None
+    sub, rest = None, args
+    if head == "git":
+        i = 0
+        while i < len(args) and args[i].startswith("-") and args[i] != "-":
+            name, has_value, _ = args[i].partition("=")
+            i += 2 if name in _GIT_VALUE_OPTS and not has_value else 1
+        sub, rest = (args[i], args[i + 1 :]) if i < len(args) else (None, [])
+    for entry in entries:
+        words = entry.split()
+        if (sub != words[0]) if head == "git" else (words[0] not in args):
+            continue
+        if all(_ask_condition(word, rest) for word in words[1:]):
+            return entry
+    return None
+
+
+def _ask_condition(word: str, args: List[str]) -> bool:
+    if word.startswith("!"):
+        return not _ask_condition(word[1:], args)
+    if word == "--":
+        return "--" in args
+    if word.startswith("-"):
+        return _has_flag(args, [word]) is not None
+    return any(fnmatch.fnmatchcase(arg, word) for arg in args)
 
 
 def _opts_ok(args, bool_flags, value_flags, max_positionals) -> bool:

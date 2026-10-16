@@ -20,6 +20,15 @@ Use `find` only when you need to **act on** the matches — `-exec`/`-execdir` t
 
 Keep `fd` purely for searching: don't use its exec modes (`fd -x`/`-X`) — route any run-a-command-per-result or modify step through `find`, so "search" and "modify" stay cleanly separated.
 
+# Shell commands
+
+The permission hook prompts for any `git`, `rg` or `chezmoi` command it can't read, so write commands it can read.
+
+- Edit files with the Edit and Write tools, not `python3 - <<'EOF'`, `sed -i` or `perl -pi` rewrites, which run as code and always prompt.
+- Run `pre-commit run` with no file list to check the staged files (or `--all-files` for everything), instead of building a list with `$(git diff --cached --name-only)`.
+- Keep `git`, `rg` and `chezmoi` out of `$(...)`, loops and subshells, and run them as their own piece of a `&&` or `;` list.
+- Write paths out in full instead of saving them in a variable such as `S=/path` and expanding `$S` later.
+
 # Worktrees
 
 Multiple Claude sessions may be active in the same repo at the same time.
@@ -47,6 +56,7 @@ To allow a read-only command, add its subcommand to `home/.chezmoidata/permissio
 One entry there grants the vanilla, `rtk`, and (for git) `chezmoi git` forms together.
 A head must never contain a wildcard: a `*` before the subcommand also matches global options such as `git -c` and `--exec-path`, which run arbitrary commands.
 Flags that run programs, write files or read secrets go in that command's `deny_flags`, and allowed `VAR=` prefixes go in its `env_allow`; the `permission-prefilter.py` hook enforces both for every form of the command.
+Forms that destroy work, such as force pushes, `git reset --hard`, `rm -rf`, `chezmoi apply` and `gh pr merge`, go in that command's `ask_flags` or `ask_args`, so the hook prompts for them even in auto mode.
 The same hook approves `cargo` builds in trusted directories, and `python3 -c` always prompts (rebuilding that fast-path is issue #135).
 Run HTTP requests through the `curl-runner` agent: the hook denies `curl` everywhere else.
 See the `chezmoi` skill ("Generated targets") for the full workflow.
