@@ -2,11 +2,12 @@
 
 The wrapper is the one command the permissions allowlist approves, so these
 tests pin what it refuses.
-Everything runs offline: HOME points at a temp dir whose skill directory is a
-symlink to the repo copy, and no case reaches GitHub.
+Everything runs offline: HOME points at a temp dir holding a private copy of the
+skill, and no case reaches GitHub.
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,8 +36,11 @@ class WrapperTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         home = Path(cls.tmp.name) / "home"
         (home / ".claude/skills").mkdir(parents=True)
-        (home / ".claude/skills/triaging-inbox").symlink_to(SKILL)
+        # A copy, not a symlink: the in-process skill tests import from SCRIPTS and
+        # leave bytecode there, which would mask whether the wrapper writes any.
+        shutil.copytree(SKILL, home / ".claude/skills/triaging-inbox", ignore=shutil.ignore_patterns("__pycache__"))
         cls.home = home
+        cls.scripts = home / ".claude/skills/triaging-inbox/scripts"
         cls.threads = Path(cls.tmp.name) / "threads.json"
         cls.threads.write_text(json.dumps(ONE_THREAD))
 
@@ -90,7 +94,7 @@ class WrapperTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("INBOX: 1 unread threads", proc.stdout)
         self.assertIn("-> OK", proc.stdout)
-        self.assertEqual(list(SCRIPTS.glob("__pycache__")), [], "the wrapper must not write bytecode")
+        self.assertEqual(list(self.scripts.glob("__pycache__")), [], "the wrapper must not write bytecode")
 
     def test_missing_skill_directory_is_a_clear_error(self):
         with tempfile.TemporaryDirectory() as empty:
