@@ -152,6 +152,11 @@ if command -v flock &>/dev/null; then
     fi
 fi
 
+# Children inherit fd 9, and a process brew starts can outlive this script (an
+# `op daemon` did), holding the lock until it exits. Run brew and code without it.
+brew() { command brew "$@" 9>&-; }
+code() { command code "$@" 9>&-; }
+
 bundle_flags=(--file="$BREWFILE")
 # No `mas` entries in the Brewfile — App Store apps are installed manually
 # (see README.md). Homebrew has removed bundle's --no-mas and --no-vscode
