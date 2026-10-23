@@ -191,10 +191,10 @@ args = [
   "ls-remote *",
 ]
 
+# pr merge and pr close are left to the auto-mode classifier: it can see the
+# user asking for a merge, which this hook cannot, and a closed PR reopens.
 [permissions.commands.gh]
 ask_args = [
-  "pr merge",
-  "pr close",
   "repo delete",
   "repo archive",
   "release delete",

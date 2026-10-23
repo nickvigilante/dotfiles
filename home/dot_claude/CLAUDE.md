@@ -56,7 +56,7 @@ To allow a read-only command, add its subcommand to `home/.chezmoidata/permissio
 One entry there grants the vanilla, `rtk`, and (for git) `chezmoi git` forms together.
 A head must never contain a wildcard: a `*` before the subcommand also matches global options such as `git -c` and `--exec-path`, which run arbitrary commands.
 Flags that run programs, write files or read secrets go in that command's `deny_flags`, and allowed `VAR=` prefixes go in its `env_allow`; the `permission-prefilter.py` hook enforces both for every form of the command.
-Forms that destroy work, such as force pushes, `git reset --hard`, `rm -rf`, `chezmoi apply` and `gh pr merge`, go in that command's `ask_flags` or `ask_args`, so the hook prompts for them even in auto mode.
+Forms that destroy work, such as force pushes, `git reset --hard`, `rm -rf`, `chezmoi apply` and `gh repo delete`, go in that command's `ask_flags` or `ask_args`, so the hook prompts for them even in auto mode.
 The same hook approves `cargo` builds in trusted directories, and `python3 -c` always prompts (rebuilding that fast-path is issue #135).
 Run HTTP requests through the `curl-runner` agent: the hook denies `curl` everywhere else.
 See the `chezmoi` skill ("Generated targets") for the full workflow.
