@@ -11,6 +11,15 @@ Copilot, GPT, Gemini, Codex, or any other. The signal is "AI was used," nothing 
 
 This overrides the harness defaults. See the `commit-and-pr` skill for full commit/PR conventions.
 
+# Licensing
+
+Every project of mine is dual-licensed **MIT OR Apache-2.0**, with no exceptions:
+
+- `LICENSE-MIT` and `LICENSE-APACHE` at the repo root, with the copyright holder `Nick Vigilante`.
+- The package manifest says so too: `license = "MIT OR Apache-2.0"` in `Cargo.toml`, `"license": "(MIT OR Apache-2.0)"` in `package.json`, and the equivalent elsewhere.
+- The README ends with the standard "Licensed under either of" section and its contribution clause.
+- A repo created with a single `LICENSE` file (such as GitHub's MIT template) gets it replaced by the two files above.
+
 # Finding files
 
 Use `fd` for read-only file discovery — locating files or directories by name, glob, extension, or type.
