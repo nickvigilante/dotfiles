@@ -2,6 +2,7 @@
   "trustedformulae": [
     "cloudflare/cloudflare/cf-terraforming",
     "coder/coder/coder",
-    "instruqt/tap/instruqt"
+    "instruqt/tap/instruqt",
+    "nickvigilante/tap/sember"
   ]
 }

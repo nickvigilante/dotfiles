@@ -134,9 +134,9 @@ _bw_ensure_session() {
 
 # Wrap `chezmoi apply` to prompt for Bitwarden state before applying.
 # Supports --skip-secrets to bypass prompts and apply without vault access.
-# If the user declines to unlock/log-in, applies with secrets=none so
-# vault-gated files (e.g. ~/.kube/homelab.yaml) are skipped rather than
-# causing a hard failure.  All other chezmoi subcommands pass through unchanged.
+# Declining to unlock is safe: with BW_SESSION empty, .chezmoiignore skips only
+# the vault-rendered ~/.kube/homelab.yaml (leaving the live copy in place) and
+# everything else applies normally.  Other subcommands pass through unchanged.
 chezmoi() {
     if [[ "${1}" != "apply" ]]; then
         command chezmoi "$@"
@@ -163,7 +163,7 @@ chezmoi() {
 
     if [[ "$_skip" == true ]]; then
         echo "Applying without Bitwarden — vault-dependent files will not be updated."
-        command chezmoi apply --override-data '{"secrets":"none"}' "${_passthrough[@]}"
+        BW_SESSION= command chezmoi apply "${_passthrough[@]}"
     else
         command chezmoi apply "${_passthrough[@]}"
     fi
@@ -188,4 +188,18 @@ bw-lock() {
 {{- else }}
     echo "Bitwarden not configured for this machine (.secrets = {{ .secrets }})."
 {{- end }}
+}
+
+# Update Homebrew under the lock shared with update-packages and chezmoi apply,
+# so two brew jobs never overlap. Without flock (before the Brewfile installs
+# it) the update runs unlocked.
+bup() {
+    command -v brew &>/dev/null || { echo "brew not found" >&2; return 1; }
+    local lock="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/brew.lock"
+    if command -v flock &>/dev/null; then
+        mkdir -p "${lock:h}"
+        flock -w 300 "$lock" sh -c 'brew update && brew upgrade && brew cleanup'
+    else
+        brew update && brew upgrade && brew cleanup
+    fi
 }

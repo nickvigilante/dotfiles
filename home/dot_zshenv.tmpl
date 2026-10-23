@@ -8,17 +8,25 @@ export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 
 # ── PATH ───────────────────────────────────────────────────────────────────────
-# Personal scripts and tools (chezmoi, uv, etc. install here)
-export PATH="$HOME/.local/bin:$PATH"
+typeset -U path fpath
 
-# Cargo (Rust toolchain, also used by some tools like uv)
-export PATH="$HOME/.cargo/bin:$PATH"
-
-# uv home venv — the default Python for this machine.
-# When inside a project directory with its own .venv, uv prefers that instead.
-export PATH="$HOME/venv/bin:$PATH"
+# Highest priority first. On macOS, /etc/zprofile runs path_helper in login
+# shells, which moves these behind the system paths, so .zprofile re-prepends
+# this same list afterwards.
+#   ~/venv/bin    uv home venv, the default Python for this machine (inside a
+#                 project with its own .venv, uv prefers that instead)
+#   ~/.cargo/bin  Rust toolchain, also used by some tools like uv
+#   ~/.local/bin  personal scripts and tools (chezmoi, uv, etc. install here)
+user_path=("$HOME/venv/bin" "$HOME/.cargo/bin" "$HOME/.local/bin")
+path=($user_path $path)
 export VIRTUAL_ENV="$HOME/venv"
 export UV_PYTHON_PREFERENCE="only-managed"
+
+# rtk warns "No hook installed — run rtk init -g" because its Claude Code hook
+# isn't in settings.json: permission-prefilter.py runs `rtk hook claude`
+# itself, since two parallel hooks could drop the prefilter's safety flags.
+# Following the warning would bring that back, so silence it.
+export RTK_SUPPRESS_HOOK_WARNING=1
 
 # ── Terminal font ──────────────────────────────────────────────────────────────
 # Every machine installs a Nerd Font (the Brewfile cask on macOS, the

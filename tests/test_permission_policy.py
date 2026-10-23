@@ -8,11 +8,12 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HOOKS = os.path.join(os.path.dirname(__file__), "..", "home", "dot_claude", "hooks")
 sys.path.insert(0, os.path.abspath(HOOKS))
 
-from permission_policy import decide  # noqa: E402
+from permission_policy import _scan, decide  # noqa: E402
 
 ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 TRUSTED = ROOT
@@ -23,7 +24,7 @@ POLICY = {
         "commands": {
             "cargo": {"env_allow": {"RUST_BACKTRACE": "0|1|full",
                                     "RUST_LOG": "[A-Za-z0-9_=,:.-]+"}},
-            "rg": {"deny_flags": ["--pre", "--pre-glob", "--hostname-bin"]},
+            "rg": {"deny_flags": ["--pre", "--pre-glob", "--hostname-bin"], "glob_args": True},
             "tree": {"deny_flags": ["-o", "-R"]},
             "git": {"deny_flags": ["--output", "--ext-diff", "--textconv",
                                    "--no-index", "--contents"],
@@ -84,10 +85,13 @@ class CargoFastPath(unittest.TestCase):
         self.assertIsNone(permission("cargo test", cwd=UNTRUSTED))
 
     def test_unparseable_cargo_asks(self):
-        for command in ["cargo test; cat ~/.env", "cargo build `touch x`",
-                        "cargo test > out.txt"]:
+        for command in ["cargo build `touch x`", "cargo test > out.txt",
+                        "cat ~/.env; cargo test > out.txt"]:
             with self.subTest(command=command):
                 self.assertEqual(permission(command), "ask")
+
+    def test_cargo_in_a_list_does_not_approve_the_rest(self):
+        self.assertIsNone(permission("cargo test; cat ~/.env"))
 
     def test_env_not_allowlisted_denies(self):
         for command in ["RUSTC_WRAPPER=/tmp/evil cargo build",
@@ -130,7 +134,7 @@ class FlagRules(unittest.TestCase):
         self.assertIsNone(permission("probe --safe"))
 
     def test_unparseable_guarded_command_asks(self):
-        self.assertEqual(permission('rg "foo$" src'), "ask")
+        self.assertEqual(permission('rg "foo$x" src'), "ask")
 
 
 class Chezmoi(unittest.TestCase):
@@ -273,7 +277,8 @@ class UnparseableChecksEveryPiece(unittest.TestCase):
     def test_guarded_command_after_an_unparseable_one(self):
         self.assertEqual(permission("ls dir/* | rg --pre=evil y"), "deny")
         self.assertEqual(permission("ls $(x) | git log --output=f"), "deny")
-        self.assertEqual(permission("ls dir/* | chezmoi status --source /etc"), "ask")
+        self.assertEqual(permission("ls $(x) | chezmoi status --source /etc"), "ask")
+        self.assertEqual(permission("ls dir/* | chezmoi status --source /etc"), "deny")
 
     def test_unguarded_pipeline_is_left_alone(self):
         self.assertIsNone(permission("ls dir/* | wc -l"))
@@ -332,6 +337,158 @@ class CurlMentionedNotRun(unittest.TestCase):
         ]:
             with self.subTest(command=command):
                 self.assertEqual(permission(command), "deny")
+
+
+class DenyArgPatterns(unittest.TestCase):
+    POLICY = {"permissions": {"commands": {"probe": {"deny_arg_patterns": [r"\bsecret\b"]}}}}
+
+    def test_matching_argument_denies_in_any_segment(self):
+        for command in ["probe secret", "rtk probe -x 'a secret'", "ls | probe secret",
+                        "probe secret; ls"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, policy=self.POLICY), "deny")
+        self.assertIsNone(permission("probe secrets", policy=self.POLICY))
+
+
+class CargoOutsideTrustedRoots(unittest.TestCase):
+    POLICY = {"permissions": {"hook": {"trusted_dev_roots": [ROOT]},
+                              "commands": {"cargo": {"args": ["tree *", "metadata *"],
+                                                     "trusted_roots_only": True},
+                                           "rustup": {"args": ["show"],
+                                                      "trusted_roots_only": True}}}}
+
+    def test_allowlisted_subcommand_asks_outside_roots(self):
+        for command in ["cargo tree", "cargo +nightly --color never metadata"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, UNTRUSTED, policy=self.POLICY), "ask")
+                self.assertIsNone(permission(command, TRUSTED, policy=self.POLICY))
+
+    def test_other_subcommands_untouched(self):
+        self.assertIsNone(permission("cargo publish", UNTRUSTED, policy=self.POLICY))
+
+    def test_unclear_subcommand_asks(self):
+        # An option before the subcommand may take a value the parser would
+        # mistake for the subcommand, so anything but a plain word asks.
+        for command in ["cargo -C /x tree", "cargo --frozen tree", "cargo --version",
+                        "cargo", "rtk cargo --locked metadata"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, UNTRUSTED, policy=self.POLICY), "ask")
+
+    def test_unparseable_command_asks(self):
+        for command in ["rustup show; ls", "ls && cargo tree"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command, UNTRUSTED, policy=self.POLICY), "ask")
+
+
+class MostRestrictiveSegmentWins(unittest.TestCase):
+    POLICY = {"permissions": {"commands": {
+        "probe": {"ask_flags": ["--risky"]},
+        "jq": {"deny_arg_patterns": [r"\benv\b"]},
+    }}}
+
+    def test_deny_in_a_later_segment_beats_an_earlier_ask(self):
+        self.assertEqual(permission("probe --risky | jq -n env", policy=self.POLICY), "deny")
+
+
+class CommandLists(unittest.TestCase):
+    """Each piece of a `&&` / `||` / `;` list is decided on its own."""
+
+    def test_parseable_pieces_no_longer_ask(self):
+        for command in [
+            "cd %s && git status" % ROOT,
+            "git status; rg -n foo src | head -5",
+            "rg -n 'a;b' x && wc -l y\nls",
+            'git log --format=%%B -1 | grep -c "^Assisted-by: AI$"; cd %s' % ROOT,
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNone(permission(command))
+
+    def test_each_piece_keeps_its_own_checks(self):
+        self.assertEqual(permission("ls; rg --pre=evil x"), "deny")
+        self.assertEqual(permission("cd /tmp && chezmoi status --source /etc"), "deny")
+        self.assertEqual(permission("ls && probe --risky; ls"), "ask")
+        self.assertEqual(permission('ls; rg "a$x" src'), "ask")
+
+    def test_deny_beats_an_earlier_ask(self):
+        self.assertEqual(permission("probe --risky; git log --output=f"), "deny")
+
+    def test_cd_sets_the_directory_later_pieces_are_checked_in(self):
+        source = "chezmoi status --source ."
+        self.assertIsNone(permission("cd %s && %s" % (ROOT, source), cwd=UNTRUSTED))
+        self.assertEqual(permission("cd /tmp && " + source), "deny")
+        decision = decide("cd %s && chezmoi diff | head" % ROOT, UNTRUSTED, None, POLICY)
+        self.assertEqual(decision.updated_command,
+                         "cd %s && chezmoi diff --skip-secrets | head" % ROOT)
+
+    def test_untracked_shell_changes_make_guarded_pieces_ask(self):
+        for command in [
+            "export GIT_DIR=/tmp/x; git status",
+            "eval x && rg foo",
+            "pushd /tmp && git status",
+            "cd no-such-dir && git status",
+            "cd /nonexistent-dir && git status",
+            "cd %s || git status" % ROOT,
+            "true && cd %s; git status" % ROOT,
+            "echo /tmp | read PATH; git status",
+            "printf -v PATH x; git status",
+            "/tmp && git status",
+            "ls $x; git status",
+            "f=$(fd x); git status",
+            "ls; git log $(cat f)",
+        ]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command), "ask")
+
+    def test_rtk_read_is_not_the_read_builtin(self):
+        self.assertIsNone(permission("rtk read f; git status"))
+        self.assertEqual(permission("command read f; git status"), "ask")
+
+    def test_unguarded_pieces_after_a_shell_change_are_left_alone(self):
+        self.assertIsNone(permission("export X=1; ls"))
+
+    def test_heredoc_body_is_not_a_command(self):
+        command = "git commit -F - <<'EOF'\nfix: x; rg --pre=evil y\nEOF"
+        self.assertIsNone(permission(command))
+        self.assertIsNone(permission("rg x && " + command))
+        self.assertIsNone(permission(command + "\nrg x"))
+        self.assertEqual(permission(command + "\nrg --pre=evil x"), "deny")
+
+    def test_relative_cd(self):
+        tests = os.path.join(ROOT, "tests")
+        source = "chezmoi status --source ."
+        self.assertIsNone(permission("cd tests && cd .. && " + source, cwd=ROOT))
+        self.assertEqual(permission("cd .. && " + source, cwd=ROOT), "deny")
+        self.assertIsNone(permission("cd ../ && " + source, cwd=tests))
+        self.assertIsNone(permission("cd .. 2>/dev/null && " + source, cwd=tests))
+        with mock.patch.dict(os.environ, {"CDPATH": "/tmp"}):
+            self.assertEqual(permission("cd tests && cd .. && " + source, cwd=ROOT), "ask")
+            self.assertIsNone(permission("cd ./tests && cd .. && " + source, cwd=ROOT))
+
+    def test_unmodelled_lists_use_the_whole_command_check(self):
+        for command in ["(cd /tmp; git status)", "git status & ls",
+                        "ls # x; git status", "echo $(ls); git status"]:
+            with self.subTest(command=command):
+                self.assertEqual(permission(command), "ask")
+
+
+class Globs(unittest.TestCase):
+    def test_glob_args_opt_in(self):
+        self.assertIsNone(permission("rg -n foo docs/*.md src/?.go"))
+        self.assertEqual(permission("rg --pre=x foo docs/*.md"), "deny")
+        self.assertEqual(permission("tree -L 1 dir/*"), "ask")
+
+    def test_curl_runner_never_allows_a_glob(self):
+        self.assertIsNone(permission("curl http://localhost/x?a=1", agent="curl-runner"))
+        self.assertEqual(permission("curl 'http://localhost/x?a=1'", agent="curl-runner"),
+                         "allow")
+
+    def test_unguarded_globs_parse(self):
+        self.assertIsNone(permission("ls docs/* && git status"))
+
+    def test_glob_in_a_command_name_is_unparseable(self):
+        for command in ["g?t status", "rtk r? foo", "timeout 5 r* foo"]:
+            with self.subTest(command=command):
+                self.assertIsNone(_scan(command, POLICY))
 
 
 class MissingPolicy(unittest.TestCase):

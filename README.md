@@ -110,7 +110,7 @@ Override by setting `.machine` to `laptop`/`server` if you really want Homebrew 
 ### Updates and maintenance
 
 ```sh
-dotfiles update          # chezmoi update + update-packages --force
+dotfiles update          # chezmoi update + update-packages
 dotfiles doctor          # health check (machine + tooling + Brewfile + secrets)
 dotfiles palette-import  # show the manual Warp-theme-iteration workflow
 ```
@@ -118,8 +118,12 @@ dotfiles palette-import  # show the manual Warp-theme-iteration workflow
 `dotfiles doctor` walks the data axes (os, arch, machine, display, profile, secrets) and verifies your tooling, files, Brewfile state, and `~/.env` permissions all match expectations.
 Run it whenever something feels off.
 
-A background `~/.local/bin/update-packages` script auto-fires on every new shell, throttled to once per 24 h via `~/.cache/dotfiles/last_update`.
-Run manually with `update-packages` or `update-packages --force` to bypass the throttle.
+Package updates only run when you ask (`dotfiles update` or `update-packages`); nothing upgrades in the background.
+On success `update-packages` writes `~/.cache/dotfiles/last_update`, and a new shell prints a one-line nudge once that is more than 7 days old.
+
+Every Homebrew job (`brew bundle` in `chezmoi apply`, `update-packages`, and the `bup` function) takes the same `flock` on `~/.cache/dotfiles/brew.lock`, so two of them never overlap.
+An overlap can leave casks with broken Caskroom metadata and kegs unlinked.
+`flock` comes from the Brewfile, so the first apply on a new machine installs it unlocked; every run after that is locked.
 
 ### macOS-specific
 
@@ -217,6 +221,9 @@ The `.secrets` data field controls which managers are active on this machine:
 **Bitwarden** — once per machine: `bw login`.
 Then use `bw-apply` instead of bare `chezmoi apply` whenever `~/.env` may need re-rendering.
 `bw-apply` (defined in `~/.config/shell/functions.zsh.tmpl`) unlocks Bitwarden, sets `BW_SESSION`, and runs `chezmoi apply`.
+A bare `chezmoi apply` goes through the same wrapper and offers to unlock first.
+If you decline (or pass `--skip-secrets`), it applies everything except `~/.kube/homelab.yaml`, which is left as it is.
+While the vault is locked, `.chezmoiignore` skips that kubeconfig for every chezmoi command, so `chezmoi status` and `chezmoi diff` work without unlocking.
 It's a no-op for the unlock step on machines whose `.secrets` doesn't include `bitwarden`.
 
 ### Ephemeral 1Password (service account)
@@ -324,7 +331,7 @@ dotfiles/
 ## Common commands
 
 ```sh
-dotfiles update             # chezmoi update + update-packages --force
+dotfiles update             # chezmoi update + update-packages
 dotfiles doctor             # health check
 chezmoi apply               # apply any pending changes from the source
 chezmoi diff                # preview what would change
