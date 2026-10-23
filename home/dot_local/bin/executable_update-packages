@@ -33,11 +33,13 @@ case "$(uname -s)" in
 esac
 
 # ── Updater functions ──────────────────────────────────────────────────────────
+# The command runs without fd 9, the brew lock: a process it starts can outlive
+# this script and would otherwise hold the lock until it exits.
 run_update() {
 	local label="$1"
 	shift
 	echo "→ $label..."
-	if "$@"; then
+	if "$@" 9>&-; then
 		echo "  ✓ $label done."
 	else
 		echo "  ✗ $label failed (non-fatal)."
