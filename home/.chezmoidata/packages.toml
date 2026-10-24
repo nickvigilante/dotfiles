@@ -592,7 +592,9 @@ tiers = ["gui"]
 key = "rustdesk"
 section = "cask"
 cask = "rustdesk"
-tiers = ["gui"]
+comment = "RustDesk remote desktop (personal machines only)"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
 
 [[packages]]
 key = "font-jetbrains-mono-nerd-font"
