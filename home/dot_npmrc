@@ -1,0 +1,4 @@
+# Read by pnpm 10.16+: refuse package versions published less than seven days
+# ago (in minutes), so a freshly compromised release has time to be yanked
+# before it can land here.
+minimum-release-age=10080

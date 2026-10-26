@@ -14,6 +14,11 @@ export LC_ALL="en_US.UTF-8"
 export HISTSIZE=100000
 export SAVEHIST=100000
 export HISTFILE="$HOME/.zsh_history"
+# Keep credentials out of the history file. Oh My ZSH already sets
+# hist_ignore_space; this catches the shapes that slip through, such as auth
+# headers and inline TOKEN= assignments. Prefix a command with a space to skip
+# it by hand.
+export HISTORY_IGNORE='(*Authorization:*|*x-api-key*|*Cookie:*|*X-CSRF-TOKEN*|*TOKEN=*|*PASSWORD=*|*SECRET=*|*--password*|*auth.password=*|*://*:*@*)'
 
 # ── Pager / man ───────────────────────────────────────────────────────────────
 export LESS="-R --use-color"
