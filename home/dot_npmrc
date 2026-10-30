@@ -1,4 +1,13 @@
-# Read by pnpm 10.16+: refuse package versions published less than seven days
-# ago (in minutes), so a freshly compromised release has time to be yanked
-# before it can land here.
+# Refuse package versions published less than seven days ago, so a freshly
+# compromised release has time to be yanked before it can land here.
+# pnpm 10.16+ reads the first key (minutes); npm 11.10+ reads the second
+# (days). Each tool ignores the other's key, npm with a one-line warning.
 minimum-release-age=10080
+min-release-age=7
+
+# Never run install-time lifecycle scripts, the usual payload of a
+# compromised package. `npm run`, `npm test` and `pnpm build` still run the
+# named script, only the pre/post hooks and dependency install scripts stop.
+# When a dependency genuinely needs its script, run it for that one package:
+# `npm rebuild --ignore-scripts=false <pkg>` or `pnpm rebuild <pkg>`.
+ignore-scripts=true
