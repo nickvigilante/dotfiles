@@ -344,6 +344,14 @@ comment = "Coder.com CLI — remote dev, manages the homelab deployment/template
 tiers = ["core"]
 
 [[packages]]
+key = "instruqt"
+section = "work"
+brew = "instruqt/tap/instruqt"
+comment = "Instruqt CLI — workshop tracks and sandboxes"
+tiers = ["work"]
+profiles = ["work"]
+
+[[packages]]
 key = "actionlint"
 section = "quality"
 brew = "actionlint"
@@ -393,20 +401,19 @@ comment = "YAML linter"
 tiers = ["quality"]
 
 [[packages]]
+key = "gitleaks"
+section = "quality"
+brew = "gitleaks"
+comment = "Secret scanner for git history and working trees"
+tiers = ["quality"]
+
+[[packages]]
 key = "podman"
 section = "container-runtime"
 brew = "podman"
 comment = "Container runtime (rootless/daemonless; replaces Docker/Colima everywhere)"
 tiers = ["core"]
 machine = ["laptop", "desktop", "server", "pi"]
-
-[[packages]]
-key = "mas"
-section = "macos-only"
-brew = "mas"
-comment = "Mac App Store CLI"
-tiers = ["core"]
-os = ["darwin"]
 
 [[packages]]
 key = "duti"
@@ -626,6 +633,69 @@ profiles = ["work"]
 key = "zoom"
 section = "cask"
 cask = "zoom"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "slack"
+section = "cask"
+cask = "slack"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "linear"
+section = "cask"
+cask = "linear"
+comment = "Issue tracker"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "granola"
+section = "cask"
+cask = "granola"
+comment = "Meeting notes"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "1password"
+section = "cask"
+cask = "1password"
+comment = "Work password manager (teamcoder); Bitwarden is the personal one"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "coder-desktop"
+section = "cask"
+cask = "coder/coder/coder-desktop"
+comment = "Coder Desktop — workspace VPN and file sync"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "tailscale-app"
+section = "cask"
+cask = "tailscale-app"
+comment = "Tailscale GUI; provides the tailscale CLI too, so no formula"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "drata-agent"
+section = "cask"
+cask = "drata-agent"
+comment = "Compliance agent (work-mandated)"
+tiers = ["gui", "work"]
+profiles = ["work"]
+
+[[packages]]
+key = "rippling"
+section = "cask"
+cask = "rippling"
+comment = "MDM and IT agent (work-mandated)"
 tiers = ["gui", "work"]
 profiles = ["work"]
 

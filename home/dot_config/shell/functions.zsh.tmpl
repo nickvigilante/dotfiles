@@ -10,6 +10,16 @@ psg() {
     ps aux | grep -i "$1" | grep -v grep
 }
 
+# Fetch a credential from 1Password on demand, so no token lives in a file or
+# in every shell's environment. Resolves through the desktop-app integration
+# (Touch ID). Scope one to a single command rather than exporting it:
+#   VERCEL_TOKEN=$(optoken "Vercel - docs-engine publisher") vercel deploy
+#   LINEAR_API_KEY=$(optoken "Linear - API key") some-script
+optoken() {
+    [ -n "$1" ] || { echo "usage: optoken <1Password item title> [vault]" >&2; return 2; }
+    op read "op://${2:-Employee}/$1/credential"
+}
+
 # Extract archives — auto-detects format.
 extract() {
     if [[ ! -f "$1" ]]; then
