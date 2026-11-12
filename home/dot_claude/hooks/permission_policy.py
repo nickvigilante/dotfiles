@@ -109,6 +109,8 @@ def _decide_one(command: str, segments: Optional[List[Segment]], cwd: str,
             head, piece_args = _rough_split(piece)
             if head not in _commands(policy) and piece.split()[:1] == ["rtk"]:
                 head, piece_args = "rtk", [head, *piece_args]
+            if head == "gh" and _check_gh_polling(piece_args).permission == "deny":
+                return _check_gh_polling(piece_args)
             if head not in _guarded_heads(policy):
                 continue
             # A rough whitespace split can still spot a forbidden flag, and
@@ -313,6 +315,8 @@ def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
     if entry:
         return Decision("ask", "%s %s can destroy work; it needs a manual approval."
                         % (head, entry))
+    if head == "gh":
+        return _check_gh_polling(args)
     if head == "chezmoi":
         return _check_chezmoi_source(args, cwd, policy)
     if table.get("trusted_roots_only"):
@@ -322,6 +326,35 @@ def _check_segment(segment: Segment, cwd: str, policy: Dict) -> Decision:
     if head == "gitleaks":
         return _check_gitleaks_repo(args, cwd)
     return Decision()
+
+
+_GH_POLL_FLOOR = 60
+_GH_TOO_FAST = (
+    "gh %s polls GitHub every %s seconds, and every token acting as you shares "
+    "one hourly API budget. Add --interval 60 (see the watching-github-ci skill)."
+)
+
+
+def _check_gh_polling(args: List[str]) -> Decision:
+    """Deny `gh run watch` and `gh pr checks --watch` polling faster than
+    once a minute; their defaults are 3 and 10 seconds."""
+    if args[:2] == ["run", "watch"]:
+        default = "3"
+    elif args[:2] == ["pr", "checks"] and _has_flag(args, ["--watch"]):
+        default = "10"
+    else:
+        return Decision()
+    interval = default
+    for i, arg in enumerate(args):
+        if arg in ("-i", "--interval") and i + 1 < len(args):
+            interval = args[i + 1]
+        elif arg.startswith("--interval="):
+            interval = arg.split("=", 1)[1]
+        elif arg.startswith("-i") and arg[2:].isdigit():
+            interval = arg[2:]
+    if interval.isdigit() and int(interval) >= _GH_POLL_FLOOR:
+        return Decision()
+    return Decision("deny", _GH_TOO_FAST % (" ".join(args[:2]), interval))
 
 
 # --- command lists --------------------------------------------------------------
