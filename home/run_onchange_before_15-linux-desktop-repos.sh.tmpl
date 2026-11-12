@@ -18,6 +18,11 @@
 set -uo pipefail
 
 {{ if and (eq .chezmoi.os "linux") (ne .machine "pi") .display -}}
+# Refresh stamp: {{ now | date "2006-01" }}
+# Vendors rotate signing keys without notice (Warp added a signing subkey; machines
+# holding the old key then silently stopped updating). run_onchange_ only fires when
+# this script's rendered text changes, so the month stamp above re-runs it — and
+# re-fetches every key below — on the first `chezmoi apply` of each month.
 command -v apt-get >/dev/null || exit 0
 command -v curl >/dev/null || { echo "curl missing; skipping repo setup" >&2; exit 0; }
 
@@ -109,5 +114,12 @@ if command -v flatpak >/dev/null; then
     sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo || warn "flathub remote-add failed"
 fi
 
-sudo apt-get update -qq || warn "apt-get update failed"
+# apt exits 0 on a signature failure: it only prints "Warning: … repository is not
+# updated" and keeps serving the stale index, so packages silently stop upgrading.
+# Capture the output and surface those lines instead of trusting the exit status.
+apt_out="$(sudo apt-get update 2>&1)" || warn "apt-get update failed"
+if sig_errs="$(grep -E 'NO_PUBKEY|not signed|couldn.t be verified|is not updated' <<<"$apt_out")" && [ -n "$sig_errs" ]; then
+    warn "apt repo signature problem — upgrades from that repo are stale:"
+    echo "$sig_errs" >&2
+fi
 {{- end }}

@@ -26,6 +26,17 @@
 [push]
     autoSetupRemote = true
 
+# What `gh auth setup-git` writes: git authenticates to GitHub through the gh
+# login, so HTTPS pushes work without a separate credential store. The empty
+# `helper =` line clears any helper inherited from the system config.
+[credential "https://github.com"]
+    helper =
+    helper = !gh auth git-credential
+
+[credential "https://gist.github.com"]
+    helper =
+    helper = !gh auth git-credential
+
 [fetch]
     prune = true
 
