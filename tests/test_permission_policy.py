@@ -32,6 +32,7 @@ POLICY = {
             "chezmoi": {"deny_flags": ["--config", "-c", "--pager", "--output", "-o"],
                         "env_allow": {"NO_COLOR": "1"}},
             "probe": {"ask_flags": ["--risky"]},
+            "gh": {},
         },
     },
     "chezmoi_working_tree": ROOT,
@@ -499,3 +500,37 @@ class MissingPolicy(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GhCiPolling(unittest.TestCase):
+    """A gh CI watch must poll at most once a minute: every token acting as
+    the user shares one hourly API budget."""
+
+    def test_watch_without_an_interval_is_denied(self):
+        for command in ("gh run watch 123", "rtk gh run watch 123 --exit-status",
+                        "gh pr checks 9 --watch", "gh pr checks 9 --repo o/r --watch --fail-fast"):
+            with self.subTest(command=command):
+                decision = decide(command, TRUSTED, None, POLICY)
+                self.assertEqual(decision.permission, "deny")
+                self.assertIn("--interval 60", decision.reason)
+
+    def test_watch_faster_than_a_minute_is_denied(self):
+        for command in ("gh run watch 123 --interval 30", "gh run watch 123 -i 3",
+                        "gh pr checks 9 --watch --interval=10", "gh run watch 123 -i5"):
+            with self.subTest(command=command):
+                self.assertEqual(permission(command), "deny")
+
+    def test_watch_at_a_minute_or_slower_is_not_denied(self):
+        for command in ("gh run watch 123 --interval 60 --exit-status",
+                        "gh run watch 123 -i 120", "gh pr checks 9 --watch --interval=60",
+                        "gh pr checks 9 --watch -i 90"):
+            with self.subTest(command=command):
+                self.assertNotEqual(permission(command), "deny")
+
+    def test_a_single_read_is_not_a_watch(self):
+        for command in ("gh pr checks 9", "gh run view 123", "gh run list"):
+            with self.subTest(command=command):
+                self.assertNotEqual(permission(command), "deny")
+
+    def test_a_watch_inside_a_list_is_denied(self):
+        self.assertEqual(permission("sleep 30; gh run watch 123 > /dev/null 2>&1"), "deny")
