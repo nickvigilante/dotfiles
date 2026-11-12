@@ -331,6 +331,13 @@ env_allow = { NO_COLOR = "1" }
 [permissions.commands.triage-inbox]
 args = ["inbox *", "pr *"]
 
+# Wrapper installed by home/dot_local/bin/executable_agent-mailbox for the
+# agent-mailbox skill. Only its read-only subcommands are listed: whoami, inbox
+# and context take no arguments, and show takes one issue number. send, claim,
+# reply, close and setup-labels write to the mailbox repo, so they still prompt.
+[permissions.commands.agent-mailbox]
+args = ["whoami", "inbox", "context", "show *"]
+
 # A kubeconfig or kuberc can name an exec credential plugin or override
 # commands, so only the defaults are allowed; KUBECONFIG= and KUBERC= are
 # blocked because env_allow lists neither. --server (-s) and --proxy-url send
