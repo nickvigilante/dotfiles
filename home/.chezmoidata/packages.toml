@@ -604,6 +604,22 @@ tiers = ["gui", "personal"]
 profiles = ["personal"]
 
 [[packages]]
+key = "openscad@snapshot"
+section = "cask"
+cask = "openscad@snapshot"
+comment = "Code-based CAD for 3D prints (stable cask is disabled: fails Gatekeeper)"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "bambu-studio"
+section = "cask"
+cask = "bambu-studio"
+comment = "Slicer for the Bambu Lab printer"
+tiers = ["gui", "personal"]
+profiles = ["personal"]
+
+[[packages]]
 key = "font-jetbrains-mono-nerd-font"
 section = "cask"
 cask = "font-jetbrains-mono-nerd-font"
