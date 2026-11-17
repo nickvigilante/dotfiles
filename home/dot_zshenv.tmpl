@@ -44,7 +44,7 @@ fi
 
 # 1Password SSH agent (Settings > Developer > "Use the SSH agent"). Gate on
 # socket presence so ssh still works when the app isn't running.
-_op_sock="$HOME/Library/Group Containers/2BUA8C4S2C.group.com.1password/t/agent.sock"
+_op_sock="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 if [[ -S "$_op_sock" ]]; then
     export SSH_AUTH_SOCK="$_op_sock"
 fi
