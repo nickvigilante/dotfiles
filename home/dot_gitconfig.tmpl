@@ -43,6 +43,19 @@ other ephemeral machines, which have no key, keep committing unsigned. */ -}}
 [push]
     autoSetupRemote = true
 
+{{- if eq .profile "work" }}
+
+# No GitHub credentials on a work laptop (SEC-1411 follow-up): commits and
+# pushes happen inside Coder workspaces, which hold their own auth. The empty
+# `helper =` clears the osxkeychain helper the system gitconfig sets, so git
+# never caches a GitHub password or token here. Public clones still work.
+[credential "https://github.com"]
+    helper =
+
+[credential "https://gist.github.com"]
+    helper =
+{{- else }}
+
 # What `gh auth setup-git` writes: git authenticates to GitHub through the gh
 # login, so HTTPS pushes work without a separate credential store. The empty
 # `helper =` line clears any helper inherited from the system config.
@@ -53,6 +66,7 @@ other ephemeral machines, which have no key, keep committing unsigned. */ -}}
 [credential "https://gist.github.com"]
     helper =
     helper = !gh auth git-credential
+{{- end }}
 
 [fetch]
     prune = true
