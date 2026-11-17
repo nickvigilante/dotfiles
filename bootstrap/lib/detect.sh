@@ -61,7 +61,7 @@ detect_wsl() {
 
 detect_ephemeral() {
 	DETECTED_EPHEMERAL=0
-	if [[ -f /.dockerenv ]] || [[ -n "${CODESPACES:-}" ]] || [[ -n "${AWS_EXECUTION_ENV:-}" ]]; then
+	if [[ -f /.dockerenv ]] || [[ -n "${CODER:-}" ]] || [[ -n "${CODESPACES:-}" ]] || [[ -n "${AWS_EXECUTION_ENV:-}" ]]; then
 		DETECTED_EPHEMERAL=1
 	fi
 	if [[ "$DETECTED_EPHEMERAL" == 0 ]] && command -v curl &> /dev/null; then

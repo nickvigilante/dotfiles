@@ -43,6 +43,15 @@ Available flags: `--profile`, `--name`, `--email`, `--machine`, `--display | --n
 Each has an env-var equivalent (`DOTFILES_PROFILE`, `DOTFILES_DISPLAY=1|0`, etc.).
 With `--non-interactive`, any unspecified field that can't be auto-detected aborts with an error.
 
+### Coder workspaces
+
+`install.sh` at the repo root is the entry point that `coder dotfiles` and the Coder registry dotfiles module look for.
+Set the workspace's `dotfiles_uri` parameter to this repo's URL and every workspace start runs it.
+Inside a workspace it installs chezmoi to `~/.local/bin`, points it at the module's clone, and applies files only, with `--exclude scripts,externals`, so no package installs run on start.
+It assumes `--profile work --machine ephemeral --secrets none` and takes the name and email from the template's git-config module.
+Outside a workspace it is a plain alias for `bootstrap/install.sh`.
+Set `DOTFILES_DRY_RUN=1` to preview the changes without applying them.
+
 ### Windows (elevated PowerShell)
 
 ```powershell
