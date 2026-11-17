@@ -1,16 +1,32 @@
-{{- /* Coder workspaces sign with the dedicated key that the `github-signing-key`
-user secret writes to ~/.ssh/agent-signing; its public half is registered on
-GitHub as a signing key only. Gate on the file, not just the machine role, so
-other ephemeral machines, which have no key, keep committing unsigned. */ -}}
-{{- $sign := and (eq .machine "ephemeral") (stat (joinPath .chezmoi.homeDir ".ssh" "agent-signing")) -}}
+{{- /* Commit signing, two sources for one identity.
+Coder workspaces (machine=ephemeral) sign with the dedicated key that the
+`github-signing-key` user secret writes to ~/.ssh/agent-signing. Gate on the
+file, not just the role, so other ephemeral machines, which have no key, keep
+committing unsigned.
+Laptops and desktops sign with the Bitwarden desktop app's key. Its public
+half is ~/.ssh/bitwarden-signing.pub, and git-ssh-sign-bitwarden points
+ssh-keygen at the Bitwarden socket, since SSH_AUTH_SOCK can belong to
+1Password on a work machine. Both public keys are GitHub signing keys only. */ -}}
+{{- $workspaceKey := and (eq .machine "ephemeral") (stat (joinPath .chezmoi.homeDir ".ssh" "agent-signing")) -}}
+{{- $bitwardenKey := or (eq .machine "laptop") (eq .machine "desktop") -}}
 [user]
     name  = {{ .name }}
     email = {{ .email }}
-{{- if $sign }}
+{{- if $workspaceKey }}
     signingkey = ~/.ssh/agent-signing
+{{- else if $bitwardenKey }}
+    signingkey = ~/.ssh/bitwarden-signing.pub
+{{- end }}
+{{- if or $workspaceKey $bitwardenKey }}
 
 [gpg]
     format = ssh
+
+[gpg "ssh"]
+    allowedSignersFile = ~/.config/git/allowed_signers
+{{- if $bitwardenKey }}
+    program = {{ .chezmoi.homeDir }}/.local/bin/git-ssh-sign-bitwarden
+{{- end }}
 
 [commit]
     gpgsign = true

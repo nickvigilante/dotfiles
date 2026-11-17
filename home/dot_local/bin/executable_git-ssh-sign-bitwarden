@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ssh-keygen with SSH_AUTH_SOCK pointed at the Bitwarden desktop app's agent,
+# for git's gpg.ssh.program. Git signs with `ssh-keygen -Y sign -f <pubkey>`,
+# which looks the private key up through SSH_AUTH_SOCK, and on a work laptop
+# that socket belongs to 1Password. Only Bitwarden holds the signing key, so
+# route git's signing calls there without changing the shell's agent.
+set -euo pipefail
+
+for sock in \
+	"$HOME/.bitwarden-ssh-agent.sock" \
+	"$HOME/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock" \
+	"$HOME/.var/app/com.bitwarden.desktop/.bitwarden-ssh-agent.sock" \
+	"$HOME/snap/bitwarden/current/.bitwarden-ssh-agent.sock"; do
+	if [[ -S "$sock" ]]; then
+		SSH_AUTH_SOCK="$sock" exec ssh-keygen "$@"
+	fi
+done
+
+echo "git-ssh-sign-bitwarden: no Bitwarden SSH agent socket; open Bitwarden and enable its SSH agent" >&2
+exit 1
