@@ -12,3 +12,10 @@ Host *
     # Ghostty's own ssh-terminfo shell integration (1.4.0+) installs the real
     # terminfo entry per-host instead, but requires a tip build; revisit then.
     SetEnv TERM=xterm-256color
+{{- if and (eq .chezmoi.os "darwin") (or (eq .secrets "1password") (eq .secrets "both")) }}
+    # 1Password SSH agent (Settings > Developer > "Use the SSH agent"). Set
+    # here as well as SSH_AUTH_SOCK in .zshenv so ssh started by GUI apps and
+    # VS Code, which never source the shell, uses it too. A host that needs a
+    # different agent sets its own IdentityAgent above this block.
+    IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+{{- end }}

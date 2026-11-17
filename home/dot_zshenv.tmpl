@@ -40,6 +40,16 @@ export NERD_FONT=1
 if [[ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]] && [[ -f "$HOME/.config/op/token" ]]; then
     export OP_SERVICE_ACCOUNT_TOKEN="$(cat "$HOME/.config/op/token")"
 fi
+    {{- if eq .chezmoi.os "darwin" }}
+
+# 1Password SSH agent (Settings > Developer > "Use the SSH agent"). Gate on
+# socket presence so ssh still works when the app isn't running.
+_op_sock="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+if [[ -S "$_op_sock" ]]; then
+    export SSH_AUTH_SOCK="$_op_sock"
+fi
+unset _op_sock
+    {{- end }}
 {{- end }}
 
 {{- if or (eq .secrets "bitwarden") (eq .secrets "both") }}

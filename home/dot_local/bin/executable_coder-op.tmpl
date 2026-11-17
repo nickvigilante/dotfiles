@@ -1,0 +1,42 @@
+#!/bin/sh
+# Run the Coder CLI with a session token fetched from 1Password on each call.
+#
+# The laptop never runs `coder login`, so no token sits in the keyring or in
+# ~/Library/Application Support/coderv2. Instead this wrapper asks 1Password
+# for it every time, and the desktop app's unlock prompt (Touch ID) is what
+# admits or refuses `coder ssh`, `ssh coder.<ws>` and the VS Code extension's
+# ProxyCommand alike. Point ssh at it once with:
+#
+#   coder config-ssh --coder-binary-path ~/.local/bin/coder-op
+#
+# The 1Password item is a plain "API credential" named by CODER_OP_ITEM
+# (default "Coder dogfood API token") in the vault named by CODER_OP_VAULT
+# (default "Employee"); its `credential` field holds a token from
+# `coder tokens create`. Keep that token short-lived and refresh it in the
+# vault. The name is deliberately distinct from the "Coder Dogfood" Login item
+# that holds the dashboard sign-in, because op matches titles case-insensitively.
+#
+# Pass-through cases, where the wrapper adds nothing:
+#   - a token is already in the environment (scripts, CI);
+#   - running inside a workspace, where the agent authenticates itself;
+#   - `op` is missing, so there is no vault to ask.
+set -eu
+
+{{- if eq .chezmoi.os "darwin" }}
+real=/opt/homebrew/bin/coder
+{{- else }}
+real=/usr/local/bin/coder
+{{- end }}
+
+if [ -n "${CODER_SESSION_TOKEN:-}" ] || [ -n "${CODER:-}" ] || ! command -v op >/dev/null 2>&1; then
+    exec "$real" "$@"
+fi
+
+item="${CODER_OP_ITEM:-Coder dogfood API token}"
+vault="${CODER_OP_VAULT:-Employee}"
+CODER_SESSION_TOKEN="$(op read "op://${vault}/${item}/credential")" || {
+    echo "coder-op: 1Password did not release the Coder token; refusing to connect" >&2
+    exit 1
+}
+export CODER_SESSION_TOKEN
+exec "$real" "$@"

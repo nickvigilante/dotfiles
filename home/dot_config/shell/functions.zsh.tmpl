@@ -214,3 +214,12 @@ bup() {
         brew update && brew upgrade && brew cleanup
     fi
 }
+{{- if and (eq .profile "work") (or (eq .secrets "1password") (eq .secrets "both")) }}
+
+# Gate every `coder` invocation behind 1Password. The session token lives
+# only in the vault (never `coder login`), and coder-op fetches it per call,
+# so 1Password's unlock prompt stands between you and any workspace.
+coder() {
+    coder-op "$@"
+}
+{{- end }}
