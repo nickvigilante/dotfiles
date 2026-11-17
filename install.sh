@@ -26,7 +26,7 @@ export PATH="$bin:$PATH"
 
 if ! command -v chezmoi > /dev/null 2>&1; then
 	echo "Installing chezmoi to $bin"
-	sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- -b "$bin"
+	sh -c "$(curl --proto '=https' --tlsv1.2 -fsLS https://get.chezmoi.io/lb)" -- -b "$bin"
 fi
 
 # The template's git-config module exports the workspace owner's identity;
