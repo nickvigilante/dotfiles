@@ -58,5 +58,11 @@ machine = {{ $machine | quote }}
 display = {{ $display }}
 secrets = {{ $secrets | quote }}
 
+{{- /* delta comes from the Brewfile, which run scripts install; a machine that
+applies files only (Coder workspaces) has no delta, and chezmoi fails on any
+diff, including --dry-run --verbose, when the pager is missing. */ -}}
+{{- if lookPath "delta" }}
+
 [diff]
 pager = "delta"
+{{- end }}

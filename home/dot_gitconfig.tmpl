@@ -1,6 +1,23 @@
+{{- /* Coder workspaces sign with the dedicated key that the `github-signing-key`
+user secret writes to ~/.ssh/agent-signing; its public half is registered on
+GitHub as a signing key only. Gate on the file, not just the machine role, so
+other ephemeral machines, which have no key, keep committing unsigned. */ -}}
+{{- $sign := and (eq .machine "ephemeral") (stat (joinPath .chezmoi.homeDir ".ssh" "agent-signing")) -}}
 [user]
     name  = {{ .name }}
     email = {{ .email }}
+{{- if $sign }}
+    signingkey = ~/.ssh/agent-signing
+
+[gpg]
+    format = ssh
+
+[commit]
+    gpgsign = true
+
+[tag]
+    gpgsign = true
+{{- end }}
 
 [core]
     excludesfile = ~/.gitignore_global
