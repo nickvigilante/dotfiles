@@ -46,15 +46,18 @@ elif [[ "$(cd "$src" && pwd -P)" != "$here" ]]; then
 	exit 1
 fi
 
-args=(--exclude "scripts,externals")
-if [[ -n "${DOTFILES_DRY_RUN:-}" ]]; then
-	args+=(--dry-run --verbose)
-fi
-
-chezmoi init --apply "${args[@]}" \
+# init and apply run separately: `chezmoi init --apply --dry-run` skips
+# writing the config, and the apply that follows then has no data.
+chezmoi init \
 	--promptChoice "Profile=work" \
 	--promptString "Full name=$name" \
 	--promptString "Email address=$email" \
 	--promptChoice "Machine role=ephemeral" \
 	--promptBool "Has graphical display=false" \
 	--promptChoice "Secret managers=none"
+
+args=(--exclude "scripts,externals")
+if [[ -n "${DOTFILES_DRY_RUN:-}" ]]; then
+	args+=(--dry-run --verbose)
+fi
+chezmoi apply "${args[@]}"
