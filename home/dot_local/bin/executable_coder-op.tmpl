@@ -10,9 +10,11 @@
 #   coder config-ssh --coder-binary-path ~/.local/bin/coder-op
 #
 # The 1Password item is a plain "API credential" named by CODER_OP_ITEM
-# (default "Coder dogfood") in the vault named by CODER_OP_VAULT (default
-# "Employee"); its `credential` field holds a token from `coder tokens create`.
-# Keep that token short-lived and refresh it in the vault.
+# (default "Coder dogfood API token") in the vault named by CODER_OP_VAULT
+# (default "Employee"); its `credential` field holds a token from
+# `coder tokens create`. Keep that token short-lived and refresh it in the
+# vault. The name is deliberately distinct from the "Coder Dogfood" Login item
+# that holds the dashboard sign-in, because op matches titles case-insensitively.
 #
 # Pass-through cases, where the wrapper adds nothing:
 #   - a token is already in the environment (scripts, CI);
@@ -30,7 +32,7 @@ if [ -n "${CODER_SESSION_TOKEN:-}" ] || [ -n "${CODER:-}" ] || ! command -v op >
     exec "$real" "$@"
 fi
 
-item="${CODER_OP_ITEM:-Coder dogfood}"
+item="${CODER_OP_ITEM:-Coder dogfood API token}"
 vault="${CODER_OP_VAULT:-Employee}"
 CODER_SESSION_TOKEN="$(op read "op://${vault}/${item}/credential")" || {
     echo "coder-op: 1Password did not release the Coder token; refusing to connect" >&2
