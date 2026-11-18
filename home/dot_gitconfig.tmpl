@@ -6,18 +6,23 @@ committing unsigned.
 Laptops and desktops sign with the Bitwarden desktop app's key. Its public
 half is ~/.ssh/bitwarden-signing.pub, and git-ssh-sign-bitwarden points
 ssh-keygen at the Bitwarden socket, since SSH_AUTH_SOCK can belong to
-1Password on a work machine. Both public keys are GitHub signing keys only. */ -}}
+1Password on a work machine. Both public keys are GitHub signing keys only.
+Servers have no Bitwarden desktop app, so they sign with the same Bitwarden key
+through the agent that `ssh -A` forwards from a laptop, and use the stock
+ssh-keygen. With no forwarded agent, a commit fails instead of going out
+unsigned. */ -}}
 {{- $workspaceKey := and (eq .machine "ephemeral") (stat (joinPath .chezmoi.homeDir ".ssh" "agent-signing")) -}}
 {{- $bitwardenKey := or (eq .machine "laptop") (eq .machine "desktop") -}}
+{{- $forwardedKey := eq .machine "server" -}}
 [user]
     name  = {{ .name }}
     email = {{ .email }}
 {{- if $workspaceKey }}
     signingkey = ~/.ssh/agent-signing
-{{- else if $bitwardenKey }}
+{{- else if or $bitwardenKey $forwardedKey }}
     signingkey = ~/.ssh/bitwarden-signing.pub
 {{- end }}
-{{- if or $workspaceKey $bitwardenKey }}
+{{- if or $workspaceKey $bitwardenKey $forwardedKey }}
 
 [gpg]
     format = ssh
