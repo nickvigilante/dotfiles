@@ -1146,6 +1146,14 @@ tiers = ["personal"]
 profiles = ["personal"]
 
 [[packages]]
+key = "fonttools-uv"
+section = "uv"
+uv = "fonttools[woff]"
+comment = "Subsets fonts to WOFF2 and extracts glyph outlines (Reuben docs site)"
+tiers = ["personal"]
+profiles = ["personal"]
+
+[[packages]]
 key = "pi-coding-agent"
 section = "npm"
 npm = "@earendil-works/pi-coding-agent"
