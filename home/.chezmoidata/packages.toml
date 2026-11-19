@@ -1151,3 +1151,11 @@ section = "npm"
 npm = "@earendil-works/pi-coding-agent"
 comment = "pi coding agent CLI"
 tiers = ["core"]
+
+[[packages]]
+key = "yarn"
+section = "npm"
+npm = "@yarnpkg/cli-dist"
+comment = "Yarn 4 (`yarn`) for nickvigilante.com's yarn.lock; standalone because Homebrew's corepack conflicts with pnpm"
+tiers = ["personal"]
+profiles = ["personal"]
