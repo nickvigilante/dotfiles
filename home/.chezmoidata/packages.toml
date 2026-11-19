@@ -537,6 +537,14 @@ tiers = ["rust"]
 profiles = ["personal"]
 
 [[packages]]
+key = "cargo-dist"
+section = "personal"
+brew = "cargo-dist"
+comment = "`dist` — generates Reuben's release workflow and builds release archives"
+tiers = ["rust"]
+profiles = ["personal"]
+
+[[packages]]
 key = "openapi-generator"
 section = "personal"
 brew = "openapi-generator"
