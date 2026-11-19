@@ -537,6 +537,22 @@ tiers = ["rust"]
 profiles = ["personal"]
 
 [[packages]]
+key = "hugo"
+section = "personal"
+brew = "hugo"
+comment = "Static site generator, benchmarked against Reuben"
+tiers = ["personal"]
+profiles = ["personal"]
+
+[[packages]]
+key = "lychee"
+section = "personal"
+brew = "lychee"
+comment = "Offline link checker, the link-check half of the SSG benchmarks"
+tiers = ["personal"]
+profiles = ["personal"]
+
+[[packages]]
 key = "openapi-generator"
 section = "personal"
 brew = "openapi-generator"
