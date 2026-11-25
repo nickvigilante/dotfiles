@@ -112,9 +112,7 @@ allow = [
   "mcp__claude_ai_cloudflare__docs",
   "mcp__claude_ai_cloudflare__whoami",
 ]
-ask = [
-  "mcp__claude_ai_cloudflare__execute",
-]
+ask = ["mcp__claude_ai_cloudflare__execute"]
 
 # Settings for the permission-prefilter hook.
 [permissions.hook]
