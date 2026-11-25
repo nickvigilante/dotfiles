@@ -45,6 +45,13 @@ class RenderedSettings(unittest.TestCase):
     def test_no_static_curl_rules(self):
         self.assertFalse([r for r in self.allow if r.startswith(("Bash(curl", "Bash(rtk curl"))])
 
+    def test_cloudflare_connector_reads_allowed_execute_asks(self):
+        for tool in ("search", "docs", "whoami"):
+            with self.subTest(tool=tool):
+                self.assertIn("mcp__claude_ai_cloudflare__%s" % tool, self.allow)
+        self.assertNotIn("mcp__claude_ai_cloudflare__execute", self.allow)
+        self.assertIn("mcp__claude_ai_cloudflare__execute", self.settings["permissions"]["ask"])
+
     def test_plain_and_rtk_forms_together(self):
         for tool in ("ls", "rg", "tree", "wc", "diff", "du", "df", "ps", "grep"):
             with self.subTest(tool=tool):
