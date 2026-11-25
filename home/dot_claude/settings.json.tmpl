@@ -15,6 +15,14 @@
         {{- end }}
     {{- end }}
 {{- end }}
+{{- range $tool := .permissions.tools.allow }}
+      ,{{ $tool | toJson }}
+{{- end }}
+    ],
+    "ask": [
+{{- range $i, $tool := .permissions.tools.ask }}
+      {{ if $i }},{{ end }}{{ $tool | toJson }}
+{{- end }}
     ],
     "deny": [
 {{- $first = true }}

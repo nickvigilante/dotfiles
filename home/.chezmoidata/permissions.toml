@@ -102,6 +102,20 @@ rtk_wraps = [
   "shellcheck",
 ]
 
+# Rules for non-Bash tools (MCP connectors), copied verbatim into settings.json.
+# `allow` runs without a prompt; `ask` always prompts, even in auto mode.
+# The claude.ai Cloudflare connector does every API call, read or write, through
+# its one `execute` tool, so it asks; its OAuth scopes are the hard limit.
+[permissions.tools]
+allow = [
+  "mcp__claude_ai_cloudflare__search",
+  "mcp__claude_ai_cloudflare__docs",
+  "mcp__claude_ai_cloudflare__whoami",
+]
+ask = [
+  "mcp__claude_ai_cloudflare__execute",
+]
+
 # Settings for the permission-prefilter hook.
 [permissions.hook]
 # `cargo test|clippy|build|run|check` is auto-approved only under these roots.
