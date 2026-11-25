@@ -281,6 +281,13 @@ comment = "CLI benchmarking tool"
 tiers = ["core"]
 
 [[packages]]
+key = "samply"
+section = "cli"
+brew = "samply"
+comment = "Sampling profiler with a browser flame graph"
+tiers = ["core"]
+
+[[packages]]
 key = "glow"
 section = "cli"
 brew = "glow"
